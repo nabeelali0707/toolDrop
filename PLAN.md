@@ -1,0 +1,207 @@
+# toolDrop plan
+
+The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of under a day, with the files each task touches. Choices and open questions are in [DECISIONS.md](DECISIONS.md).
+
+**Status:** Phase 0 not started.
+
+**How this file works**
+
+- Phases run in order. A phase is done when lint, typecheck and all tests pass and its gate criteria (from SPEC's acceptance table) pass.
+- A task is checked off when it is committed to `main`. If a task turns out bigger than a day, split it here first.
+- File lists are the plan, not a limit: a task may add small helpers next to the files it names.
+- Conventions (D-020): packages are named `@tooldrop/<dir>`, ESM only, TypeScript strict. Unit tests sit next to the code as `*.test.ts`, end-to-end tests are `*.e2e.test.ts`, and tests that call real Ollama models are `*.llm.test.ts`, run locally with `pnpm test:llm` and never in CI (D-017).
+
+## Phase 0: Foundations
+
+- [ ] **0.1 Workspace scaffold.** pnpm workspace (`apps/*`, `packages/*`, `fixtures/*`), Turborepo tasks (`build`, `lint`, `typecheck`, `test`), strict shared TypeScript config, Node 24 pin (D-018), telemetry off (D-012).
+  Files: `package.json`, `pnpm-workspace.yaml`, `turbo.json`, `tsconfig.base.json`, `.npmrc`, `.nvmrc`, `.gitignore`, `.editorconfig`
+- [ ] **0.2 Lint and format.** ESLint flat config with type-aware typescript-eslint rules (`no-floating-promises`, `no-misused-promises`) and Prettier (D-021).
+  Files: `eslint.config.js`, `.prettierrc.json`, `.prettierignore`, `package.json`
+- [ ] **0.3 Test harness.** Vitest with one project per workspace package; `pnpm test` for CI, `pnpm test:llm` for real-model tests.
+  Files: `vitest.config.ts`, `package.json`
+- [ ] **0.4 License check.** A script that reads `pnpm licenses list --json` and fails on any license outside the policy (D-002), with unit tests for the policy logic.
+  Files: `scripts/check-licenses.mjs`, `license-policy.json`, `scripts/check-licenses.test.ts`
+- [ ] **0.5 CI.** GitHub Actions on push and pull request: frozen-lockfile install, lint, typecheck, test, license check, pnpm store cache, Playwright Chromium for browser tests.
+  Files: `.github/workflows/ci.yml`
+- [ ] **0.6 `core`: IDs, errors, shared types.** ULID helpers, `ToolDropError` with stable error codes, strategy and authority enums, JSON Schema type.
+  Files: `packages/core/package.json`, `packages/core/src/{index,ids,errors,common}.ts`, tests
+- [ ] **0.7 `core`: recipe format.** Zod schemas for the recipe envelope, the `http`, `map` and `paginate` ops, the browser ops (`goto`, `click`, `fill`, `select`, `wait_for`, `extract_table`, `extract_text`), ranked selectors and `{{...}}` template references. SPEC's example recipe must parse.
+  Files: `packages/core/src/recipe/{schema,ops,selectors,templates}.ts`, tests
+- [ ] **0.8 `core`: tool, job and run schemas.** Tool definition (name, description, authority, input and output JSON Schema), job kinds, states, questions and answers, and the run envelope `{ result, meta }`.
+  Files: `packages/core/src/{tool,job,run}.ts`, tests
+- [ ] **0.9 `db`: schema.** Drizzle tables for every SPEC table (`sites`, `logins`, `sessions`, `tools`, `recipe_versions`, `jobs`, `runs`, `llm_calls`, `watches`, `approvals`, `captures`) with portable column choices: text ULIDs, JSON columns, integer timestamps. The dialect depends on Q-1.
+  Files: `packages/db/package.json`, `packages/db/src/schema.ts`
+- [ ] **0.10 `db`: migrations and client.** drizzle-kit migration for the schema, connection factory, migration runner, and a round-trip test that writes and reads every table.
+  Files: `packages/db/drizzle.config.ts`, `packages/db/migrations/*`, `packages/db/src/{client,migrate,index}.ts`, tests
+- [ ] **0.11 Fixture kit.** Shared helper that starts a fixture on a random port and resets its seed data; `pnpm fixtures` starts all three on fixed ports for manual testing.
+  Files: `fixtures/kit/package.json`, `fixtures/kit/src/{server,seed,run-all}.ts`
+- [ ] **0.12 Fixture: JSON-API app.** An invoice page whose script calls `POST /api/v2/invoices/search` (CSRF header, `hasMore` pagination), matching SPEC's example recipe. Test switches: turn off the JSON endpoint (cascade test), rename a button and move a field (heal tests).
+  Files: `fixtures/json-api/src/{server,data}.ts`, `fixtures/json-api/public/{index.html,app.js}`, tests
+- [ ] **0.13 Fixture: server-rendered HTML app.** An invoice table with query-string filters and pagination links, and the same rename and move switches.
+  Files: `fixtures/html-app/src/{server,views}.ts`, tests
+- [ ] **0.14 Fixture: login + TOTP app.** Username and password, then a TOTP step (`otplib`), a session cookie, `/api/me`, a protected invoice page and a switch that expires sessions. The test account and TOTP secret exist only in the fixture.
+  Files: `fixtures/login-totp/src/{server,auth,views}.ts`, tests
+
+**Gate:** lint, typecheck, tests and the license check pass locally and in CI; every fixture's own tests pass.
+
+## Phase 1: Run a hand-written recipe
+
+- [ ] **1.1 `runtime`: templates and JSONPath.** Resolve `{{site}}`, `{{input.*}}`, `{{session.*}}` and `{{loop.*}}`; JSONPath reads via `jsonpath-plus`; typed errors for missing values.
+  Files: `packages/runtime/package.json`, `packages/runtime/src/{templates,jsonpath}.ts`, tests
+- [ ] **1.2 `runtime`: safe conditions.** A small parser for `paginate.until` and wait conditions (`$.path == literal`, `!=`, `<`, `>`, `&&`, `||`). No `eval`.
+  Files: `packages/runtime/src/conditions.ts`, tests
+- [ ] **1.3 `runtime`: `http_replay` executor.** The `http` op over `got-scraping`, the `paginate` loop and the `map` op.
+  Files: `packages/runtime/src/executors/http-replay.ts`, `packages/runtime/src/ops/{http,paginate,map}.ts`, tests against `fixtures/json-api`
+- [ ] **1.4 `runtime`: `html_fetch` executor.** Fetch over `got-scraping`, parse with `cheerio`, `extract_table` and `extract_text` by CSS selector.
+  Files: `packages/runtime/src/executors/html-fetch.ts`, tests against `fixtures/html-app`
+- [ ] **1.5 `runtime`: browser pool.** Warm Playwright contexts per site, isolated per login, loading and saving `storageState`.
+  Files: `packages/runtime/src/browser/pool.ts`, tests
+- [ ] **1.6 `runtime`: `browser_script` executor.** Ops `goto`, `click`, `fill`, `select`, `wait_for`, `extract_table`, `extract_text`; ranked selectors tried in order (role + name, test id, text, CSS).
+  Files: `packages/runtime/src/executors/browser-script.ts`, `packages/runtime/src/browser/selectors.ts`, tests against fixtures
+- [ ] **1.7 `runtime`: session pool.** Sessions per login reused across calls, with an expiry hook (the silent re-login arrives in 3.5).
+  Files: `packages/runtime/src/sessions/pool.ts`, tests
+- [ ] **1.8 `runtime`: cascade.** Input validation (Ajv), authority check, primary strategy, fallback `http_replay` → `browser_script`, output validation, `meta`.
+  Files: `packages/runtime/src/{cascade,validate}.ts`, tests
+- [ ] **1.9 `runtime`: limits and cache.** Per-site rate limit and concurrency cap (1 request/second, 2 concurrent), optional TTL cache (off by default, never for write tools).
+  Files: `packages/runtime/src/{limits,cache}.ts`, tests
+- [ ] **1.10 `db`: repositories.** Register tools, save recipe versions, record runs. Runs store metadata only; results are never persisted.
+  Files: `packages/db/src/repos/{tools,recipes,runs}.ts`, tests
+- [ ] **1.11 `server`: REST app.** Fastify app, bearer API keys (`api_keys` table, D-019), `GET /v1/tools`, `POST /v1/tools/:name/run`, a uniform error format.
+  Files: `apps/server/package.json`, `apps/server/src/{app,auth}.ts`, `apps/server/src/routes/tools.ts`, `packages/db/src/schema.ts`, tests
+- [ ] **1.12 `mcp`: server.** stdio and Streamable HTTP transports, `run_tool` and `find_tool`, one dynamic tool per published tool with `tools/list_changed`.
+  Files: `apps/mcp/package.json`, `apps/mcp/src/{server,stdio,http,dynamic-tools}.ts`, tests with the MCP SDK client
+- [ ] **1.13 Hand-written recipes.** One recipe per fixture plus a seed script that registers them; end-to-end runs over REST and MCP.
+  Files: `fixtures/recipes/*.json`, `apps/server/test/run.e2e.test.ts`, `apps/mcp/test/mcp.e2e.test.ts`
+
+**Gate:** *Cascade* and *MCP* criteria. MCP over stdio and HTTP is tested in CI with the SDK client, and checked once by hand in Claude Desktop or Claude Code.
+
+## Phase 2: Build pipeline (MVP core)
+
+- [ ] **2.1 `llm`: provider and Ollama adapter.** The `LlmProvider` interface, the Ollama adapter (`ollama` npm client), per-call options (`num_ctx`, temperature, seed, `keep_alive`) and the `code` and `reasoning` model roles (D-003).
+  Files: `packages/llm/package.json`, `packages/llm/src/{provider,ollama,config}.ts`, tests against a stub HTTP server
+- [ ] **2.2 `llm`: strict JSON.** `generateJson(schema, prompt)`: Zod to JSON Schema (`z.toJSONSchema`), passed as `format`; parse, validate, retry with the validation errors up to 3 times (D-005).
+  Files: `packages/llm/src/json.ts`, tests
+- [ ] **2.3 `llm`: OpenAI-compatible adapter.** `fetch` against `/v1/chat/completions`; `response_format` with a JSON schema where supported, else plain JSON mode; same validation and retries.
+  Files: `packages/llm/src/openai-compatible.ts`, tests against a stub server
+- [ ] **2.4 `llm`: masking and redaction.** Credentials, cookies and tokens become placeholders in every prompt; PII redaction for external endpoints; local versus external endpoint detection, including Ollama cloud models (D-011).
+  Files: `packages/llm/src/{redact,endpoint}.ts`, tests
+- [ ] **2.5 `llm`: usage, budgets, fake provider.** `llm_calls` rows and per-job totals, prompt token estimate and budget check (D-006), and a fake provider that replays recorded replies for CI.
+  Files: `packages/llm/src/{usage,budget,fake}.ts`, `packages/db/src/repos/llm-calls.ts`, tests
+- [ ] **2.6 `compiler`: capture.** Playwright HAR with bodies, accessibility-tree and DOM snapshots and user actions, stored in the data directory and indexed in `captures`.
+  Files: `packages/compiler/package.json`, `packages/compiler/src/capture/{capture,har,ax-tree}.ts`, tests against fixtures
+- [ ] **2.7 `compiler`: prompt builders.** Accessibility-tree pruner, HAR summarizer (URL templates, JSON shapes, truncated samples) and the HTML subtree pruner for `html_fetch`.
+  Files: `packages/compiler/src/prompt/{ax-prune,har-summary,html-subtree}.ts`, tests with recorded HAR files
+- [ ] **2.8 Recordings.** Recording format v1 (actions with ranked selectors, marked inputs, HAR), recording-mode replay into a capture, `POST /v1/recordings`.
+  Files: `packages/core/src/recording.ts`, `packages/compiler/src/recording/replay.ts`, `apps/server/src/routes/recordings.ts`, tests
+- [ ] **2.9 `cli`: `tooldrop record`.** A headed Playwright browser that records clicks, inputs and HAR, lets the user mark inputs at the end, then saves and uploads the recording (D-014).
+  Files: `apps/cli/package.json`, `apps/cli/src/commands/record.ts`, `packages/compiler/src/recording/recorder.ts`, tests with a scripted session on a fixture
+- [ ] **2.10 `compiler`: traffic analyzer.** Rank requests by how much target data they return; classify fields (`constant`, `user_input`, `derived`, `auth`, `pagination`) with heuristics first and the `reasoning` model only for leftovers.
+  Files: `packages/compiler/src/analyze/{rank,classify}.ts`, tests with recorded HAR files
+- [ ] **2.11 `compiler`: strategy picker and recipe generator.** Pick the cheapest viable strategy; the `code` model writes the recipe JSON, validated by the `core` recipe schema.
+  Files: `packages/compiler/src/generate/{strategy,recipe,prompts}.ts`, tests with the fake provider
+- [ ] **2.12 `compiler`: schemas.** Infer input and output JSON Schema from captured values; the `reasoning` model writes names and descriptions.
+  Files: `packages/compiler/src/generate/schemas.ts`, tests
+- [ ] **2.13 `compiler`: double validation.** Run 2 to 3 input sets via the chosen strategy and via `browser_script`, compare, and loop back to the strategy step at most 3 times.
+  Files: `packages/compiler/src/validate/double.ts`, tests
+- [ ] **2.14 `compiler`: explore agent.** The fallback when there is no recording: the `reasoning` model picks actions from the pruned accessibility tree, within a 30-action budget; when it gives up, the job asks for a recording (D-007).
+  Files: `packages/compiler/src/explore/{agent,actions}.ts`, tests with the fake provider on fixtures
+- [ ] **2.15 Jobs and build orchestration.** In-process queue, job states (`queued`, `running`, `waiting_for_answer`, `succeeded`, `failed`), clarifying questions that pause and resume, and the build steps 1 to 10 wired together.
+  Files: `packages/core/src/job.ts`, `apps/server/src/jobs/{queue,build}.ts`, tests
+- [ ] **2.16 Build interfaces.** MCP `build_tool`, `get_job`, `answer_question` and `find_tool`; REST `/v1/builds`, `/v1/jobs/:id`, `/v1/jobs/:id/answers`.
+  Files: `apps/server/src/routes/{builds,jobs}.ts`, `apps/mcp/src/tools/{build,jobs,find}.ts`, tests
+- [ ] **2.17 `cli`: `init`, `build`, `run`, `serve`.** `init` creates the data directory and config, checks that Ollama is running and pulls missing models.
+  Files: `apps/cli/src/commands/{init,build,run,serve}.ts`, tests
+- [ ] **2.18 End-to-end build tests.** Recorded model replies in CI; the same tests with real Ollama models via `pnpm test:llm`.
+  Files: `apps/server/test/build.e2e.test.ts`, `apps/server/test/build.llm.test.ts`, `fixtures/llm-replies/*.json`
+
+**Gate:** *Build (JSON API fixture)*, *Build (HTML fixture)*, *Recording* (with `tooldrop record`), *LLM output* and *Privacy* criteria.
+
+## Phase 3: Auth and self-healing
+
+- [ ] **3.1 `auth`: vault and master key.** libsodium secretbox; master key from the OS keychain (library per Q-2) or a mounted key file; `tooldrop init` generates the key (D-009).
+  Files: `packages/auth/package.json`, `packages/auth/src/vault/{vault,keychain,key-file}.ts`, `apps/cli/src/commands/init.ts`, tests
+- [ ] **3.2 `auth`: logins.** `add_login` and `list_logins` over MCP and REST, encrypted secrets, masked previews only.
+  Files: `packages/auth/src/logins.ts`, `apps/server/src/routes/logins.ts`, `apps/mcp/src/tools/logins.ts`, tests
+- [ ] **3.3 `auth`: login recipes.** Build and run a site's login recipe, verify the signed-in state, save the session.
+  Files: `packages/auth/src/login-recipe.ts`, tests against `fixtures/login-totp`
+- [ ] **3.4 `auth`: 2FA.** TOTP via `otplib`; human in the loop through a job question answered over MCP or REST.
+  Files: `packages/auth/src/twofa/{index,totp,human}.ts`, tests
+- [ ] **3.5 `auth`: session refresh.** Detect expiry (401/403, login redirect, failed check), re-login silently, hook into the runtime session pool.
+  Files: `packages/auth/src/sessions.ts`, `packages/runtime/src/sessions/pool.ts`, tests
+- [ ] **3.6 `healer`: detect.** Runtime-failure trigger, daily health check with saved test inputs, drift alert when the output shape changes.
+  Files: `packages/healer/package.json`, `packages/healer/src/detect.ts`, `apps/server/src/jobs/health-check.ts`, tests
+- [ ] **3.7 `healer`: diagnose.** Re-run up to the failing step with full capture; try the ranked-selector fallback before calling the model; build the diagnosis prompt (D-006).
+  Files: `packages/healer/src/diagnose.ts`, tests
+- [ ] **3.8 `healer`: patch, test, publish.** The `code` model returns a patch validated by a Zod patch schema; apply it, run the saved test inputs, publish or escalate after 3 attempts (`degraded`, owner notified); the `reasoning` model writes the heal reason.
+  Files: `packages/core/src/recipe/patch.ts`, `packages/healer/src/{patch,publish}.ts`, tests
+- [ ] **3.9 Versions and rollback.** Version history, rollback over REST and the CLI, heal log.
+  Files: `packages/db/src/repos/recipes.ts`, `apps/server/src/routes/tools.ts`, `apps/cli/src/commands/rollback.ts`, tests
+- [ ] **3.10 `runtime`: hold during heal.** Hold the call for up to 5 minutes while the heal runs, then return a structured error with the job ID; record `runs.heal_job_id`.
+  Files: `packages/runtime/src/cascade.ts`, `apps/server/src/jobs/heal.ts`, tests
+- [ ] **3.11 Security sweep.** Log redaction paths; a test that greps logs and recorded prompts for the fixture credentials.
+  Files: `packages/core/src/logging.ts`, `apps/server/test/security.e2e.test.ts`
+- [ ] **3.12 `llm`: API key in the vault.** The OpenAI-compatible adapter reads its optional API key from the vault.
+  Files: `packages/llm/src/openai-compatible.ts`, `packages/auth/src/vault/vault.ts`, tests
+
+**Gate:** *Login + 2FA*, *Self-heal*, *Rollback* and *Security* criteria.
+
+## Phase 4: MVP differentiators
+
+- [ ] **4.1 `extension`: scaffold.** Manifest V3 with Vite, a popup to start and stop recording, installed unpacked (D-015).
+  Files: `apps/extension/{package.json,manifest.json,vite.config.ts}`, `apps/extension/src/{background,popup}/*`
+- [ ] **4.2 `extension`: action recorder.** A content script that records clicks and inputs with ranked selectors and lets the user mark inputs.
+  Files: `apps/extension/src/content/recorder.ts`, `apps/extension/src/popup/mark-inputs.ts`, tests in Chromium with the unpacked extension
+- [ ] **4.3 `extension`: network capture and upload.** Network capture through `chrome.debugger` (needed for response bodies), export as recording v1, upload to `POST /v1/recordings`.
+  Files: `apps/extension/src/background/{network,upload}.ts`, tests
+- [ ] **4.4 `watches`: scheduler and diff.** `node-cron` schedules (5-minute minimum), snapshot hashes, diff by key field into `created`, `updated` and `deleted`.
+  Files: `packages/watches/package.json`, `packages/watches/src/{scheduler,diff}.ts`, tests
+- [ ] **4.5 `watches`: delivery.** HMAC-SHA256 signatures with a timestamp, retries with backoff, MCP notifications, `create_watch` and `delete_watch`, `POST /v1/watches`.
+  Files: `packages/watches/src/deliver.ts`, `apps/server/src/routes/watches.ts`, `apps/mcp/src/tools/watches.ts`, tests
+- [ ] **4.6 Safe mode: previews and approvals.** Preview (fields, target page, screenshot), approval tokens, `approve_action`, `POST /v1/approvals/:id`, plus a write form on the HTML fixture to test against.
+  Files: `packages/runtime/src/safe-mode/{preview,approvals}.ts`, `apps/server/src/routes/approvals.ts`, `apps/mcp/src/tools/approvals.ts`, `fixtures/html-app/src/views.ts`, tests
+- [ ] **4.7 Safe mode: policies and audit.** Policies (e.g. "auto-approve under $100"), the dry-run flag, a write audit log with before and after evidence.
+  Files: `packages/runtime/src/safe-mode/{policies,audit}.ts`, tests
+- [ ] **4.8 `dashboard`: tools and runs.** Next.js scaffold with an API client; tool pages with schema and a cURL example; run history.
+  Files: `apps/dashboard/package.json`, `apps/dashboard/app/{layout,page}.tsx`, `apps/dashboard/app/tools/*`, `apps/dashboard/app/runs/*`
+- [ ] **4.9 `dashboard`: logins, approvals, 2FA, heals.** Masked logins, approve or reject previews with the screenshot, answer human-in-the-loop 2FA prompts, heal log.
+  Files: `apps/dashboard/app/{logins,approvals,heals}/*`, tests
+
+**Gate:** *Watches*, *Safe mode* and *Recording* (through the extension) criteria; a dashboard smoke test.
+
+## Phase 5 and later
+
+Items marked "split first" are broken into day-sized tasks before work starts.
+
+**Self-hosted mode**
+
+- [ ] **5.1 `db`: Postgres.** The Postgres side of the database layer as decided in Q-1, with migrations and a parity test against the local database.
+  Files: `packages/db/src/*`, `packages/db/migrations/*`, tests
+- [ ] **5.2 Queue on Valkey.** A BullMQ implementation of the queue interface; CI runs the queue tests against a Valkey 8.1 service (D-010).
+  Files: `apps/server/src/jobs/bullmq-queue.ts`, `.github/workflows/ci.yml`, tests
+- [ ] **5.3 Compose stack.** App image on the Playwright base image, `compose.yaml` with `app`, `postgres`, `valkey` and `ollama` (behind a profile), the master key as a Compose secret, volumes, model pull on first start, telemetry off.
+  Files: `Dockerfile`, `compose.yaml`, `.dockerignore`
+- [ ] **5.4 Zero-cost check.** A script that, on a clean machine with no API keys, runs `docker compose up`, builds and runs a fixture tool.
+  Files: `scripts/zero-cost-e2e.sh`
+- [ ] **5.5 Multi-user, roles, audit logs** (split first).
+
+**More 2FA methods**
+
+- [ ] **5.6 Email OTP over IMAP.** Read the code from a connected inbox, matched by sender and time.
+  Files: `packages/auth/src/twofa/email.ts`, tests with a local IMAP test server
+- [ ] **5.7 SMS webhook.** `POST /v1/sms/inbound` with HMAC or bearer verification, stale and duplicate rejection, code extraction, waiting logins, the LAN-only listener in local mode, codes kept in memory or Valkey for 5 minutes (D-008).
+  Files: `packages/auth/src/twofa/sms.ts`, `apps/server/src/routes/sms.ts`, `apps/server/src/lan-listener.ts`, tests
+- [ ] **5.8 SMS fixture mode.** The login fixture sends its code "by SMS" to a test forwarder that posts to the webhook.
+  Files: `fixtures/login-totp/src/sms.ts`, tests
+
+**Later features** (split first)
+
+- [ ] **5.9 Transparency dashboard**
+- [ ] **5.10 URL-first discovery**
+- [ ] **5.11 Multi-site workflows**
+- [ ] **5.12 Code export**
+
+**Gate:** *SMS 2FA* and *Zero cost* criteria, plus each feature's own tests.
+
+## Done log
+
+Filled in at the end of each phase: what shipped, test results and the commit.
