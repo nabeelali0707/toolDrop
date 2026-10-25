@@ -1,0 +1,19 @@
+{
+  "name": "@tooldrop/fixture-demo-shop",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Fixture site for the main use case: a shop with login, TOTP and an order history.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/server.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@tooldrop/fixture-kit": "workspace:*",
+    "fastify": "^5.12.7",
+    "otplib": "^13.5.0"
+  }
+}

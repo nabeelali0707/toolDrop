@@ -51,6 +51,18 @@ importers:
         specifier: ^4.6.7
         version: 4.6.7
 
+  fixtures/demo-shop:
+    dependencies:
+      '@tooldrop/fixture-kit':
+        specifier: workspace:*
+        version: link:../kit
+      fastify:
+        specifier: ^5.12.7
+        version: 5.12.7
+      otplib:
+        specifier: ^13.5.0
+        version: 13.5.0
+
   fixtures/html-app:
     dependencies:
       '@tooldrop/fixture-kit':
