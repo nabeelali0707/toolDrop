@@ -1,0 +1,47 @@
+import { z } from 'zod';
+import { authoritySchema, idSchema } from './common.ts';
+
+export const jobKindSchema = z.enum(['build', 'heal', 'discover']);
+export type JobKind = z.infer<typeof jobKindSchema>;
+
+export const jobStatusSchema = z.enum(['queued', 'running', 'waiting_for_answer', 'succeeded', 'failed']);
+export type JobStatus = z.infer<typeof jobStatusSchema>;
+
+/** A job pauses in `waiting_for_answer` until the caller answers its question. */
+export const JOB_TRANSITIONS: Record<JobStatus, readonly JobStatus[]> = {
+  queued: ['running', 'failed'],
+  running: ['waiting_for_answer', 'succeeded', 'failed'],
+  waiting_for_answer: ['running', 'failed'],
+  succeeded: [],
+  failed: [],
+};
+
+export function canTransition(from: JobStatus, to: JobStatus): boolean {
+  return JOB_TRANSITIONS[from].includes(to);
+}
+
+/** Input to a build job (SPEC, Build pipeline step 1). */
+export const buildInputSchema = z.strictObject({
+  url: z.url({ protocol: /^https?$/ }),
+  task: z.string().min(1).max(2000),
+  authority: authoritySchema,
+  inputs_hint: z.string().max(2000).optional(),
+  recording_id: idSchema.optional(),
+});
+export type BuildInput = z.infer<typeof buildInputSchema>;
+
+/** A clarifying question. Times are epoch milliseconds, like every timestamp. */
+export const jobQuestionSchema = z.strictObject({
+  id: idSchema,
+  text: z.string().min(1),
+  options: z.array(z.string().min(1)).optional(),
+  asked_at: z.number().int(),
+});
+export type JobQuestion = z.infer<typeof jobQuestionSchema>;
+
+export const jobAnswerSchema = z.strictObject({
+  question_id: idSchema,
+  text: z.string().min(1),
+  answered_at: z.number().int(),
+});
+export type JobAnswer = z.infer<typeof jobAnswerSchema>;

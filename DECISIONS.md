@@ -230,3 +230,16 @@ Node 24 strips TypeScript types natively, without a flag or warning. Workspace p
 - The cost is that code must be erasable: no `enum`, `namespace` or constructor parameter properties (`erasableSyntaxOnly` enforces it), type-only imports use `import type` (`verbatimModuleSyntax`), and relative imports name the `.ts` file.
 - The dashboard (Next.js) and the extension (Vite) keep their own builds.
 - Turborepo runs `typecheck` per package and caches it. Tests run once from the root with Vitest.
+
+### D-025 Recipe format details
+
+*Proposed · 2026-10-26*
+
+SPEC gives the recipe envelope, an example and the op names. `packages/core` fills in the rest:
+
+- **Derived values.** SPEC's traffic analysis classifies some fields as `derived` (taken from an earlier response, such as an ID), but its format has no way to carry them. Any step may `save` values, read later as `{{vars.<name>}}`. An `http` step saves JSONPaths from its response; a data step saves its output.
+- **Template roots** are `site`, `input`, `session`, `loop` and `vars`. `{{loop.*}}` is valid only in the step that paginates with that variable, and `{{vars.*}}` only after an earlier step saved it.
+- **Pagination** has two modes: page numbers (`start`, optional `step`) as in SPEC's example, or a cursor read from each response (`from`). Both stop on `until`, with a `max_pages` cap (default 50).
+- **Results.** The data steps are `map`, `extract_table` and `extract_text`; a recipe returns what its last data step produced.
+- **Ops per strategy.** `http_replay` and `official_api` use `http` and `map`. `html_fetch` uses `http`, `extract_table` and `extract_text`, with css or test_id selectors only, because there is no browser to resolve roles or text. `browser_script` uses the browser ops and `map`.
+- Every object is strict: unknown keys fail validation, so a field the model invents is reported instead of silently dropped.

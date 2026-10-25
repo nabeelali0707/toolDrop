@@ -23,11 +23,11 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
   Files: `scripts/check-licenses.ts`, `scripts/license-policy.ts`, `scripts/license-policy.test.ts`, `license-policy.json`
 - [x] **0.5 CI.** GitHub Actions on push and pull request: frozen-lockfile install, format check, lint, typecheck, test, license check, pnpm store cache. Playwright Chromium joins with the first browser tests (Phase 1).
   Files: `.github/workflows/ci.yml`
-- [ ] **0.6 `core`: IDs, errors, shared types.** ULID helpers, `ToolDropError` with stable error codes, strategy and authority enums, JSON Schema type.
+- [x] **0.6 `core`: IDs, errors, shared types.** ULID helpers, `ToolDropError` with stable error codes, strategy and authority enums, JSON Schema type.
   Files: `packages/core/package.json`, `packages/core/src/{index,ids,errors,common}.ts`, tests
-- [ ] **0.7 `core`: recipe format.** Zod schemas for the recipe envelope, the `http`, `map` and `paginate` ops, the browser ops (`goto`, `click`, `fill`, `select`, `wait_for`, `extract_table`, `extract_text`), ranked selectors and `{{...}}` template references. SPEC's example recipe must parse.
+- [x] **0.7 `core`: recipe format.** Zod schemas for the recipe envelope, the `http`, `map` and `paginate` ops, the browser ops (`goto`, `click`, `fill`, `select`, `wait_for`, `extract_table`, `extract_text`), ranked selectors and `{{...}}` template references. SPEC's example recipe must parse.
   Files: `packages/core/src/recipe/{schema,ops,selectors,templates}.ts`, tests
-- [ ] **0.8 `core`: tool, job and run schemas.** Tool definition (name, description, authority, input and output JSON Schema), job kinds, states, questions and answers, and the run envelope `{ result, meta }`.
+- [x] **0.8 `core`: tool, job and run schemas.** Tool definition (name, description, authority, input and output JSON Schema), job kinds, states, questions and answers, and the run envelope `{ result, meta }`.
   Files: `packages/core/src/{tool,job,run}.ts`, tests
 - [ ] **0.9 `db`: schema.** Drizzle tables for every SPEC table (`sites`, `logins`, `sessions`, `tools`, `recipe_versions`, `jobs`, `runs`, `llm_calls`, `watches`, `approvals`, `captures`) with portable column choices: text ULIDs, JSON columns, integer timestamps. SQLite first; the Postgres schema follows in 5.1 (D-015).
   Files: `packages/db/package.json`, `packages/db/src/schema.ts`
