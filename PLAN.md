@@ -2,7 +2,7 @@
 
 The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of under a day, with the files each task touches. Choices and open questions are in [DECISIONS.md](DECISIONS.md).
 
-**Status:** Phase 0 in progress.
+**Status:** Phase 0 done (2026-10-26). Phase 1 is next.
 
 **How this file works**
 
@@ -205,3 +205,17 @@ Items marked "split first" are broken into day-sized tasks before work starts.
 ## Done log
 
 Filled in at the end of each phase: what shipped, test results and the commit.
+
+### Phase 0: Foundations, done 2026-10-26
+
+- **Shipped:**
+  - A pnpm and Turborepo workspace on Node 24 and TypeScript 6.0.
+  - Type-aware ESLint, Prettier, Vitest.
+  - The zero-cost license check.
+  - GitHub Actions CI.
+  - `@tooldrop/core`: IDs, errors, the recipe format, and the tool, job and run schemas.
+  - `@tooldrop/db`: all 11 SPEC tables on SQLite, with the init migration.
+  - Three fixture sites with switches, and their shared kit.
+- **Results:** 91 tests in 12 files pass. Format, lint and typecheck are clean. The license check passes for all 223 installed packages. [CI passes on Linux](https://github.com/nabeelali0707/toolDrop/actions/runs/40233563626). The JSON-API fixture's page was also checked in Chrome, including after its API moves.
+- **Commits:** `e229906` (tooling), `147c652` (core), `bf0a758` (db), `f7ccf21` (fixtures).
+- **Still open:** Q-1, the keychain library, needed before task 3.1. Q-2, toolDrop's own license. Neither blocks Phase 1.

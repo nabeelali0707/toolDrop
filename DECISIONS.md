@@ -170,7 +170,7 @@ Two more notes:
 
 ## Proposed
 
-These came up while making the spec consistent. They are already reflected in SPEC.md and PLAN.md, and each is easy to undo.
+Choices made while updating the spec (D-016 to D-021) and while building Phase 0 (D-022 to D-026). Each one is easy to undo, so say no to any you disagree with. All are already reflected in SPEC.md and PLAN.md, except D-020, which changes SPEC only once you agree.
 
 ### D-016 A CLI recorder in Phase 2
 
