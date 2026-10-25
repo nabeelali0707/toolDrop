@@ -18,7 +18,7 @@ Recommendation: use `@napi-rs/keyring`, and change SPEC's tech stack to match.
 
 ### Q-2 What license does toolDrop itself use?
 
-*Open · needed before more code is pushed*
+*Open · needed soon*
 
 The GitHub repo is public and has no LICENSE file, so by default nobody else may use, copy or modify the code. The choice also decides which copyleft dependencies the license check may accept (D-002).
 
@@ -217,4 +217,16 @@ SPEC requires bearer API keys scoped per user and per tool, but its data model h
 
 *Proposed · 2026-10-26*
 
-ESLint flat config with typescript-eslint's type-aware rules. Rules such as `no-floating-promises` use the real TypeScript type checker, which matters in code this asynchronous. Prettier formats. TypeScript is pinned to the newest version typescript-eslint supports.
+ESLint flat config with typescript-eslint's type-aware rules. Rules such as `no-floating-promises` use the real TypeScript type checker, which matters in code this asynchronous. Prettier formats code and config; Markdown is left hand-formatted.
+
+TypeScript is pinned to `~6.0.3`: typescript-eslint 8.72 supports TypeScript below 6.1, so TypeScript 7 (the native port) waits until typescript-eslint supports it.
+
+### D-024 Node runs the TypeScript sources; no build step
+
+*Proposed · 2026-10-26*
+
+Node 24 strips TypeScript types natively, without a flag or warning. Workspace packages export their `src/*.ts` files directly, and Node, Vitest and `tsc` all read those, so internal packages have no build step and no `dist/` to keep in sync.
+
+- The cost is that code must be erasable: no `enum`, `namespace` or constructor parameter properties (`erasableSyntaxOnly` enforces it), type-only imports use `import type` (`verbatimModuleSyntax`), and relative imports name the `.ts` file.
+- The dashboard (Next.js) and the extension (Vite) keep their own builds.
+- Turborepo runs `typecheck` per package and caches it. Tests run once from the root with Vitest.

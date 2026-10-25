@@ -1,0 +1,4 @@
+# Docs are hand-formatted; Prettier would re-pad every table.
+*.md
+pnpm-lock.yaml
+packages/db/migrations/

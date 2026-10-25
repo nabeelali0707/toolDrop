@@ -1,0 +1,9 @@
+packages:
+  - apps/*
+  - packages/*
+  - fixtures/*
+
+# pnpm 10 skips dependency install scripts unless they are listed here.
+onlyBuiltDependencies:
+  - better-sqlite3
+  - esbuild

@@ -2,7 +2,7 @@
 
 The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of under a day, with the files each task touches. Choices and open questions are in [DECISIONS.md](DECISIONS.md).
 
-**Status:** Phase 0 not started.
+**Status:** Phase 0 in progress.
 
 **How this file works**
 
@@ -13,15 +13,15 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
 
 ## Phase 0: Foundations
 
-- [ ] **0.1 Workspace scaffold.** pnpm workspace (`apps/*`, `packages/*`, `fixtures/*`), Turborepo tasks (`build`, `lint`, `typecheck`, `test`), strict shared TypeScript config, Node 24 pin (D-020), telemetry off (D-012).
+- [x] **0.1 Workspace scaffold.** pnpm workspace (`apps/*`, `packages/*`, `fixtures/*`), Turborepo tasks (`build`, `lint`, `typecheck`, `test`), strict shared TypeScript config, Node 24 pin (D-020), telemetry off (D-012).
   Files: `package.json`, `pnpm-workspace.yaml`, `turbo.json`, `tsconfig.base.json`, `.npmrc`, `.nvmrc`, `.gitignore`, `.editorconfig`
-- [ ] **0.2 Lint and format.** ESLint flat config with type-aware typescript-eslint rules (`no-floating-promises`, `no-misused-promises`) and Prettier (D-023).
+- [x] **0.2 Lint and format.** ESLint flat config with type-aware typescript-eslint rules (`no-floating-promises`, `no-misused-promises`) and Prettier (D-023).
   Files: `eslint.config.js`, `.prettierrc.json`, `.prettierignore`, `package.json`
-- [ ] **0.3 Test harness.** Vitest with one project per workspace package; `pnpm test` for CI, `pnpm test:llm` for real-model tests.
+- [x] **0.3 Test harness.** One root Vitest config covering every workspace package; `pnpm test` for CI, `pnpm test:llm` for real-model tests.
   Files: `vitest.config.ts`, `package.json`
-- [ ] **0.4 License check.** A script that reads `pnpm licenses list --json` and fails on any license outside the policy (D-002), with unit tests for the policy logic.
-  Files: `scripts/check-licenses.mjs`, `license-policy.json`, `scripts/check-licenses.test.ts`
-- [ ] **0.5 CI.** GitHub Actions on push and pull request: frozen-lockfile install, lint, typecheck, test, license check, pnpm store cache, Playwright Chromium for browser tests.
+- [x] **0.4 License check.** A script that reads `pnpm licenses list --json` and fails on any license outside the policy (D-002), with unit tests for the policy logic.
+  Files: `scripts/check-licenses.ts`, `scripts/license-policy.ts`, `scripts/license-policy.test.ts`, `license-policy.json`
+- [x] **0.5 CI.** GitHub Actions on push and pull request: frozen-lockfile install, format check, lint, typecheck, test, license check, pnpm store cache. Playwright Chromium joins with the first browser tests (Phase 1).
   Files: `.github/workflows/ci.yml`
 - [ ] **0.6 `core`: IDs, errors, shared types.** ULID helpers, `ToolDropError` with stable error codes, strategy and authority enums, JSON Schema type.
   Files: `packages/core/package.json`, `packages/core/src/{index,ids,errors,common}.ts`, tests
