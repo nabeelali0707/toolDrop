@@ -248,3 +248,15 @@ SPEC gives the recipe envelope, an example and the op names. `packages/core` fil
 - **Results.** The data steps are `map`, `extract_table` and `extract_text`; a recipe returns what its last data step produced.
 - **Ops per strategy.** `http_replay` and `official_api` use `http` and `map`. `html_fetch` uses `http`, `extract_table` and `extract_text`, with css or test_id selectors only, because there is no browser to resolve roles or text. `browser_script` uses the browser ops and `map`.
 - Every object is strict: unknown keys fail validation, so a field the model invents is reported instead of silently dropped.
+
+### D-026 Fixture switches simulate site changes
+
+*Proposed · 2026-10-26*
+
+The acceptance tests need sites that change under a published tool. Each fixture has switches that tests flip over HTTP (`POST /__fixture/switches`, `POST /__fixture/reset`), and each switch is a change a real site makes:
+
+- **`apiMoved`** (JSON-API app): the search API moves from `/api/v2` to `/api/v3` and the old path answers 410. The page's own script follows the move, so the browser still works while replayed requests fail: the *Cascade* criterion. Simply turning the API off would also break the page, and the browser fallback would have nothing to fall back to.
+- **`searchButtonRenamed`**, **`dateFilterMoved`** and **`columnsReordered`**: a renamed button, the date filter moved into a "Search options" panel (SPEC's own heal example), and table columns in a new order: the *Self-heal* criterion.
+- The login fixture can expire every session, for the session-refresh half of *Login + 2FA*.
+
+The test account and TOTP secret are fixture-only values. The TOTP secret is RFC 6238's published test secret, so it can never be mistaken for a real one.

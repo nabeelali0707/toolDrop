@@ -1,0 +1,20 @@
+{
+  "name": "@tooldrop/fixture-html-app",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Fixture site: a server-rendered HTML app with query-string filters.",
+  "type": "module",
+  "exports": {
+    ".": "./src/server.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@tooldrop/fixture-kit": "workspace:*",
+    "fastify": "^5.12.7"
+  },
+  "devDependencies": {
+    "cheerio": "^1.2.0"
+  }
+}

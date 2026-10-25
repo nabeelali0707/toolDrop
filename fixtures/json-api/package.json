@@ -1,0 +1,17 @@
+{
+  "name": "@tooldrop/fixture-json-api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Fixture site: a single-page app backed by an internal JSON API.",
+  "type": "module",
+  "exports": {
+    ".": "./src/server.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@tooldrop/fixture-kit": "workspace:*",
+    "fastify": "^5.12.7"
+  }
+}

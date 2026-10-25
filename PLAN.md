@@ -13,7 +13,7 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
 
 ## Phase 0: Foundations
 
-- [x] **0.1 Workspace scaffold.** pnpm workspace (`apps/*`, `packages/*`, `fixtures/*`), Turborepo tasks (`build`, `lint`, `typecheck`, `test`), strict shared TypeScript config, Node 24 pin (D-020), telemetry off (D-012).
+- [x] **0.1 Workspace scaffold.** pnpm workspace (`apps/*`, `packages/*`, `fixtures/*`), Turborepo `typecheck` per package (lint and tests run once from the root, D-024), strict shared TypeScript config, Node 24 pin (D-020), telemetry off (D-012).
   Files: `package.json`, `pnpm-workspace.yaml`, `turbo.json`, `tsconfig.base.json`, `.npmrc`, `.nvmrc`, `.gitignore`, `.editorconfig`
 - [x] **0.2 Lint and format.** ESLint flat config with type-aware typescript-eslint rules (`no-floating-promises`, `no-misused-promises`) and Prettier (D-023).
   Files: `eslint.config.js`, `.prettierrc.json`, `.prettierignore`, `package.json`
@@ -33,14 +33,14 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
   Files: `packages/db/package.json`, `packages/db/src/schema.ts`
 - [x] **0.10 `db`: migrations and client.** drizzle-kit migration for the schema, connection factory, migration runner, and a round-trip test that writes and reads every table.
   Files: `packages/db/drizzle.config.ts`, `packages/db/migrations/*`, `packages/db/src/{client,migrate,index}.ts`, tests
-- [ ] **0.11 Fixture kit.** Shared helper that starts a fixture on a random port and resets its seed data; `pnpm fixtures` starts all three on fixed ports for manual testing.
-  Files: `fixtures/kit/package.json`, `fixtures/kit/src/{server,seed,run-all}.ts`
-- [ ] **0.12 Fixture: JSON-API app.** An invoice page whose script calls `POST /api/v2/invoices/search` (CSRF header, `hasMore` pagination), matching SPEC's example recipe. Test switches: turn off the JSON endpoint (cascade test), rename a button and move a field (heal tests).
-  Files: `fixtures/json-api/src/{server,data}.ts`, `fixtures/json-api/public/{index.html,app.js}`, tests
-- [ ] **0.13 Fixture: server-rendered HTML app.** An invoice table with query-string filters and pagination links, and the same rename and move switches.
-  Files: `fixtures/html-app/src/{server,views}.ts`, tests
-- [ ] **0.14 Fixture: login + TOTP app.** Username and password, then a TOTP step (`otplib`), a session cookie, `/api/me`, a protected invoice page and a switch that expires sessions. The test account and TOTP secret exist only in the fixture.
-  Files: `fixtures/login-totp/src/{server,auth,views}.ts`, tests
+- [x] **0.11 Fixture kit.** Shared helpers: start a fixture on a free port, seed invoices, switches that tests flip over HTTP (D-026), cookies and HTML. `pnpm fixtures` starts all three sites on ports 4101 to 4103 for manual testing.
+  Files: `fixtures/kit/src/{index,server,switches,invoices,html}.ts`, `scripts/run-fixtures.ts`, tests
+- [x] **0.12 Fixture: JSON-API app.** An invoice page whose script calls `POST /api/v2/invoices/search` (CSRF header, `hasMore` pagination), matching SPEC's example recipe. Switches: move the API to `/api/v3` so replayed requests break while the page keeps working (cascade test); rename the Search button and move the date filter (heal tests).
+  Files: `fixtures/json-api/src/server.ts`, `fixtures/json-api/public/app.js`, tests
+- [x] **0.13 Fixture: server-rendered HTML app.** An invoice table with query-string filters and pagination links. Switches: rename the button, move the date filter, reorder the columns.
+  Files: `fixtures/html-app/src/server.ts`, tests
+- [x] **0.14 Fixture: login + TOTP app.** Username and password, then a TOTP step (`otplib`), a session cookie, `/api/me`, a protected invoice page with an account menu, and a control that expires every session. The test account and TOTP secret exist only in the fixture.
+  Files: `fixtures/login-totp/src/server.ts`, tests
 
 **Gate:** lint, typecheck, tests and the license check pass locally and in CI; every fixture's own tests pass.
 
