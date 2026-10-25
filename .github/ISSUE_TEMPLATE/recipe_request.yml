@@ -1,0 +1,38 @@
+name: New site recipe request
+description: Ask for a community recipe for a public website.
+labels: [recipe-request]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Community recipes are tools for **public** websites, shared in [`recipes/`](https://github.com/nabeelali0707/toolDrop/tree/main/recipes). For a site you sign in to, build the tool locally with toolDrop instead: your credentials never leave your machine.
+  - type: input
+    id: site
+    attributes:
+      label: Website
+      placeholder: https://example.com
+    validations:
+      required: true
+  - type: textarea
+    id: task
+    attributes:
+      label: What should the tool do?
+      placeholder: List the latest releases with name, version and date.
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Example inputs and the result you expect
+      description: Use public data only. No personal data, no account details.
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Before you submit
+      options:
+        - label: The site's terms of service allow automated access for this task.
+          required: true
+        - label: The tool reads public data and needs no sign-in.
+          required: true
+        - label: This request contains no credentials and no personal data.
+          required: true

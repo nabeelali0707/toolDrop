@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Drizzle schema, migrations and database client.",
+  "license": "Apache-2.0",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

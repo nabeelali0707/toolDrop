@@ -1,0 +1,23 @@
+{
+  "strategy": "official_api",
+  "steps": [
+    {
+      "op": "http",
+      "method": "GET",
+      "url": "{{site}}/api/v1/search",
+      "query": { "tags": "front_page", "hitsPerPage": "{{input.limit}}" }
+    },
+    {
+      "op": "map",
+      "path": "$.hits[*]",
+      "fields": {
+        "title": "$.title",
+        "url": "$.url",
+        "points": "$.points",
+        "author": "$.author",
+        "comments": "$.num_comments",
+        "posted_at": "$.created_at"
+      }
+    }
+  ]
+}

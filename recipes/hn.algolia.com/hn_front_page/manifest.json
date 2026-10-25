@@ -1,0 +1,11 @@
+{
+  "name": "hn_front_page",
+  "title": "Hacker News front page",
+  "description": "Lists the stories on the Hacker News front page, with title, link, points, author, comment count and when each was posted.",
+  "site": "https://hn.algolia.com",
+  "authority": "read",
+  "sign_in": "none",
+  "maintainers": ["nabeelali0707"],
+  "tags": ["news"],
+  "terms_reviewed": true
+}

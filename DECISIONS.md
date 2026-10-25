@@ -16,15 +16,6 @@ SPEC names `keytar`, but [keytar](https://github.com/atom/node-keytar) was archi
 
 Recommendation: use `@napi-rs/keyring`, and change SPEC's tech stack to match.
 
-### Q-2 What license does toolDrop itself use?
-
-*Open · needed soon*
-
-The GitHub repo is public and has no LICENSE file, so by default nobody else may use, copy or modify the code. The choice also decides which copyleft dependencies the license check may accept (D-002).
-
-- **MIT** or **Apache-2.0** if anyone should be free to build on it. Apache-2.0 adds an explicit patent grant.
-- **AGPL-3.0** if anyone who runs a modified copy as a service should have to publish their changes.
-
 ## Accepted
 
 ### D-001 Project name
@@ -42,8 +33,8 @@ Everything toolDrop needs must be OSI-licensed or free to self-host, and no feat
 The license part is enforced in CI (task 0.4) by a script over `pnpm licenses list --json`, which covers dev dependencies too:
 
 - **Allowed:** OSI-approved permissive licenses (MIT, MIT-0, ISC, Apache-2.0, BSD-2-Clause, BSD-3-Clause, 0BSD, BlueOak-1.0.0, Zlib, Python-2.0, Unlicense, MPL-2.0), plus CC0-1.0, a public-domain dedication that the OSI never approved but that sets no conditions at all.
-- **Allowed per package after review**, listed in `license-policy.json` with a reason: LGPL, GPL and AGPL (until Q-2 is decided), and free non-software licenses such as CC-BY-4.0 on data packages.
-- **Fails:** a missing, `UNKNOWN` or `UNLICENSED` license, and any custom or commercial one.
+- **Allowed per package after review**, listed in `license-policy.json` with a reason: LGPL, and free non-software licenses such as CC-BY-4.0 on data packages.
+- **Fails:** GPL and AGPL, which cannot ship inside an Apache-2.0 package (D-027); a missing, `UNKNOWN` or `UNLICENSED` license; any custom or commercial one.
 - SPDX expressions: `A OR B` passes if either passes; `A AND B` needs both.
 
 Services and model weights are outside the script's reach, so each one is checked by hand when added and recorded here (e.g. D-004).
@@ -168,6 +159,14 @@ Two more notes:
 - Enum columns get CHECK constraints built from the same constants as the Zod enums in `core`, so the database and the API cannot disagree on the allowed values.
 - On the Windows development machine, better-sqlite3 compiled from source during install, because no prebuilt binary was used for Node 24, so that setup needs a C++ toolchain. Node's built-in `node:sqlite` would remove the native build, and Drizzle supports it from 1.0, which is still a release candidate. Revisit once Drizzle 1.0 is stable.
 
+### D-027 toolDrop is Apache-2.0
+
+*Accepted · 2026-10-26 · from you (answers Q-2)*
+
+The project is licensed under Apache-2.0 (`LICENSE`), and every `package.json` declares `"license": "Apache-2.0"`. Apache-2.0 is permissive and adds an explicit patent grant, which matters for a tool that companies may run internally.
+
+Consequence for dependencies (D-002): GPL and AGPL packages are rejected, because a published Apache-2.0 bundle cannot include them. LGPL needs review, and MPL-2.0 and the permissive licenses stay allowed.
+
 ## Proposed
 
 Choices made while updating the spec (D-016 to D-021) and while building Phase 0 (D-022 to D-026). Each one is easy to undo, so say no to any you disagree with. All are already reflected in SPEC.md and PLAN.md, except D-020, which changes SPEC only once you agree.
@@ -260,3 +259,19 @@ The acceptance tests need sites that change under a published tool. Each fixture
 - The login fixture can expire every session, for the session-refresh half of *Login + 2FA*.
 
 The test account and TOTP secret are fixture-only values. The TOTP secret is RFC 6238's published test secret, so it can never be mistaken for a real one.
+
+### D-028 The community recipe library lives in this repository
+
+*Proposed · 2026-10-26 · you asked for this decision to be made and recorded*
+
+Community recipes live in `recipes/` in the main repository, not in a separate repo.
+
+- **Why here:** CI validates each recipe against the exact recipe schema the runtime uses, in the same pull request. A separate repo would need a published, versioned copy of `@tooldrop/core` to validate against, and the two could drift. One repo also means one place to contribute and one set of rules.
+- **When to split:** once recipe pull requests outnumber code pull requests, or the library needs its own maintainers. At that point, publish the recipe schema as a package and move `recipes/` out with its history.
+- **Rules, enforced by `pnpm check:recipes`:**
+  - Recipes are read-only, need no sign-in, and may only reach their manifest's site.
+  - No credential-like header or query value unless it comes from a template.
+  - No email addresses or phone numbers.
+  - Every test input must match the input schema, and every `{{input.*}}` reference must be declared in it.
+  - gitleaks scans the whole repository history on every push; the only allowlisted value is RFC 6238's public test secret.
+- **Layout:** `recipes/<site host>/<tool name>/` with `manifest.json`, `recipe.json`, `schema.json`, `test-inputs.json` and `README.md`. The manifest schema lives in `@tooldrop/core` (`library.ts`), so the CLI can install recipes with the same definitions.

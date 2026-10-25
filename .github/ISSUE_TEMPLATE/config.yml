@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/nabeelali0707/toolDrop/security/advisories/new
+    about: Report privately. Never post security problems in a public issue.
+  - name: Documentation
+    url: https://nabeelali0707.github.io/toolDrop/
+    about: Guides for installing, building tools, models and self-hosting.

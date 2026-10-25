@@ -1,0 +1,11 @@
+# Secret scanning for the whole repository, run in CI on every push and pull
+# request. Recipes and fixtures must never hold real credentials or personal data.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Fixture-only test values (DECISIONS.md, D-026)"
+# RFC 6238's published TOTP test secret ("12345678901234567890", base32), used by
+# the login fixtures. It is a public test vector, never a real account's secret.
+regexes = ['''GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ''']

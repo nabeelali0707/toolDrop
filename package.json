@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Turn any website task into a deterministic, self-hosted API and MCP tool.",
+  "license": "Apache-2.0",
   "type": "module",
   "packageManager": "pnpm@10.33.2",
   "engines": {
@@ -17,11 +18,15 @@
     "format:check": "prettier --check .",
     "check:licenses": "node scripts/check-licenses.ts",
     "fixtures": "node scripts/run-fixtures.ts",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm check:licenses"
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm check:licenses && pnpm check:recipes",
+    "check:recipes": "node scripts/check-recipes.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@tooldrop/core": "workspace:*",
     "@types/node": "^24.19.2",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "cross-env": "^10.1.0",
     "eslint": "^10.13.0",
     "globals": "^17.13.0",
@@ -29,6 +34,7 @@
     "turbo": "^2.11.10",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.72.0",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.5",
+    "zod": "^4.6.7"
   }
 }

@@ -1,0 +1,11 @@
+{
+  "name": "example_tool",
+  "title": "Short title, e.g. Latest releases",
+  "description": "One or two sentences for the agent: what the tool returns and when to use it.",
+  "site": "https://example.com",
+  "authority": "read",
+  "sign_in": "none",
+  "maintainers": ["your-github-username"],
+  "tags": ["example"],
+  "terms_reviewed": true
+}

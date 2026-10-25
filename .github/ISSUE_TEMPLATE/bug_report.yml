@@ -1,0 +1,57 @@
+name: Bug report
+description: Something in toolDrop does not work as described.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Security problem?** Do not file it here. Report it privately: see [SECURITY.md](https://github.com/nabeelali0707/toolDrop/blob/main/SECURITY.md).
+
+        **Never paste passwords, cookies, API keys, TOTP secrets or 2FA codes**, and remove personal data from logs and screenshots.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: If you can, reproduce it against a local fixture site (`pnpm fixtures`) instead of a real website.
+      placeholder: |
+        1. Run `...`
+        2. Ask the agent `...`
+        3. See `...`
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: toolDrop version or commit
+      placeholder: 0.1.0, or a commit hash
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How do you run toolDrop?
+      options:
+        - npx (MCP client config)
+        - Docker Compose
+        - Global CLI (npm install -g)
+        - From source
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: OS, Node version and model
+      placeholder: macOS 15, Node 24.14, Ollama qwen2.5-coder:7b
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant log lines, with credentials, cookies and personal data removed.
+      render: text

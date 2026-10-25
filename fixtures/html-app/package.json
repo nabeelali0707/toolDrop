@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Fixture site: a server-rendered HTML app with query-string filters.",
+  "license": "Apache-2.0",
   "type": "module",
   "exports": {
     ".": "./src/server.ts"

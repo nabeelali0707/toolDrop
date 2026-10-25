@@ -1,0 +1,21 @@
+{
+  "input": {
+    "type": "object",
+    "properties": {
+      "query": { "type": "string", "minLength": 1, "description": "What to search for." }
+    },
+    "required": ["query"],
+    "additionalProperties": false
+  },
+  "output": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name"]
+    }
+  }
+}

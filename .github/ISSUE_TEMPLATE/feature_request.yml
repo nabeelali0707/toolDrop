@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest an improvement or a new capability.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the situation and what is hard today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like toolDrop to do?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+  - type: checkboxes
+    id: zero-cost
+    attributes:
+      label: Zero-cost rule
+      description: toolDrop must stay free to run (see SPEC.md).
+      options:
+        - label: This works without any paid plan, paid API or paid service.
+          required: true

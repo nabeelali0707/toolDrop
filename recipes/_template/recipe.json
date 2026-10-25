@@ -1,0 +1,17 @@
+{
+  "strategy": "http_replay",
+  "steps": [
+    {
+      "op": "http",
+      "method": "GET",
+      "url": "{{site}}/api/items",
+      "query": { "q": "{{input.query}}", "page": "{{loop.page}}" },
+      "paginate": { "var": "page", "start": 1, "until": "$.has_more == false", "max_pages": 5 }
+    },
+    {
+      "op": "map",
+      "path": "$.items[*]",
+      "fields": { "name": "$.name", "updated_at": "$.updated" }
+    }
+  ]
+}
