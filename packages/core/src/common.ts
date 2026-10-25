@@ -8,7 +8,8 @@ export const strategySchema = z.enum(STRATEGIES);
 export type Strategy = z.infer<typeof strategySchema>;
 
 /** What a tool may do. Write tools need approval to build and, in safe mode, to run. */
-export const authoritySchema = z.enum(['read', 'write']);
+export const AUTHORITIES = ['read', 'write'] as const;
+export const authoritySchema = z.enum(AUTHORITIES);
 export type Authority = z.infer<typeof authoritySchema>;
 
 /** A JSON Schema document, such as a tool's input or output schema. */

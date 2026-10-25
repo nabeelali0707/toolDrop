@@ -2,6 +2,8 @@ export * from './common.ts';
 export * from './errors.ts';
 export * from './ids.ts';
 export * from './job.ts';
+export * from './llm.ts';
+export * from './login.ts';
 export * from './recipe/ops.ts';
 export * from './recipe/schema.ts';
 export * from './recipe/selectors.ts';

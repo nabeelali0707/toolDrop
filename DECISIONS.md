@@ -163,6 +163,11 @@ PGlite (Postgres compiled to WebAssembly, Apache-2.0) was considered, because it
 
 The cost is a second Drizzle schema for Postgres in 5.1. To keep it small, the schema from task 0.9 uses only portable column types (text ULIDs, JSON stored as text, integer millisecond timestamps, no SQLite-only features), and a parity test checks that both schemas match.
 
+Two more notes:
+
+- Enum columns get CHECK constraints built from the same constants as the Zod enums in `core`, so the database and the API cannot disagree on the allowed values.
+- On the Windows development machine, better-sqlite3 compiled from source during install, because no prebuilt binary was used for Node 24, so that setup needs a C++ toolchain. Node's built-in `node:sqlite` would remove the native build, and Drizzle supports it from 1.0, which is still a release candidate. Revisit once Drizzle 1.0 is stable.
+
 ## Proposed
 
 These came up while making the spec consistent. They are already reflected in SPEC.md and PLAN.md, and each is easy to undo.

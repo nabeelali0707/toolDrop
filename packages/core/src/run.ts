@@ -15,3 +15,8 @@ export const runResultSchema = z.strictObject({
   meta: runMetaSchema,
 });
 export type RunResult = z.infer<typeof runResultSchema>;
+
+/** A write preview waiting in safe mode (SPEC, Differentiating features). */
+export const APPROVAL_STATUSES = ['pending', 'approved', 'rejected'] as const;
+export const approvalStatusSchema = z.enum(APPROVAL_STATUSES);
+export type ApprovalStatus = z.infer<typeof approvalStatusSchema>;

@@ -1,10 +1,12 @@
 import { z } from 'zod';
 import { authoritySchema, idSchema } from './common.ts';
 
-export const jobKindSchema = z.enum(['build', 'heal', 'discover']);
+export const JOB_KINDS = ['build', 'heal', 'discover'] as const;
+export const jobKindSchema = z.enum(JOB_KINDS);
 export type JobKind = z.infer<typeof jobKindSchema>;
 
-export const jobStatusSchema = z.enum(['queued', 'running', 'waiting_for_answer', 'succeeded', 'failed']);
+export const JOB_STATUSES = ['queued', 'running', 'waiting_for_answer', 'succeeded', 'failed'] as const;
+export const jobStatusSchema = z.enum(JOB_STATUSES);
 export type JobStatus = z.infer<typeof jobStatusSchema>;
 
 /** A job pauses in `waiting_for_answer` until the caller answers its question. */

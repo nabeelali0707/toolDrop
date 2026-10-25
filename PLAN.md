@@ -29,9 +29,9 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
   Files: `packages/core/src/recipe/{schema,ops,selectors,templates}.ts`, tests
 - [x] **0.8 `core`: tool, job and run schemas.** Tool definition (name, description, authority, input and output JSON Schema), job kinds, states, questions and answers, and the run envelope `{ result, meta }`.
   Files: `packages/core/src/{tool,job,run}.ts`, tests
-- [ ] **0.9 `db`: schema.** Drizzle tables for every SPEC table (`sites`, `logins`, `sessions`, `tools`, `recipe_versions`, `jobs`, `runs`, `llm_calls`, `watches`, `approvals`, `captures`) with portable column choices: text ULIDs, JSON columns, integer timestamps. SQLite first; the Postgres schema follows in 5.1 (D-015).
+- [x] **0.9 `db`: schema.** Drizzle tables for every SPEC table (`sites`, `logins`, `sessions`, `tools`, `recipe_versions`, `jobs`, `runs`, `llm_calls`, `watches`, `approvals`, `captures`) with portable column choices: text ULIDs, JSON columns, integer timestamps. SQLite first; the Postgres schema follows in 5.1 (D-015).
   Files: `packages/db/package.json`, `packages/db/src/schema.ts`
-- [ ] **0.10 `db`: migrations and client.** drizzle-kit migration for the schema, connection factory, migration runner, and a round-trip test that writes and reads every table.
+- [x] **0.10 `db`: migrations and client.** drizzle-kit migration for the schema, connection factory, migration runner, and a round-trip test that writes and reads every table.
   Files: `packages/db/drizzle.config.ts`, `packages/db/migrations/*`, `packages/db/src/{client,migrate,index}.ts`, tests
 - [ ] **0.11 Fixture kit.** Shared helper that starts a fixture on a random port and resets its seed data; `pnpm fixtures` starts all three on fixed ports for manual testing.
   Files: `fixtures/kit/package.json`, `fixtures/kit/src/{server,seed,run-all}.ts`
