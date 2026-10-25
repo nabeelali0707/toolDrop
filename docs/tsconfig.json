@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    // VitePress bundles an esbuild that does not know the es2024 target.
+    "target": "es2022",
+    "lib": ["es2024", "dom"]
+  },
+  "include": [".vitepress/*.ts"]
+}

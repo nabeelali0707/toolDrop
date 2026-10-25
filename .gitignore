@@ -14,3 +14,7 @@ coverage/
 .env
 .env.*
 !.env.example
+
+# VitePress output
+docs/.vitepress/cache/
+docs/.vitepress/dist/

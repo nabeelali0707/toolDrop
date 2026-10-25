@@ -1,0 +1,9 @@
+# Smithery configuration: https://smithery.ai/docs/config#smitheryyaml
+# toolDrop runs locally over stdio and needs no configuration or API key.
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties: {}
+  commandFunction: |-
+    () => ({ command: 'npx', args: ['-y', 'tooldrop', 'mcp'] })

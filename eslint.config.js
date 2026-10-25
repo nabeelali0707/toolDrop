@@ -4,7 +4,14 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default defineConfig([
-  globalIgnores(['**/node_modules/', '**/dist/', '**/coverage/', '**/.turbo/', 'packages/db/migrations/']),
+  globalIgnores([
+    '**/node_modules/',
+    '**/dist/',
+    '**/coverage/',
+    '**/.turbo/',
+    'packages/db/migrations/',
+    'docs/.vitepress/cache/',
+  ]),
   js.configs.recommended,
   tseslint.configs.recommendedTypeChecked,
   {

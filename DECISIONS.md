@@ -275,3 +275,16 @@ Community recipes live in `recipes/` in the main repository, not in a separate r
   - Every test input must match the input schema, and every `{{input.*}}` reference must be declared in it.
   - gitleaks scans the whole repository history on every push; the only allowlisted value is RFC 6238's public test secret.
 - **Layout:** `recipes/<site host>/<tool name>/` with `manifest.json`, `recipe.json`, `schema.json`, `test-inputs.json` and `README.md`. The manifest schema lives in `@tooldrop/core` (`library.ts`), so the CLI can install recipes with the same definitions.
+
+### D-029 Docs site, and the interfaces it promises early
+
+*Proposed · 2026-10-26*
+
+- **Site:** VitePress (MIT) in `docs/`, served from GitHub Pages at `https://nabeelali0707.github.io/toolDrop/`. Pull requests build it; pushes to `main` deploy it. The deploy is skipped, with a notice, until Pages is enabled in the repository settings, so pushes don't fail before then.
+- **Status on every page:** most features are not built yet, so each page says which phase brings its feature. The docs describe the design in SPEC.md, not a promise of dates.
+- **Interfaces the docs commit to, ahead of the code:**
+  - `tooldrop serve` listens on `127.0.0.1:3000` for the REST API and the dashboard, and the Compose stack exposes the same port. This matches the `http://localhost:3000` in your release plan.
+  - Webhooks carry `X-Tooldrop-Timestamp` and `X-Tooldrop-Signature: sha256=<hex>`, an HMAC-SHA256 over `timestamp + "." + body`. Receivers reject requests older than 5 minutes.
+
+  Changing either before Phase 4 means updating the docs in the same pull request.
+- **Recorder privacy policy** (`docs/privacy.md`) states the extension's design: it records only while recording and only the recorded tab, sends recordings only to the user's own server, keeps no analytics and does not keep typed passwords. Task 4.2 must meet it, and the Chrome Web Store listing links to it.

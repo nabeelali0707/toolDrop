@@ -19,7 +19,9 @@
     "check:licenses": "node scripts/check-licenses.ts",
     "fixtures": "node scripts/run-fixtures.ts",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm check:licenses && pnpm check:recipes",
-    "check:recipes": "node scripts/check-recipes.ts"
+    "check:recipes": "node scripts/check-recipes.ts",
+    "docs:dev": "pnpm --filter @tooldrop/docs dev",
+    "docs:build": "pnpm --filter @tooldrop/docs build"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

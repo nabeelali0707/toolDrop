@@ -2,6 +2,7 @@ packages:
   - apps/*
   - packages/*
   - fixtures/*
+  - docs
 
 # pnpm 10 skips dependency install scripts unless they are listed here.
 onlyBuiltDependencies:

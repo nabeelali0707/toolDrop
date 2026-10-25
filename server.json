@@ -1,0 +1,28 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.nabeelali0707/tooldrop",
+  "title": "toolDrop",
+  "description": "Turn website tasks into fast, self-healing MCP tools. Free and local, built with Ollama models.",
+  "repository": {
+    "url": "https://github.com/nabeelali0707/toolDrop",
+    "source": "github"
+  },
+  "websiteUrl": "https://nabeelali0707.github.io/toolDrop/",
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "tooldrop",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        }
+      ]
+    }
+  ]
+}
