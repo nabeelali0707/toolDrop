@@ -1,12 +1,12 @@
-# Webforge: Build Spec for Claude Code
+# toolDrop: Build Spec for Claude Code
 
 Oct 26, 2026 · @nabeel ali
 
 ## Overview
 
-Webforge turns a task on any website into a deterministic, hosted API and MCP tool that AI agents can call. An LLM is used as a **compiler** (to build and repair tools), never as the **runtime** (to execute every request).
+toolDrop turns a task on any website into a deterministic, hosted API and MCP tool that AI agents can call. An LLM is used as a **compiler** (to build and repair tools), never as the **runtime** (to execute every request).
 
-The product is inspired by [Pomerado](https://pomerado.ai) (YC, open source), which builds, hosts and self-heals website integrations. Webforge is an independent implementation: write our own code, do not copy theirs. If any of their code is studied or reused, check their license first.
+The product is inspired by [Pomerado](https://pomerado.ai) (YC, open source), which builds, hosts and self-heals website integrations. toolDrop is an independent implementation: write our own code, do not copy theirs. If any of their code is studied or reused, check their license first.
 
 **Goals**
 
@@ -49,7 +49,7 @@ These defaults were chosen because the open questions were not answered yet. Cha
 
 The LLM sits only in the Compiler and Healer; every normal call goes through the Runtime with plain code.
 
-&#91;embedded content: Webforge architecture · 5 layers\]
+&#91;embedded content: toolDrop architecture · 5 layers\]
 
 Callers reach the engine through MCP or REST; the engine uses shared services to act on target websites.
 
@@ -138,7 +138,7 @@ Three features ship in the MVP; the rest follow in later phases (see Roadmap).
 | Transparency dashboard | Per tool: strategy used, p50/p95 latency, cost per call, success rate, heal history, version diff and one-click rollback. | Phase 2 |
 | URL-first discovery | Give a URL only; the system crawls the signed-in site and proposes a catalog of possible tools to build. | Phase 2 |
 | Multi-site workflows | Chain tools across sites into one tool (e.g. `onboard_employee` across HR, IT and email), passing data between steps, with retry and compensating actions on failure. | Phase 3 |
-| Code export | Export any tool as a standalone TypeScript package that runs without Webforge. No lock-in. | Phase 3 |
+| Code export | Export any tool as a standalone TypeScript package that runs without toolDrop. No lock-in. | Phase 3 |
 | Local-first privacy mode | Browser, vault and runtime run entirely on the user's machine; only LLM calls leave it, with PII redacted before sending. | MVP (default) |
 
 ## Data models
@@ -228,13 +228,13 @@ Every tool page in the dashboard shows its schema and a ready cURL example.
 | Tests | Vitest, Playwright test, local fixture sites |
 
 ```
-webforge/
+toolDrop/
   apps/
     server/        Fastify REST API + job workers
     mcp/           MCP server (stdio + HTTP)
     dashboard/     Next.js UI
     extension/     Chrome recorder
-    cli/           `webforge` CLI (init, build, run, serve)
+    cli/           `tooldrop` CLI (init, build, run, serve)
   packages/
     core/          types, Zod schemas, recipe format
     compiler/      explore agent, traffic analyzer, recipe generator, validator
@@ -321,7 +321,7 @@ Unit-test the traffic analyzer, field classifier, recipe executor and differ in 
 - Users are responsible for having the right to automate a site; show a notice to check the site's Terms of Service on each new site.
 - Respect `robots.txt` for unauthenticated discovery crawls; enforce conservative default rate limits.
 - Do not build features to bypass paywalls or access controls the user is not entitled to.
-- Webforge is an independent implementation inspired by Pomerado. Do not copy Pomerado's code, assets or branding; if any open-source code is reused, follow its license.
+- toolDrop is an independent implementation inspired by Pomerado. Do not copy Pomerado's code, assets or branding; if any open-source code is reused, follow its license.
 
 **Non-goals for the MVP**
 
@@ -335,7 +335,7 @@ Unit-test the traffic analyzer, field classifier, recipe executor and differ in 
 Paste this section as the first prompt, with the rest of the doc attached as `SPEC.md`.
 
 ```
-You are building Webforge from SPEC.md in this repo. Follow it strictly.
+You are building toolDrop from SPEC.md in this repo. Follow it strictly.
 
 1. Read SPEC.md fully. Write PLAN.md: the phases from the roadmap broken into
    tasks of under 1 day each, with the files each task touches.
