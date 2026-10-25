@@ -9,13 +9,13 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
 - Phases run in order. A phase is done when lint, typecheck and all tests pass and its gate criteria (from SPEC's acceptance table) pass.
 - A task is checked off when it is committed to `main`. If a task turns out bigger than a day, split it here first.
 - File lists are the plan, not a limit: a task may add small helpers next to the files it names.
-- Conventions (D-020): packages are named `@tooldrop/<dir>`, ESM only, TypeScript strict. Unit tests sit next to the code as `*.test.ts`, end-to-end tests are `*.e2e.test.ts`, and tests that call real Ollama models are `*.llm.test.ts`, run locally with `pnpm test:llm` and never in CI (D-017).
+- Conventions (D-022): packages are named `@tooldrop/<dir>`, ESM only, TypeScript strict. Unit tests sit next to the code as `*.test.ts`, end-to-end tests are `*.e2e.test.ts`, and tests that call real Ollama models are `*.llm.test.ts`, run locally with `pnpm test:llm` and never in CI (D-019).
 
 ## Phase 0: Foundations
 
-- [ ] **0.1 Workspace scaffold.** pnpm workspace (`apps/*`, `packages/*`, `fixtures/*`), Turborepo tasks (`build`, `lint`, `typecheck`, `test`), strict shared TypeScript config, Node 24 pin (D-018), telemetry off (D-012).
+- [ ] **0.1 Workspace scaffold.** pnpm workspace (`apps/*`, `packages/*`, `fixtures/*`), Turborepo tasks (`build`, `lint`, `typecheck`, `test`), strict shared TypeScript config, Node 24 pin (D-020), telemetry off (D-012).
   Files: `package.json`, `pnpm-workspace.yaml`, `turbo.json`, `tsconfig.base.json`, `.npmrc`, `.nvmrc`, `.gitignore`, `.editorconfig`
-- [ ] **0.2 Lint and format.** ESLint flat config with type-aware typescript-eslint rules (`no-floating-promises`, `no-misused-promises`) and Prettier (D-021).
+- [ ] **0.2 Lint and format.** ESLint flat config with type-aware typescript-eslint rules (`no-floating-promises`, `no-misused-promises`) and Prettier (D-023).
   Files: `eslint.config.js`, `.prettierrc.json`, `.prettierignore`, `package.json`
 - [ ] **0.3 Test harness.** Vitest with one project per workspace package; `pnpm test` for CI, `pnpm test:llm` for real-model tests.
   Files: `vitest.config.ts`, `package.json`
@@ -29,7 +29,7 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
   Files: `packages/core/src/recipe/{schema,ops,selectors,templates}.ts`, tests
 - [ ] **0.8 `core`: tool, job and run schemas.** Tool definition (name, description, authority, input and output JSON Schema), job kinds, states, questions and answers, and the run envelope `{ result, meta }`.
   Files: `packages/core/src/{tool,job,run}.ts`, tests
-- [ ] **0.9 `db`: schema.** Drizzle tables for every SPEC table (`sites`, `logins`, `sessions`, `tools`, `recipe_versions`, `jobs`, `runs`, `llm_calls`, `watches`, `approvals`, `captures`) with portable column choices: text ULIDs, JSON columns, integer timestamps. The dialect depends on Q-1.
+- [ ] **0.9 `db`: schema.** Drizzle tables for every SPEC table (`sites`, `logins`, `sessions`, `tools`, `recipe_versions`, `jobs`, `runs`, `llm_calls`, `watches`, `approvals`, `captures`) with portable column choices: text ULIDs, JSON columns, integer timestamps. SQLite first; the Postgres schema follows in 5.1 (D-015).
   Files: `packages/db/package.json`, `packages/db/src/schema.ts`
 - [ ] **0.10 `db`: migrations and client.** drizzle-kit migration for the schema, connection factory, migration runner, and a round-trip test that writes and reads every table.
   Files: `packages/db/drizzle.config.ts`, `packages/db/migrations/*`, `packages/db/src/{client,migrate,index}.ts`, tests
@@ -66,7 +66,7 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
   Files: `packages/runtime/src/{limits,cache}.ts`, tests
 - [ ] **1.10 `db`: repositories.** Register tools, save recipe versions, record runs. Runs store metadata only; results are never persisted.
   Files: `packages/db/src/repos/{tools,recipes,runs}.ts`, tests
-- [ ] **1.11 `server`: REST app.** Fastify app, bearer API keys (`api_keys` table, D-019), `GET /v1/tools`, `POST /v1/tools/:name/run`, a uniform error format.
+- [ ] **1.11 `server`: REST app.** Fastify app, bearer API keys (`api_keys` table, D-021), `GET /v1/tools`, `POST /v1/tools/:name/run`, a uniform error format.
   Files: `apps/server/package.json`, `apps/server/src/{app,auth}.ts`, `apps/server/src/routes/tools.ts`, `packages/db/src/schema.ts`, tests
 - [ ] **1.12 `mcp`: server.** stdio and Streamable HTTP transports, `run_tool` and `find_tool`, one dynamic tool per published tool with `tools/list_changed`.
   Files: `apps/mcp/package.json`, `apps/mcp/src/{server,stdio,http,dynamic-tools}.ts`, tests with the MCP SDK client
@@ -93,7 +93,7 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
   Files: `packages/compiler/src/prompt/{ax-prune,har-summary,html-subtree}.ts`, tests with recorded HAR files
 - [ ] **2.8 Recordings.** Recording format v1 (actions with ranked selectors, marked inputs, HAR), recording-mode replay into a capture, `POST /v1/recordings`.
   Files: `packages/core/src/recording.ts`, `packages/compiler/src/recording/replay.ts`, `apps/server/src/routes/recordings.ts`, tests
-- [ ] **2.9 `cli`: `tooldrop record`.** A headed Playwright browser that records clicks, inputs and HAR, lets the user mark inputs at the end, then saves and uploads the recording (D-014).
+- [ ] **2.9 `cli`: `tooldrop record`.** A headed Playwright browser that records clicks, inputs and HAR, lets the user mark inputs at the end, then saves and uploads the recording (D-016).
   Files: `apps/cli/package.json`, `apps/cli/src/commands/record.ts`, `packages/compiler/src/recording/recorder.ts`, tests with a scripted session on a fixture
 - [ ] **2.10 `compiler`: traffic analyzer.** Rank requests by how much target data they return; classify fields (`constant`, `user_input`, `derived`, `auth`, `pagination`) with heuristics first and the `reasoning` model only for leftovers.
   Files: `packages/compiler/src/analyze/{rank,classify}.ts`, tests with recorded HAR files
@@ -118,7 +118,7 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
 
 ## Phase 3: Auth and self-healing
 
-- [ ] **3.1 `auth`: vault and master key.** libsodium secretbox; master key from the OS keychain (library per Q-2) or a mounted key file; `tooldrop init` generates the key (D-009).
+- [ ] **3.1 `auth`: vault and master key.** libsodium secretbox; master key from the OS keychain (library per Q-1) or a mounted key file; `tooldrop init` generates the key (D-009).
   Files: `packages/auth/package.json`, `packages/auth/src/vault/{vault,keychain,key-file}.ts`, `apps/cli/src/commands/init.ts`, tests
 - [ ] **3.2 `auth`: logins.** `add_login` and `list_logins` over MCP and REST, encrypted secrets, masked previews only.
   Files: `packages/auth/src/logins.ts`, `apps/server/src/routes/logins.ts`, `apps/mcp/src/tools/logins.ts`, tests
@@ -147,7 +147,7 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
 
 ## Phase 4: MVP differentiators
 
-- [ ] **4.1 `extension`: scaffold.** Manifest V3 with Vite, a popup to start and stop recording, installed unpacked (D-015).
+- [ ] **4.1 `extension`: scaffold.** Manifest V3 with Vite, a popup to start and stop recording, installed unpacked (D-017).
   Files: `apps/extension/{package.json,manifest.json,vite.config.ts}`, `apps/extension/src/{background,popup}/*`
 - [ ] **4.2 `extension`: action recorder.** A content script that records clicks and inputs with ranked selectors and lets the user mark inputs.
   Files: `apps/extension/src/content/recorder.ts`, `apps/extension/src/popup/mark-inputs.ts`, tests in Chromium with the unpacked extension
@@ -174,7 +174,7 @@ Items marked "split first" are broken into day-sized tasks before work starts.
 
 **Self-hosted mode**
 
-- [ ] **5.1 `db`: Postgres.** The Postgres side of the database layer as decided in Q-1, with migrations and a parity test against the local database.
+- [ ] **5.1 `db`: Postgres.** The Postgres side of the database layer (D-015), with migrations and a parity test against the local database.
   Files: `packages/db/src/*`, `packages/db/migrations/*`, tests
 - [ ] **5.2 Queue on Valkey.** A BullMQ implementation of the queue interface; CI runs the queue tests against a Valkey 8.1 service (D-010).
   Files: `apps/server/src/jobs/bullmq-queue.ts`, `.github/workflows/ci.yml`, tests
