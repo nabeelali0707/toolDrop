@@ -261,6 +261,17 @@ SPEC gives the recipe envelope, an example and the op names. `packages/core` fil
 - **Browser steps wait for the page's own requests.** After a navigation, click or select, the executor waits until the page has no requests in flight and has been quiet for 300 ms, at most 10 s. Playwright's "networkidle" state cannot be used after the first load: once reached, it never waits again.
 - **Write tools are refused** with `approval_required` until safe mode exists (Phase 4).
 
+### D-031 The engine package, and how MCP and REST expose tools
+
+*Proposed · 2026-10-26*
+
+- **`packages/engine`** holds what every interface calls: publish a tool file, find tools, run a tool by name and record the run. MCP is mounted inside the REST app at `/mcp`, so this logic cannot live in either app without a circular dependency. It matches the "Engine" layer in SPEC's architecture diagram, and builds, heals and watches join it in later phases.
+- **One MCP tool per published tool,** advertised with its own input schema, an output schema for `{ result, meta }`, and `readOnlyHint` for read tools. Results come back as JSON text and as structured content, and errors as tool errors (`isError`) with `{ error: { code, message } }`, so the agent can read them.
+- **Only working management tools are listed:** `find_tool` and `run_tool` today; `build_tool` and the others appear with their phases. Their names are reserved, so no published tool can shadow them.
+- **Remote MCP is stateless** Streamable HTTP. Each request gets its own server, so there are no sessions to keep, and `list_changed` is pushed over stdio only. GET and DELETE on `/mcp` answer 405.
+- **API keys carry scopes:** tool names, or `*`. A key sees and runs only its tools, over both REST and MCP. Local stdio clients get every tool, since they run on the user's own machine.
+- **Errors have one shape:** `{ error: { code, message, details? } }`, with codes mapped to HTTP statuses: 400 bad input, 401 no key, 403 out of scope, 404 unknown tool, 409 approval needed, 502 when every strategy failed. Unexpected errors return a generic message, so internals never leak.
+
 ### D-026 Fixture switches simulate site changes
 
 *Proposed · 2026-10-26*

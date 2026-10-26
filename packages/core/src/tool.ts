@@ -2,9 +2,27 @@ import { z } from 'zod';
 import { authoritySchema, jsonSchemaSchema } from './common.ts';
 import { recipeSchema } from './recipe/schema.ts';
 
+/** The MCP server's own tools (SPEC, Management MCP tools); published tools cannot take these names. */
+export const MANAGEMENT_TOOL_NAMES = [
+  'find_tool',
+  'build_tool',
+  'get_job',
+  'answer_question',
+  'run_tool',
+  'approve_action',
+  'create_watch',
+  'delete_watch',
+  'list_logins',
+  'add_login',
+] as const;
+
 export const toolNameSchema = z
   .string()
-  .regex(/^[a-z][a-z0-9_]{0,63}$/, 'tool names are lowercase snake_case, at most 64 characters');
+  .regex(/^[a-z][a-z0-9_]{0,63}$/, 'tool names are lowercase snake_case, at most 64 characters')
+  .refine(
+    (name) => !(MANAGEMENT_TOOL_NAMES as readonly string[]).includes(name),
+    'this name belongs to a toolDrop management tool',
+  );
 
 export const TOOL_STATUSES = ['live', 'degraded', 'disabled'] as const;
 export const toolStatusSchema = z.enum(TOOL_STATUSES);

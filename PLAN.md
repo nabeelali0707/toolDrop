@@ -64,12 +64,12 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
   Files: `packages/runtime/src/{runtime,validate}.ts`, `packages/runtime/src/runtime.e2e.test.ts`
 - [x] **1.9 `runtime`: limits and cache.** Token bucket per site (1 request/second sustained, bursts of 5, 2 at once), optional TTL cache for read tools.
   Files: `packages/runtime/src/{limits,runtime}.ts`, tests
-- [ ] **1.10 `db`: repositories.** Register tools, save recipe versions, record runs. Runs store metadata only; results are never persisted.
-  Files: `packages/db/src/repos/{tools,recipes,runs}.ts`, tests
-- [ ] **1.11 `server`: REST app.** Fastify app, bearer API keys (`api_keys` table, D-021), `GET /v1/tools`, `POST /v1/tools/:name/run`, a uniform error format.
-  Files: `apps/server/package.json`, `apps/server/src/{app,auth}.ts`, `apps/server/src/routes/tools.ts`, `packages/db/src/schema.ts`, tests
-- [ ] **1.12 `mcp`: server.** stdio and Streamable HTTP transports, `run_tool` and `find_tool`, one dynamic tool per published tool with `tools/list_changed`.
-  Files: `apps/mcp/package.json`, `apps/mcp/src/{server,stdio,http,dynamic-tools}.ts`, tests with the MCP SDK client
+- [x] **1.10 `db`: repositories.** Sites, publishing tools as new versions, finding tools by site and task, recording runs (metadata only, never results), API keys stored as hashes; the `engine` package ties them to the runtime (D-031).
+  Files: `packages/db/src/{repos,schema,client}.ts`, `packages/db/migrations/0001_*`, `packages/engine/src/*`, tests
+- [x] **1.11 `server`: REST app.** Fastify app, bearer API keys (`api_keys` table, D-021) with scopes, `GET /health`, `GET /v1/tools`, `POST /v1/tools/:name/run`, one error shape mapped to HTTP statuses.
+  Files: `apps/server/src/app.ts`, tests
+- [x] **1.12 `mcp`: server.** `find_tool` and `run_tool`, one MCP tool per published tool (input schema, output schema, read-only hint), structured results, `tools/list_changed`; stdio, and stateless Streamable HTTP at `/mcp` in the REST app.
+  Files: `apps/mcp/src/server.ts`, tests with the MCP SDK client
 - [ ] **1.13 Hand-written recipes.** One recipe per fixture plus a seed script that registers them; end-to-end runs over REST and MCP.
   Files: `fixtures/recipes/*.json`, `apps/server/test/run.e2e.test.ts`, `apps/mcp/test/mcp.e2e.test.ts`
 

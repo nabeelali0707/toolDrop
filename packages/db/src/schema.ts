@@ -145,6 +145,8 @@ export const recipe_versions = sqliteTable(
     version: integer().notNull(),
     strategy: text({ enum: STRATEGIES }).notNull(),
     steps: text({ mode: 'json' }).$type<Step[]>().notNull(),
+    /** The browser version of the same tool, used when the primary strategy fails (DECISIONS.md, D-025). */
+    fallback: text({ mode: 'json' }).$type<{ strategy: 'browser_script'; steps: Step[] }>(),
     test_inputs: text({ mode: 'json' }).$type<Record<string, unknown>[]>().notNull().default([]),
     created_by: text({ enum: RECIPE_ORIGINS }).notNull(),
     change_reason: text(),
@@ -266,6 +268,25 @@ export const approvals = sqliteTable(
     ...timestamps,
   },
   (t) => [index('approvals_run_id').on(t.run_id), oneOf('approvals_status', t.status, APPROVAL_STATUSES)],
+);
+
+/**
+ * Bearer keys for the REST API and remote MCP (DECISIONS.md, D-021). Only a
+ * SHA-256 hash is stored; the key itself is shown once, when it is created.
+ */
+export const api_keys = sqliteTable(
+  'api_keys',
+  {
+    id: text().primaryKey(),
+    label: text().notNull(),
+    key_hash: text().notNull(),
+    /** Tool names this key may run, or ["*"] for all. */
+    scopes: text({ mode: 'json' }).$type<string[]>().notNull().default(['*']),
+    last_used_at: integer({ mode: 'timestamp_ms' }),
+    revoked_at: integer({ mode: 'timestamp_ms' }),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex('api_keys_key_hash_unique').on(t.key_hash)],
 );
 
 /** Raw evidence from a build or recording. Large files live on disk; rows hold their paths. */

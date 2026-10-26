@@ -121,7 +121,8 @@ async function runStep(
     case 'extract_table': {
       const table = (await locate(page, step.target, 'visible', waitMs)).first();
       const { headers, rows } = await table.evaluate((element) => {
-        const text = (cell: Element) => (cell.textContent ?? '').trim();
+        // Typed structurally, so packages importing the runtime need no DOM types.
+        const text = (cell: { textContent: string | null }) => (cell.textContent ?? '').trim();
         const headerRow = element.querySelector('thead tr') ?? element.querySelector('tr');
         const bodyRows =
           element.querySelectorAll('tbody tr').length > 0

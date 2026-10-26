@@ -1,0 +1,23 @@
+{
+  "name": "@tooldrop/engine",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The engine the interfaces call: publish, find and run tools; builds, heals and watches join later.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@tooldrop/core": "workspace:*",
+    "@tooldrop/db": "workspace:*",
+    "@tooldrop/runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "@tooldrop/fixture-html-app": "workspace:*",
+    "@tooldrop/fixture-kit": "workspace:*"
+  }
+}

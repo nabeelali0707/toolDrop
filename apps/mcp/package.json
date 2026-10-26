@@ -1,0 +1,25 @@
+{
+  "name": "@tooldrop/mcp",
+  "version": "0.0.0",
+  "private": true,
+  "description": "toolDrop's MCP server: management tools plus one tool per published recipe.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@tooldrop/core": "workspace:*",
+    "@tooldrop/db": "workspace:*",
+    "@tooldrop/engine": "workspace:*",
+    "@tooldrop/runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "@tooldrop/fixture-html-app": "workspace:*",
+    "@tooldrop/fixture-kit": "workspace:*"
+  }
+}

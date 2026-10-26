@@ -1,0 +1,26 @@
+{
+  "name": "@tooldrop/server",
+  "version": "0.0.0",
+  "private": true,
+  "description": "toolDrop's REST API, with remote MCP over Streamable HTTP.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@tooldrop/core": "workspace:*",
+    "@tooldrop/db": "workspace:*",
+    "@tooldrop/engine": "workspace:*",
+    "@tooldrop/mcp": "workspace:*",
+    "fastify": "^5.12.7"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@tooldrop/fixture-html-app": "workspace:*",
+    "@tooldrop/fixture-kit": "workspace:*"
+  }
+}

@@ -1,8 +1,12 @@
-import Database from 'better-sqlite3';
+import Database, { type RunResult } from 'better-sqlite3';
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
+import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import * as schema from './schema.ts';
 
 export type Db = BetterSQLite3Database<typeof schema>;
+
+/** A database or a transaction on it: what the repository functions accept. */
+export type Queryable = BaseSQLiteDatabase<'sync', RunResult, typeof schema>;
 
 export interface DatabaseHandle {
   db: Db;
