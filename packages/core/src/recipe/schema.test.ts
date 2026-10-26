@@ -64,7 +64,9 @@ describe('recipeSchema', () => {
       strategy: 'http_replay',
       steps: [search, { op: 'click', target: [{ kind: 'css', value: 'a' }] }],
     };
-    expect(issues(recipe)).toEqual(['"click" is not allowed in a http_replay recipe; allowed: http, map']);
+    expect(issues(recipe)).toEqual([
+      '"click" is not allowed in a http_replay recipe; allowed: http, map, extract_text',
+    ]);
   });
 
   it('rejects unknown keys, so invented fields are caught', () => {
@@ -124,6 +126,60 @@ describe('recipeSchema', () => {
     const both = { ...search, paginate: { var: 'page', until: '$.done', start: 1, from: '$.next' } };
     expect(issues({ strategy: 'http_replay', steps: [both] })).toEqual([
       'set exactly one of "start" (page numbers) or "from" (cursor)',
+    ]);
+  });
+
+  it('lets http_replay read a page token and send it with later requests', () => {
+    const recipe = {
+      strategy: 'http_replay',
+      steps: [
+        { op: 'http', method: 'GET', url: '{{site}}/' },
+        {
+          op: 'extract_text',
+          target: [{ kind: 'css', value: 'meta[name=csrf-token]' }],
+          attribute: 'content',
+          save: 'csrf',
+        },
+        { ...search, headers: { 'x-csrf-token': '{{vars.csrf}}' } },
+      ],
+    };
+    expect(issues(recipe)).toEqual([]);
+  });
+
+  it('accepts a browser fallback, checked as its own recipe', () => {
+    const fallback = {
+      strategy: 'browser_script',
+      steps: [
+        { op: 'goto', url: '{{site}}/invoices' },
+        { op: 'extract_table', target: [{ kind: 'css', value: '#invoices' }], columns: { number: 'Number' } },
+      ],
+    };
+    expect(issues({ strategy: 'http_replay', steps: [search], fallback })).toEqual([]);
+
+    const httpInFallback = { ...fallback, steps: [search] };
+    expect(issues({ strategy: 'http_replay', steps: [search], fallback: httpInFallback })).toEqual([
+      '"http" is not allowed in a browser_script recipe; allowed: goto, click, fill, select, wait_for, extract_table, extract_text, map',
+    ]);
+  });
+
+  it('keeps saved values separate between the recipe and its fallback', () => {
+    const recipe = {
+      strategy: 'http_replay',
+      steps: [{ ...search, save: { total: '$.total' } }],
+      fallback: { strategy: 'browser_script', steps: [{ op: 'goto', url: '{{site}}/{{vars.total}}' }] },
+    };
+    expect(issues(recipe)).toEqual(['{{vars.total}} is used before an earlier step saves "total"']);
+  });
+
+  it('does not give a browser recipe a fallback', () => {
+    const goto = { op: 'goto', url: '{{site}}' };
+    const recipe = {
+      strategy: 'browser_script',
+      steps: [goto],
+      fallback: { strategy: 'browser_script', steps: [goto] },
+    };
+    expect(issues(recipe)).toEqual([
+      'a browser_script recipe has nothing to fall back to; remove "fallback"',
     ]);
   });
 

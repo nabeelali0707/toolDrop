@@ -245,8 +245,21 @@ SPEC gives the recipe envelope, an example and the op names. `packages/core` fil
 - **Template roots** are `site`, `input`, `session`, `loop` and `vars`. `{{loop.*}}` is valid only in the step that paginates with that variable, and `{{vars.*}}` only after an earlier step saved it.
 - **Pagination** has two modes: page numbers (`start`, optional `step`) as in SPEC's example, or a cursor read from each response (`from`). Both stop on `until`, with a `max_pages` cap (default 50).
 - **Results.** The data steps are `map`, `extract_table` and `extract_text`; a recipe returns what its last data step produced.
-- **Ops per strategy.** `http_replay` and `official_api` use `http` and `map`. `html_fetch` uses `http`, `extract_table` and `extract_text`, with css or test_id selectors only, because there is no browser to resolve roles or text. `browser_script` uses the browser ops and `map`.
+- **Ops per strategy.** `official_api` uses `http` and `map`. `http_replay` adds `extract_text`, to read a value out of a page, such as a CSRF token in a `<meta>` tag (`attribute: "content"`), before replaying the requests that need it. `html_fetch` uses `http`, `extract_table` and `extract_text`. Strategies without a browser accept only css or test_id selectors, because nothing can resolve roles or text. `browser_script` uses the browser ops and `map`.
+- **Fallback.** A recipe may carry `fallback`, the `browser_script` version of the same tool. SPEC's cascade falls back to the browser, and the build validates both, so they are stored and versioned together and a heal updates them as one.
+- **Browser lists.** `click` takes `repeat: { max }` to press a "Load more" button while it is visible. A `fill` or `select` whose value is an input the caller left out is skipped.
 - Every object is strict: unknown keys fail validation, so a field the model invents is reported instead of silently dropped.
+
+### D-030 How the runtime runs a call
+
+*Proposed · 2026-10-26*
+
+- **Rate limit as a token bucket.** SPEC's default of 1 request per second and 2 at once, applied strictly to every request, would put a two-request call (fetch a token, then the data) over one second, against the "under 1 second" criterion. The bucket allows bursts of up to 5 requests, then holds to 1 per second, so short calls are fast and long page loops stay polite.
+- **Output types are coerced.** Strategies that read pages produce text, so outputs are coerced to the output schema's types: `"844.64"` becomes `844.64`. Every strategy then returns the same shape, and text that does not convert still fails validation.
+- **An empty result is cross-checked.** SPEC says empty output counts as a failure, but a filter with no matches is a real answer. When the primary strategy returns nothing, the fallback runs too. If it finds data, the primary had silently broken and the fallback's data wins. If it is also empty, the primary's empty answer stands.
+- **JSONPath never evaluates code.** `jsonpath-plus` runs with `eval: false`, which disables filter expressions. Its filters have had remote-code-execution bugs, and community recipes are untrusted.
+- **Browser steps wait for the page's own requests.** After a navigation, click or select, the executor waits until the page has no requests in flight and has been quiet for 300 ms, at most 10 s. Playwright's "networkidle" state cannot be used after the first load: once reached, it never waits again.
+- **Write tools are refused** with `approval_required` until safe mode exists (Phase 4).
 
 ### D-026 Fixture switches simulate site changes
 

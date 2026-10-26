@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { authoritySchema, jsonSchemaSchema } from './common.ts';
+import { recipeSchema } from './recipe/schema.ts';
 
 export const toolNameSchema = z
   .string()
@@ -27,3 +28,11 @@ export const toolDefinitionSchema = z.strictObject({
   output_schema: jsonSchemaSchema,
 });
 export type ToolDefinition = z.infer<typeof toolDefinitionSchema>;
+
+/**
+ * A tool and its recipe in one JSON file, without a site: the format for
+ * hand-written tools such as `fixtures/recipes/*.json`. The site is chosen
+ * when the tool is registered.
+ */
+export const toolFileSchema = toolDefinitionSchema.extend({ recipe: recipeSchema });
+export type ToolFile = z.infer<typeof toolFileSchema>;

@@ -2,7 +2,7 @@
 
 The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of under a day, with the files each task touches. Choices and open questions are in [DECISIONS.md](DECISIONS.md).
 
-**Status:** Phase 0 done (2026-10-26). Phase 1 is next.
+**Status:** Phase 0 done (2026-10-26). Phase 1 in progress: the runtime is done; the database layer, REST and MCP servers are next.
 
 **How this file works**
 
@@ -46,24 +46,24 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
 
 ## Phase 1: Run a hand-written recipe
 
-- [ ] **1.1 `runtime`: templates and JSONPath.** Resolve `{{site}}`, `{{input.*}}`, `{{session.*}}` and `{{loop.*}}`; JSONPath reads via `jsonpath-plus`; typed errors for missing values.
+- [x] **1.1 `runtime`: templates and JSONPath.** Resolve `{{site}}`, `{{input.*}}`, `{{session.*}}`, `{{loop.*}}` and `{{vars.*}}`, keeping value types; JSONPath via `jsonpath-plus` with evaluation off (D-030).
   Files: `packages/runtime/package.json`, `packages/runtime/src/{templates,jsonpath}.ts`, tests
-- [ ] **1.2 `runtime`: safe conditions.** A small parser for `paginate.until` and wait conditions (`$.path == literal`, `!=`, `<`, `>`, `&&`, `||`). No `eval`.
+- [x] **1.2 `runtime`: safe conditions.** A small parser for `paginate.until` (`==`, `!=`, `<`, `<=`, `>`, `>=`, `&&`, `||`, parentheses, path against path). No `eval`.
   Files: `packages/runtime/src/conditions.ts`, tests
-- [ ] **1.3 `runtime`: `http_replay` executor.** The `http` op over `got-scraping`, the `paginate` loop and the `map` op.
-  Files: `packages/runtime/src/executors/http-replay.ts`, `packages/runtime/src/ops/{http,paginate,map}.ts`, tests against `fixtures/json-api`
-- [ ] **1.4 `runtime`: `html_fetch` executor.** Fetch over `got-scraping`, parse with `cheerio`, `extract_table` and `extract_text` by CSS selector.
-  Files: `packages/runtime/src/executors/html-fetch.ts`, tests against `fixtures/html-app`
-- [ ] **1.5 `runtime`: browser pool.** Warm Playwright contexts per site, isolated per login, loading and saving `storageState`.
-  Files: `packages/runtime/src/browser/pool.ts`, tests
-- [ ] **1.6 `runtime`: `browser_script` executor.** Ops `goto`, `click`, `fill`, `select`, `wait_for`, `extract_table`, `extract_text`; ranked selectors tried in order (role + name, test id, text, CSS).
-  Files: `packages/runtime/src/executors/browser-script.ts`, `packages/runtime/src/browser/selectors.ts`, tests against fixtures
-- [ ] **1.7 `runtime`: session pool.** Sessions per login reused across calls, with an expiry hook (the silent re-login arrives in 3.5).
-  Files: `packages/runtime/src/sessions/pool.ts`, tests
-- [ ] **1.8 `runtime`: cascade.** Input validation (Ajv), authority check, primary strategy, fallback `http_replay` → `browser_script`, output validation, `meta`.
-  Files: `packages/runtime/src/{cascade,validate}.ts`, tests
-- [ ] **1.9 `runtime`: limits and cache.** Per-site rate limit and concurrency cap (1 request/second, 2 concurrent), optional TTL cache (off by default, never for write tools).
-  Files: `packages/runtime/src/{limits,cache}.ts`, tests
+- [x] **1.3 `runtime`: `http_replay` executor.** The `http` op over `got-scraping` with a per-site cookie jar, page-number and cursor pagination, `map`, and page tokens read with `extract_text` (D-025).
+  Files: `packages/runtime/src/executors/http.ts`, `packages/runtime/src/steps.ts`, tests against `fixtures/json-api`
+- [x] **1.4 `runtime`: `html_fetch` executor.** Same executor: `cheerio` for `extract_table` (columns matched by header text, so reordering is harmless) and `extract_text`.
+  Files: `packages/runtime/src/executors/http.ts`, tests against `fixtures/html-app`
+- [x] **1.5 `runtime`: browser pool.** Warm Playwright contexts per site; Chromium starts on first use.
+  Files: `packages/runtime/src/browser/pool.ts`
+- [x] **1.6 `runtime`: `browser_script` executor.** All browser ops; ranked selectors tried in order; `click` with `repeat` for "Load more"; waits for the page's own requests after each action (D-030).
+  Files: `packages/runtime/src/executors/browser.ts`, tests against fixtures
+- [x] **1.7 `runtime`: session pool.** Cookie jars per site for HTTP, warm browser contexts per site; signing in again arrives in 3.5.
+  Files: `packages/runtime/src/sessions.ts`
+- [x] **1.8 `runtime`: cascade.** Input validation with defaults, authority check, primary strategy, browser fallback, output validation with type coercion, empty-result cross-check, `meta` and the list of attempts (D-030).
+  Files: `packages/runtime/src/{runtime,validate}.ts`, `packages/runtime/src/runtime.e2e.test.ts`
+- [x] **1.9 `runtime`: limits and cache.** Token bucket per site (1 request/second sustained, bursts of 5, 2 at once), optional TTL cache for read tools.
+  Files: `packages/runtime/src/{limits,runtime}.ts`, tests
 - [ ] **1.10 `db`: repositories.** Register tools, save recipe versions, record runs. Runs store metadata only; results are never persisted.
   Files: `packages/db/src/repos/{tools,recipes,runs}.ts`, tests
 - [ ] **1.11 `server`: REST app.** Fastify app, bearer API keys (`api_keys` table, D-021), `GET /v1/tools`, `POST /v1/tools/:name/run`, a uniform error format.

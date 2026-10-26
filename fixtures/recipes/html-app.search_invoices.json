@@ -1,0 +1,81 @@
+{
+  "name": "search_invoices",
+  "description": "Find the 10 newest invoices, optionally with a given status and issued on or after a date.",
+  "authority": "read",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "status": {
+        "type": "string",
+        "enum": ["open", "paid", "overdue", "draft"],
+        "description": "Only invoices with this status."
+      },
+      "from": {
+        "type": "string",
+        "format": "date",
+        "description": "Only invoices issued on or after this date (YYYY-MM-DD)."
+      }
+    },
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "array",
+    "maxItems": 10,
+    "items": {
+      "type": "object",
+      "properties": {
+        "number": { "type": "string" },
+        "supplier": { "type": "string" },
+        "issued_on": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string" }
+      },
+      "required": ["number", "supplier", "issued_on", "amount", "status"]
+    }
+  },
+  "recipe": {
+    "strategy": "html_fetch",
+    "steps": [
+      {
+        "op": "http",
+        "method": "GET",
+        "url": "{{site}}/invoices",
+        "query": { "status": "{{input.status}}", "from": "{{input.from}}" }
+      },
+      {
+        "op": "extract_table",
+        "target": [
+          { "kind": "test_id", "value": "invoices" },
+          { "kind": "css", "value": "#invoices" }
+        ],
+        "columns": {
+          "number": "Number",
+          "supplier": "Supplier",
+          "issued_on": "Date",
+          "amount": "Amount",
+          "status": "Status"
+        }
+      }
+    ],
+    "fallback": {
+      "strategy": "browser_script",
+      "steps": [
+        { "op": "goto", "url": "{{site}}/invoices?status={{input.status}}&from={{input.from}}" },
+        {
+          "op": "extract_table",
+          "target": [
+            { "kind": "role", "role": "table" },
+            { "kind": "css", "value": "#invoices" }
+          ],
+          "columns": {
+            "number": "Number",
+            "supplier": "Supplier",
+            "issued_on": "Date",
+            "amount": "Amount",
+            "status": "Status"
+          }
+        }
+      ]
+    }
+  }
+}

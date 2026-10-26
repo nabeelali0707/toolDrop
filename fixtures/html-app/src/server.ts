@@ -113,7 +113,8 @@ function renderPage(
 ${switches.dateFilterMoved ? `<details><summary>Search options</summary>${dateFilter}</details>` : dateFilter}
 <button type="submit" data-testid="search">${switches.searchButtonRenamed ? 'Find' : 'Search'}</button>
 </form>
-${result.items.length > 0 ? invoiceTable(result.items, columns) : '<p id="empty">No invoices match.</p>'}
+${invoiceTable(result.items, columns)}
+${result.items.length === 0 ? '<p id="empty">No invoices match.</p>' : ''}
 <nav aria-label="Pagination"><span>Page ${query.page}</span> ${links}</nav>`,
   );
 }

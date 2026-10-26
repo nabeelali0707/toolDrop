@@ -1,0 +1,107 @@
+{
+  "name": "list_invoices",
+  "description": "List supplier invoices, newest first, optionally filtered by status and by the earliest issue date.",
+  "authority": "read",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "status": {
+        "type": "string",
+        "enum": ["open", "paid", "overdue", "draft"],
+        "description": "Only invoices with this status."
+      },
+      "from": {
+        "type": "string",
+        "format": "date",
+        "description": "Only invoices issued on or after this date (YYYY-MM-DD)."
+      }
+    },
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "number": { "type": "string" },
+        "supplier": { "type": "string" },
+        "issued_on": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string" }
+      },
+      "required": ["number", "supplier", "issued_on", "amount", "status"]
+    }
+  },
+  "recipe": {
+    "strategy": "http_replay",
+    "steps": [
+      { "op": "http", "method": "GET", "url": "{{site}}/" },
+      {
+        "op": "extract_text",
+        "target": [{ "kind": "css", "value": "meta[name=csrf-token]" }],
+        "attribute": "content",
+        "save": "csrf"
+      },
+      {
+        "op": "http",
+        "method": "POST",
+        "url": "{{site}}/api/v2/invoices/search",
+        "headers": { "x-csrf-token": "{{vars.csrf}}" },
+        "body": { "status": "{{input.status}}", "from": "{{input.from}}", "page": "{{loop.page}}" },
+        "paginate": { "var": "page", "start": 1, "until": "$.hasMore == false" }
+      },
+      {
+        "op": "map",
+        "path": "$.items[*]",
+        "fields": {
+          "number": "$.invoiceNo",
+          "supplier": "$.supplier",
+          "issued_on": "$.issuedOn",
+          "amount": "$.total.value",
+          "status": "$.state"
+        }
+      }
+    ],
+    "fallback": {
+      "strategy": "browser_script",
+      "steps": [
+        { "op": "goto", "url": "{{site}}/" },
+        {
+          "op": "select",
+          "target": [
+            { "kind": "role", "role": "combobox", "name": "Status" },
+            { "kind": "css", "value": "select[name=status]" }
+          ],
+          "value": "{{input.status}}"
+        },
+        {
+          "op": "fill",
+          "target": [{ "kind": "css", "value": "input[name=from]" }],
+          "value": "{{input.from}}"
+        },
+        {
+          "op": "click",
+          "target": [
+            { "kind": "role", "role": "button", "name": "Search" },
+            { "kind": "test_id", "value": "search" }
+          ]
+        },
+        { "op": "click", "target": [{ "kind": "css", "value": "#more" }], "repeat": { "max": 20 } },
+        {
+          "op": "extract_table",
+          "target": [
+            { "kind": "test_id", "value": "invoices" },
+            { "kind": "css", "value": "#invoices" }
+          ],
+          "columns": {
+            "number": "Number",
+            "supplier": "Supplier",
+            "issued_on": "Date",
+            "amount": "Amount",
+            "status": "Status"
+          }
+        }
+      ]
+    }
+  }
+}

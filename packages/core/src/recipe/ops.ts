@@ -57,7 +57,16 @@ export const mapOpSchema = z.strictObject({
 
 export const gotoOpSchema = z.strictObject({ op: z.literal('goto'), url: z.string().min(1) });
 
-export const clickOpSchema = z.strictObject({ op: z.literal('click'), target: rankedSelectorSchema });
+export const clickOpSchema = z.strictObject({
+  op: z.literal('click'),
+  target: rankedSelectorSchema,
+  /**
+   * Keep clicking while the target is visible, at most `max` times, as for a
+   * "Load more" button. With `repeat`, a target that is not visible means
+   * there is nothing more to load, not a failure.
+   */
+  repeat: z.strictObject({ max: z.number().int().positive().max(100) }).optional(),
+});
 
 export const fillOpSchema = z.strictObject({
   op: z.literal('fill'),
@@ -94,6 +103,8 @@ export const extractTableOpSchema = z.strictObject({
 export const extractTextOpSchema = z.strictObject({
   op: z.literal('extract_text'),
   target: rankedSelectorSchema,
+  /** Read this attribute instead of the text, e.g. "content" of a CSRF <meta> tag. */
+  attribute: z.string().min(1).optional(),
   /** Every match instead of the first. */
   all: z.boolean().optional(),
   save: identifierSchema.optional(),

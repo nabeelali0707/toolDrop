@@ -20,6 +20,11 @@
       "package": "speakingurl",
       "license": "BSD",
       "reason": "Its LICENSE file is BSD-3-Clause; package.json only says \"BSD\". Pulled in by VitePress, for the docs site."
+    },
+    {
+      "package": "caniuse-lite",
+      "license": "CC-BY-4.0",
+      "reason": "Browser usage data, not code. got-scraping uses it (through header-generator and browserslist) to send realistic browser headers. CC-BY-4.0 is a free data license; the package carries its own attribution."
     }
   ]
 }
