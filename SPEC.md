@@ -299,7 +299,7 @@ toolDrop is self-host only: there is no managed cloud version, and no setup uses
 
 - One `app` image runs the REST API, the MCP server (Streamable HTTP), the job workers and the dashboard, with Playwright's Chromium. Volumes hold the Postgres data, Ollama models and captures.
 - Model weights are pulled on first start, never baked into an image.
-- Ollama on macOS: Docker has no access to the Apple GPU, so run Ollama natively and point toolDrop at `http://host.docker.internal:11434` (the `ollama` service sits behind a Compose profile). NVIDIA GPUs on Linux need the NVIDIA Container Toolkit, which is free.
+- Ollama on macOS: Docker has no access to the Apple GPU, so run Ollama natively, start only the app (`docker compose up app`), and point it at `http://host.docker.internal:11434` with `OLLAMA_HOST`. NVIDIA GPUs on Linux need the NVIDIA Container Toolkit, which is free.
 - Any container runtime works: Docker Engine with Compose, or Podman. Docker Desktop is not required.
 - For remote MCP or REST access over TLS, put the app behind your own reverse proxy (e.g. Caddy, with free Let's Encrypt certificates).
 - No telemetry: toolDrop sends none, and the Next.js and Turborepo telemetry is turned off in scripts, CI and images.

@@ -2,7 +2,7 @@
 
 The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of under a day, with the files each task touches. Choices and open questions are in [DECISIONS.md](DECISIONS.md).
 
-**Status:** Phase 0 done (2026-10-26). Phase 1 in progress: the runtime is done; the database layer, REST and MCP servers are next.
+**Status:** Phases 0 and 1 done (2026-10-26); Phase 1 waits only on a manual MCP check in Claude Desktop or Claude Code. The open-source release track is partly done (below). Phase 2 is next.
 
 **How this file works**
 
@@ -70,10 +70,12 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
   Files: `apps/server/src/app.ts`, tests
 - [x] **1.12 `mcp`: server.** `find_tool` and `run_tool`, one MCP tool per published tool (input schema, output schema, read-only hint), structured results, `tools/list_changed`; stdio, and stateless Streamable HTTP at `/mcp` in the REST app.
   Files: `apps/mcp/src/server.ts`, tests with the MCP SDK client
-- [ ] **1.13 Hand-written recipes.** One recipe per fixture plus a seed script that registers them; end-to-end runs over REST and MCP.
-  Files: `fixtures/recipes/*.json`, `apps/server/test/run.e2e.test.ts`, `apps/mcp/test/mcp.e2e.test.ts`
+- [x] **1.13 Hand-written recipes.** `list_invoices` (JSON API with a browser fallback) and `search_invoices` (HTML with a browser fallback) in `fixtures/recipes`. `tooldrop tools add` publishes them, which replaced the planned seed script. End-to-end runs over REST, MCP over HTTP, MCP over stdio and the CLI.
+  Files: `fixtures/recipes/*.json`, `apps/*/src/*.e2e.test.ts`
+- [x] **1.14 `cli`: the `tooldrop` package.** `init`, `mcp`, `serve`, `run`, `tools`, `keys`; bundled with esbuild for npm (D-032). Added to this phase so the open-source release could start (see the release track below).
+  Files: `apps/cli/*`, tests
 
-**Gate:** *Cascade* and *MCP* criteria. MCP over stdio and HTTP is tested in CI with the SDK client, and checked once by hand in Claude Desktop or Claude Code.
+**Gate:** *Cascade* and *MCP* criteria. Both pass in CI: the cascade falls back to the browser when the JSON API moves, with the same answer; MCP works over stdio and over HTTP from SDK clients. Still to do: the one-time manual check in Claude Desktop or Claude Code (yours).
 
 ## Phase 2: Build pipeline (MVP core)
 
@@ -202,6 +204,22 @@ Items marked "split first" are broken into day-sized tasks before work starts.
 
 **Gate:** *SMS 2FA* and *Zero cost* criteria, plus each feature's own tests.
 
+## Open-source release track
+
+From your release plan (2026-10-26). It runs alongside the phases: each item needs the features of the phase named.
+
+- [x] **R1 License and community files.** Apache-2.0 (D-027), README, CONTRIBUTING, Code of Conduct, SECURITY, CHANGELOG, issue and PR templates, Dependabot.
+- [x] **R2 Docs site.** VitePress in `docs/`, deployed to GitHub Pages once Pages is enabled (D-029).
+- [x] **R3 Community recipe library.** `recipes/` with format checks and gitleaks in CI (D-028).
+- [x] **R4 MCP directory listings.** `server.json` (validated), `glama.json`, `smithery.yaml`, `listings/README.md`; not submitted.
+- [x] **R5 Install path A (npx), C (global CLI) and D (from source).** Tested from clean folders with the packed package.
+- [x] **R6 Release automation.** Changesets; a tag-triggered workflow with npm provenance, a multi-arch image on ghcr.io signed with cosign, and a GitHub release (D-033). Runs for the first time at your first tag.
+- [ ] **R7 Install path B (Docker Compose).** The image and `compose.yaml` (app, Ollama, model download) are built and checked in CI. Still needed: the dashboard on port 3000 (Phase 4), and Postgres and Valkey (Phase 5).
+- [ ] **R8 Bring your own model.** `tooldrop init` sizes and pulls Ollama models and accepts keyless OpenAI-compatible endpoints. Keys for other endpoints need the vault (Phase 3).
+- [ ] **R9 Main use case: the Demo Shop.** The fixture is ready (`fixtures/demo-shop`). The end-to-end test and the demo GIF need building (Phase 2), sign-in and healing (Phase 3), and watches and the dashboard (Phase 4).
+- [ ] **R10 Chrome extension release zip and store listing.** The privacy policy page is written (`docs/privacy.md`); the extension, icons and screenshots come with Phase 4.
+- [ ] **R11 Chrome QA.** Dashboard and extension checks come with Phase 4. Done so far: the fixture pages and the docs site, checked in Chrome.
+
 ## Done log
 
 Filled in at the end of each phase: what shipped, test results and the commit.
@@ -219,3 +237,16 @@ Filled in at the end of each phase: what shipped, test results and the commit.
 - **Results:** 91 tests in 12 files pass. Format, lint and typecheck are clean. The license check passes for all 223 installed packages. [CI passes on Linux](https://github.com/nabeelali0707/toolDrop/actions/runs/40233563626). The JSON-API fixture's page was also checked in Chrome, including after its API moves.
 - **Commits:** `e229906` (tooling), `147c652` (core), `bf0a758` (db), `f7ccf21` (fixtures).
 - **Still open:** Q-1, the keychain library, needed before task 3.1. Q-2, toolDrop's own license. Neither blocks Phase 1.
+
+### Phase 1: Run a hand-written recipe, done 2026-10-26
+
+- **Shipped:**
+  - `@tooldrop/runtime`: four strategies, the cascade with a browser fallback, per-site rate limits, sessions and a cache.
+  - `@tooldrop/engine`.
+  - The MCP server (stdio and Streamable HTTP).
+  - The REST API with scoped API keys.
+  - The `tooldrop` CLI and npm package.
+  - Two hand-written fixture tools.
+- **Results:** 179 tests pass. The license check passes for 484 packages. Install paths A, C and D work from clean folders. *Cascade* passes: when the JSON API moves, the browser returns the same 57 invoices. *MCP* passes over stdio and HTTP.
+- **Commits:** `68078d8` (runtime), `ae646ae` (db, engine, MCP, REST), `4240b84` (CLI and package), plus the release automation.
+- **Still open:** the one-time MCP check in Claude Desktop or Claude Code. Q-2 is answered (Apache-2.0); Q-1, the keychain library, is still needed before task 3.1.

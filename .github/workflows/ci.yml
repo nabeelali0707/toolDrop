@@ -41,6 +41,30 @@ jobs:
       # Bundles the published package and fails if it imports an undeclared dependency.
       - run: pnpm build
 
+  docker:
+    # Builds the app image and checks that it serves, as `docker compose up` would.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: tooldrop:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Start the image and check /health, auth and the first API key
+        run: |
+          docker run -d --name tooldrop -p 127.0.0.1:3000:3000 tooldrop:ci
+          for i in $(seq 1 60); do curl -fsS http://127.0.0.1:3000/health && break; sleep 1; done
+          echo
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/v1/tools)" = 401
+          key=$(docker logs tooldrop 2>&1 | grep -o 'td_[A-Za-z0-9_-]*' | head -1)
+          curl -fsS -H "Authorization: Bearer $key" http://127.0.0.1:3000/v1/tools
+          docker exec tooldrop node -e "require('$(docker exec tooldrop npm root --global)/tooldrop/node_modules/playwright').chromium.launch().then((b) => b.close())"
+
   secrets:
     # Recipes and fixtures must never contain real credentials (recipes/README.md).
     runs-on: ubuntu-latest

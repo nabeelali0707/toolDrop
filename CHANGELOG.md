@@ -17,3 +17,12 @@ This file covers the project as a whole. From the first release on, the publishe
 - Fixture sites that all tests run against: a JSON-API app, a server-rendered app, a login with TOTP, and the Demo Shop.
 - The community recipe library, with format validation and secret scanning in CI.
 - Open-source project files: the Apache-2.0 license, a contributing guide, the Contributor Covenant, a security policy, issue and pull request templates, and Dependabot.
+- The runtime runs published tools without a model. It uses an official API, the site's own JSON API, its HTML, or a real browser, and falls back to the browser when the faster strategy breaks.
+- An MCP server (stdio for local clients, Streamable HTTP for remote ones): every published tool is its own MCP tool, plus `find_tool` and `run_tool`.
+- A REST API with scoped API keys: `GET /v1/tools`, `POST /v1/tools/:name/run` and `/health`.
+- The `tooldrop` CLI, as an npm package:
+  - `init` picks models for your machine, checks Ollama and installs the browser.
+  - `mcp`, `serve`, `run`, `tools add` (tool files and community recipes) and `keys`.
+- A Docker image and `compose.yaml` with Ollama and a first-start model download.
+- Release automation: Changesets, npm provenance, multi-arch images on ghcr.io signed with cosign, and generated release notes.
+- The documentation site, and listing files for the MCP Registry, Glama and Smithery.

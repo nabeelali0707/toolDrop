@@ -34,6 +34,8 @@ Useful commands:
 | `pnpm check:licenses` | The zero-cost license check |
 | `pnpm check:recipes` | Validates the community recipe library |
 | `pnpm fixtures` | Starts the fixture sites on ports 4101 to 4104 |
+| `pnpm dev` | Serves toolDrop from source on http://127.0.0.1:3000, with data in `./.tooldrop` |
+| `pnpm build` | Bundles the `tooldrop` npm package into `apps/cli/dist` |
 | `pnpm docs:dev` | The documentation site on http://localhost:5173 |
 | `pnpm changeset` | Describes your change for the next release |
 
@@ -65,9 +67,17 @@ Use the issue forms. For anything security-related, follow [SECURITY.md](SECURIT
 
 Maintainers release from `main`:
 
-1. `pnpm changeset version` applies the pending changesets: it bumps the `tooldrop` package version and updates its changelog.
-2. Commit, then tag the commit `vX.Y.Z` and push the tag.
-3. The release workflow builds and tests, publishes to npm with provenance, pushes the signed Docker image to `ghcr.io`, and attaches the Chrome extension zip and release notes to the GitHub release.
+1. `pnpm changeset version` applies the pending changesets: it bumps the `tooldrop` package version (`apps/cli`) and updates its changelog.
+2. Set both `version` fields in `server.json` to the new version.
+3. Commit, tag the commit `vX.Y.Z`, and push the tag.
+4. The release workflow (`.github/workflows/release.yml`):
+   - checks that the tag, the package and `server.json` agree, then runs every check;
+   - publishes to npm with provenance;
+   - pushes a multi-arch image to `ghcr.io/nabeelali0707/tooldrop` and signs it with cosign;
+   - creates the GitHub release with generated notes, the package tarball and, once it exists, the Chrome extension zip.
+5. Publish the new version to the MCP Registry (see [`listings/README.md`](listings/README.md)).
+
+The first npm release needs an `NPM_TOKEN` repository secret. After it, set up npm trusted publishing for the release workflow and delete the token.
 
 ## License
 

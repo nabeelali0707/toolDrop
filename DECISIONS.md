@@ -130,6 +130,7 @@ Recording mode is the default path. Agent mode runs only without a recording, wi
 - No managed cloud version.
 - Docker Desktop is not required. Docker Engine with Compose (Linux or WSL2) and Podman both work; so do Rancher Desktop and Colima. Docker Desktop needs a [paid subscription](https://www.docker.com/pricing/faq/) in companies with more than 250 employees or more than $10 million in annual revenue.
 - Scripts, CI and images set `NEXT_TELEMETRY_DISABLED=1`, `TURBO_TELEMETRY_DISABLED=1` and `DO_NOT_TRACK=1`.
+- Compose runs Ollama by default, with a one-off `models` service that downloads the models on first start, as your release plan asked. On macOS, where Docker cannot use the GPU, start only the app (`docker compose up app`) against a native Ollama. The SPEC line that put Ollama behind a profile changed with this.
 
 ### D-013 Token and duration logging instead of cost
 
@@ -283,6 +284,20 @@ SPEC gives the recipe envelope, an example and the op names. `packages/core` fil
 - **Commands:** `init`, `mcp`, `serve`, `run`, `tools list` and `tools add` (a tool file, or a community recipe folder), `keys create`, `keys list` and `keys revoke`, and `build`, which explains that it arrives with Phase 2.
 - **`serve` creates a first API key** when none exists and prints it once. Every route needs a key, and a fresh install should work without reading docs first.
 - **`init` and model keys.** Keys for OpenAI-compatible endpoints wait for the vault (Phase 3), because toolDrop never stores a key in plain text. Until then, `init` accepts keyless endpoints such as llama.cpp, vLLM and LM Studio, and says so.
+
+### D-033 Releases, the image and the Compose stack
+
+*Proposed · 2026-10-26*
+
+- **Versions with Changesets.** Contributors add changesets; at release, `pnpm changeset version` bumps `tooldrop` and writes its changelog. Private workspace packages are never versioned or published. The root CHANGELOG.md covers the project; the package changelog covers releases.
+- **Releases from a tag.** Pushing `vX.Y.Z` runs `.github/workflows/release.yml`:
+  - Verify: the tag, `apps/cli/package.json` and both versions in `server.json` must agree, and every check must pass.
+  - npm: publish the packed tarball with provenance. The first release needs an `NPM_TOKEN` secret, because npm's trusted publishing can only be set up for a package that already exists; after that, trusted publishing replaces the token.
+  - Image: multi-arch (amd64 and arm64) to `ghcr.io/nabeelali0707/tooldrop`, with SBOM and provenance attestations, signed by cosign with GitHub's identity (keyless, free).
+  - GitHub release: generated notes, the package tarball, and the extension zip once the extension exists.
+- **The image:** `node:24-bookworm-slim`, the package installed from its own tarball (as users install it), Chromium through Playwright, a non-root user (uid 10001), data on `/data`, and a health check. Weights are never baked in.
+- **Compose today:** `app`, `ollama` and the one-off `models` download. It publishes port 3000 on the host's loopback address only. Postgres and Valkey join with Phase 5, and the dashboard on the same port arrives with Phase 4.
+- **CI builds and runs the image** on every push: `/health` answers, requests without a key get 401, the first key works, and Chromium launches inside the container. That is how the image is verified, since the development machine has no running Docker daemon.
 
 ### D-026 Fixture switches simulate site changes
 

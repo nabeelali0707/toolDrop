@@ -1,0 +1,122 @@
+name: Release
+
+# Runs when a maintainer pushes a version tag, e.g. v0.1.0 (CONTRIBUTING.md, "Releases").
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+env:
+  DO_NOT_TRACK: '1'
+  TURBO_TELEMETRY_DISABLED: '1'
+  IMAGE: ghcr.io/nabeelali0707/tooldrop
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: The tag, the package and server.json must agree
+        run: |
+          version=$(node -p "require('./apps/cli/package.json').version")
+          test "v$version" = "$GITHUB_REF_NAME" || { echo "::error::tag $GITHUB_REF_NAME, package $version"; exit 1; }
+          node -e "const s=require('./server.json'); if (s.version !== '$version' || s.packages[0].version !== '$version') { console.error('::error::update both versions in server.json to $version'); process.exit(1); }"
+      - run: pnpm --filter @tooldrop/runtime exec playwright install --with-deps chromium
+      - run: pnpm check
+      - run: pnpm build
+      - run: mkdir release && cd apps/cli && pnpm pack --pack-destination ../../release
+      - name: Recorder extension zip, once the extension exists (PLAN.md, Phase 4)
+        if: hashFiles('apps/extension/package.json') != ''
+        run: |
+          pnpm --filter @tooldrop/extension build
+          (cd apps/extension/dist && zip -r ../../../release/tooldrop-recorder.zip .)
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release
+          path: release/
+
+  npm:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write # npm provenance
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release
+          path: release
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      # NPM_TOKEN for the first release; afterwards npm trusted publishing needs no token.
+      - run: npm publish release/tooldrop-*.tgz --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  docker:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write # push to ghcr.io
+      id-token: write # keyless cosign signing
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+      - id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: true
+          sbom: true
+      - uses: sigstore/cosign-installer@v4
+      - name: Sign the image (keyless, with GitHub's identity)
+        run: cosign sign --yes "${IMAGE}@${{ steps.build.outputs.digest }}"
+
+  github-release:
+    needs: [npm, docker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release
+          path: release
+      - name: Create the release with generated notes and the files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release create "$GITHUB_REF_NAME" release/* --verify-tag --generate-notes --title "toolDrop $GITHUB_REF_NAME"

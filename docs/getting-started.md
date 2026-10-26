@@ -1,7 +1,7 @@
 # Getting started
 
 ::: info Status
-The `tooldrop` package is not published yet. Running tools arrives with Phase 1 and building them with Phase 2; see the [plan](https://github.com/nabeelali0707/toolDrop/blob/main/PLAN.md).
+The `tooldrop` package is not on npm yet. Running tools works today (Phase 1): over MCP, REST and the CLI, with tools you add from a file or the [community library](https://github.com/nabeelali0707/toolDrop/tree/main/recipes). Building tools from a description (step 3 below) arrives with Phase 2; see the [plan](https://github.com/nabeelali0707/toolDrop/blob/main/PLAN.md).
 :::
 
 toolDrop runs as an [MCP](https://modelcontextprotocol.io) server that your AI agent talks to. You need [Node.js](https://nodejs.org) 24 or newer, and [Ollama](https://ollama.com/download) for the local models.

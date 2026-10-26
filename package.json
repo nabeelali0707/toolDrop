@@ -23,9 +23,11 @@
     "check:recipes": "node scripts/check-recipes.ts",
     "docs:dev": "pnpm --filter @tooldrop/docs dev",
     "docs:build": "pnpm --filter @tooldrop/docs build",
-    "dev": "cross-env TOOLDROP_HOME=.tooldrop node apps/cli/src/main.ts serve"
+    "dev": "cross-env TOOLDROP_HOME=.tooldrop node apps/cli/src/main.ts serve",
+    "changeset": "changeset"
   },
   "devDependencies": {
+    "@changesets/cli": "^3.0.3",
     "@eslint/js": "^10.0.1",
     "@tooldrop/core": "workspace:*",
     "@types/node": "^24.19.2",
