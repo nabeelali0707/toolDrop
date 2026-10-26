@@ -25,6 +25,7 @@ const STATUS: Record<ErrorCode, number> = {
   strategy_failed: 502,
   session_expired: 502,
   llm_invalid_output: 502,
+  llm_prompt_too_large: 502,
   llm_unavailable: 503,
   heal_timeout: 504,
 };

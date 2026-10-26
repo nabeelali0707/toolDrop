@@ -8,8 +8,9 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { startHtmlAppFixture } from '@tooldrop/fixture-html-app';
 import type { RunningFixture } from '@tooldrop/fixture-kit';
+import { ollamaUrl } from '@tooldrop/llm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { ollamaUrl, recommendedModels } from './commands/init.ts';
+import { recommendedModels } from './commands/init.ts';
 
 const main = fileURLToPath(new URL('./main.ts', import.meta.url));
 const repo = (path: string) => fileURLToPath(new URL(`../../../${path}`, import.meta.url));

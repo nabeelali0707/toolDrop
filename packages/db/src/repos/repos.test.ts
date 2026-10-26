@@ -1,7 +1,7 @@
 import { isToolDropError, type Recipe, type ToolDefinition } from '@tooldrop/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { openDatabase, type DatabaseHandle } from './client.ts';
-import { runMigrations } from './migrate.ts';
+import { openDatabase, type DatabaseHandle } from '../client.ts';
+import { runMigrations } from '../migrate.ts';
 import {
   createApiKey,
   findTools,
@@ -12,7 +12,7 @@ import {
   recordRun,
   revokeApiKey,
   verifyApiKey,
-} from './repos.ts';
+} from './index.ts';
 
 const definition: ToolDefinition = {
   name: 'list_invoices',

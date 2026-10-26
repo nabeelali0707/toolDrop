@@ -339,3 +339,19 @@ Community recipes live in `recipes/` in the main repository, not in a separate r
 
   Changing either before Phase 4 means updating the docs in the same pull request.
 - **Recorder privacy policy** (`docs/privacy.md`) states the extension's design: it records only while recording and only the recorded tab, sends recordings only to the user's own server, keeps no analytics and does not keep typed passwords. Task 4.2 must meet it, and the Chrome Web Store listing links to it.
+
+### D-034 How `packages/llm` works
+
+*Proposed · 2026-10-26*
+
+- **One entry point.** `Llm.generateJson({ role, purpose, schema, system, prompt })` does everything SPEC asks of a model call: masking, PII redaction when the endpoint is external, the budget check, the schema as constrained-decoding `format`, validation, up to 3 retries with the errors, and a usage record per call. Adapters (`OllamaProvider`, `OpenAiCompatibleProvider`) only move messages.
+- **The schema the model sees is simplified.** `z.toJSONSchema` output goes to the decoder minus what grammar converters reject: unanchored `pattern`s (llama.cpp refuses the whole schema over one), unsupported `format`s, `propertyNames`, and Zod's ±2^53 integer bounds, which become huge grammars. Zod checks all of it on the reply anyway.
+- **A new error code, `llm_prompt_too_large`,** for a prompt still over budget after its builder pruned it as far as it can (D-006). Prompts are never cut silently.
+- **Recorded replies are keyed by purpose,** such as `write_recipe`, and replayed in order, not by a hash of the prompt. Prompts can then be reworded without re-recording every reply, while CI still parses and validates real model output (D-019). `RecordingProvider` saves replies from `pnpm test:llm` runs to `fixtures/llm-replies/`.
+- **OpenAI-compatible servers differ** in what they accept as a reply format. The adapter asks for a JSON schema; a 400 that names `response_format` drops it to JSON mode, then to none, and the server's limit is remembered. Validation and retries are the same either way.
+- **Masking:**
+  - Values registered during a job, such as a cookie, a CSRF token or a password (also URL-encoded), become placeholders like `{{session.csrf}}`.
+  - Patterns catch the rest: JWTs, `Bearer` and `Basic` values, and JSON members or form fields whose name says secret, token, password, CSRF, API key or OTP.
+  - Template placeholders are kept as they are.
+- **PII redaction** replaces emails with `[email]`, phone numbers with `[phone]`, and runs of 9 or more digits with `[number]`. Dates, prices and short numbers are kept.
+- **Usage:** `llm_calls` gained a `purpose` column, and `jobs` a `step` column that says what a running build is doing (migration `0002`). When Ollama reused a cached prompt and reports no prompt tokens, the 3-characters-per-token estimate stands in.

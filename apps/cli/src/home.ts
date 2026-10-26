@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { openDatabase, runMigrations } from '@tooldrop/db';
 import { Engine } from '@tooldrop/engine';
+import type { LlmSettings } from '@tooldrop/llm';
 
 // Where toolDrop keeps its data: ~/.tooldrop, or TOOLDROP_HOME (DECISIONS.md, D-022).
 
@@ -16,14 +17,8 @@ export function version(): string {
   return (createRequire(import.meta.url)('../package.json') as { version: string }).version;
 }
 
-export interface ModelConfig {
-  provider: 'ollama' | 'openai_compatible';
-  base_url: string;
-  models: { code: string; reasoning: string };
-}
-
 export interface Config {
-  llm?: ModelConfig;
+  llm?: LlmSettings;
 }
 
 const configPath = () => join(homeDir(), 'config.json');

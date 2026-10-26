@@ -1,0 +1,63 @@
+import { llmProviderSchema } from '@tooldrop/core';
+import { z } from 'zod';
+import { Llm, type LlmOptions } from './llm.ts';
+import { OllamaProvider } from './ollama.ts';
+import { OpenAiCompatibleProvider } from './openai-compatible.ts';
+import type { LlmProvider } from './provider.ts';
+
+// The model settings in config.json, written by `tooldrop init`.
+
+export const DEFAULT_MODELS = { code: 'qwen2.5-coder:7b', reasoning: 'llama3.1:8b' } as const;
+
+export const llmSettingsSchema = z.object({
+  provider: llmProviderSchema,
+  base_url: z.url(),
+  models: z.object({ code: z.string().min(1), reasoning: z.string().min(1) }),
+  /** Redact PII for local endpoints too; always on for external ones. */
+  redact_pii: z.boolean().optional(),
+  num_ctx: z.number().int().positive().optional(),
+  budget_tokens: z.number().int().positive().optional(),
+  seed: z.number().int().optional(),
+  timeout_ms: z.number().int().positive().optional(),
+});
+export type LlmSettings = z.infer<typeof llmSettingsSchema>;
+
+/** Ollama's address from OLLAMA_HOST (which may omit the scheme or port), or the default. */
+export function ollamaUrl(host = process.env.OLLAMA_HOST): string {
+  if (!host) return 'http://127.0.0.1:11434';
+  const withScheme = /^https?:\/\//.test(host) ? host : `http://${host}`;
+  const url = new URL(withScheme);
+  if (!url.port) url.port = '11434';
+  if (url.hostname === '0.0.0.0') url.hostname = '127.0.0.1';
+  return url.origin;
+}
+
+/** Local Ollama with the default models: what toolDrop uses before `init` runs. */
+export function defaultSettings(): LlmSettings {
+  return { provider: 'ollama', base_url: ollamaUrl(), models: { ...DEFAULT_MODELS } };
+}
+
+export function createProvider(settings: LlmSettings, options: { apiKey?: string } = {}): LlmProvider {
+  const timeout = settings.timeout_ms !== undefined ? { timeoutMs: settings.timeout_ms } : {};
+  return settings.provider === 'ollama'
+    ? new OllamaProvider(settings.base_url, timeout)
+    : new OpenAiCompatibleProvider(settings.base_url, {
+        ...timeout,
+        ...(options.apiKey !== undefined && { apiKey: options.apiKey }),
+      });
+}
+
+export function createLlm(
+  settings: LlmSettings,
+  options: { apiKey?: string; onCall?: LlmOptions['onCall'] } = {},
+): Llm {
+  return new Llm({
+    provider: createProvider(settings, options),
+    models: settings.models,
+    ...(settings.num_ctx !== undefined && { numCtx: settings.num_ctx }),
+    ...(settings.budget_tokens !== undefined && { budgetTokens: settings.budget_tokens }),
+    ...(settings.seed !== undefined && { seed: settings.seed }),
+    ...(settings.redact_pii !== undefined && { redactPii: settings.redact_pii }),
+    ...(options.onCall && { onCall: options.onCall }),
+  });
+}

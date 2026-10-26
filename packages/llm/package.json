@@ -1,0 +1,19 @@
+{
+  "name": "@tooldrop/llm",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Every model call: providers, strict JSON with retries, masking, budgets and usage logging.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@tooldrop/core": "workspace:*",
+    "ollama": "^0.6.4",
+    "zod": "^4.6.7"
+  }
+}

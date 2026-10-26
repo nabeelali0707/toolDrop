@@ -79,16 +79,16 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
 
 ## Phase 2: Build pipeline (MVP core)
 
-- [ ] **2.1 `llm`: provider and Ollama adapter.** The `LlmProvider` interface, the Ollama adapter (`ollama` npm client), per-call options (`num_ctx`, temperature, seed, `keep_alive`) and the `code` and `reasoning` model roles (D-003).
+- [x] **2.1 `llm`: provider and Ollama adapter.** The `LlmProvider` interface, the Ollama adapter (`ollama` npm client), per-call options (`num_ctx`, temperature, seed, `keep_alive`) and the `code` and `reasoning` model roles (D-003).
   Files: `packages/llm/package.json`, `packages/llm/src/{provider,ollama,config}.ts`, tests against a stub HTTP server
-- [ ] **2.2 `llm`: strict JSON.** `generateJson(schema, prompt)`: Zod to JSON Schema (`z.toJSONSchema`), passed as `format`; parse, validate, retry with the validation errors up to 3 times (D-005).
+- [x] **2.2 `llm`: strict JSON.** `generateJson(schema, prompt)`: Zod to JSON Schema (`z.toJSONSchema`), passed as `format`; parse, validate, retry with the validation errors up to 3 times (D-005).
   Files: `packages/llm/src/json.ts`, tests
-- [ ] **2.3 `llm`: OpenAI-compatible adapter.** `fetch` against `/v1/chat/completions`; `response_format` with a JSON schema where supported, else plain JSON mode; same validation and retries.
+- [x] **2.3 `llm`: OpenAI-compatible adapter.** `fetch` against `/v1/chat/completions`; `response_format` with a JSON schema where supported, else plain JSON mode; same validation and retries.
   Files: `packages/llm/src/openai-compatible.ts`, tests against a stub server
-- [ ] **2.4 `llm`: masking and redaction.** Credentials, cookies and tokens become placeholders in every prompt; PII redaction for external endpoints; local versus external endpoint detection, including Ollama cloud models (D-011).
+- [x] **2.4 `llm`: masking and redaction.** Credentials, cookies and tokens become placeholders in every prompt; PII redaction for external endpoints; local versus external endpoint detection, including Ollama cloud models (D-011).
   Files: `packages/llm/src/{redact,endpoint}.ts`, tests
-- [ ] **2.5 `llm`: usage, budgets, fake provider.** `llm_calls` rows and per-job totals, prompt token estimate and budget check (D-006), and a fake provider that replays recorded replies for CI.
-  Files: `packages/llm/src/{usage,budget,fake}.ts`, `packages/db/src/repos/llm-calls.ts`, tests
+- [x] **2.5 `llm`: usage, budgets, fake provider.** `llm_calls` rows and per-job totals, prompt token estimate and budget check (D-006), and a fake provider that replays recorded replies for CI.
+  Files: `packages/llm/src/{usage,budget,fake}.ts`, `packages/db/src/repos/{llm-calls,jobs}.ts` (the repositories moved into `repos/`), `packages/db/migrations/0002_*`, tests
 - [ ] **2.6 `compiler`: capture.** Playwright HAR with bodies, accessibility-tree and DOM snapshots and user actions, stored in the data directory and indexed in `captures`.
   Files: `packages/compiler/package.json`, `packages/compiler/src/capture/{capture,har,ax-tree}.ts`, tests against fixtures
 - [ ] **2.7 `compiler`: prompt builders.** Accessibility-tree pruner, HAR summarizer (URL templates, JSON shapes, truncated samples) and the HTML subtree pruner for `html_fetch`.

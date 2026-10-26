@@ -2,5 +2,6 @@
 *.md
 pnpm-lock.yaml
 packages/db/migrations/
+apps/cli/migrations/
 docs/.vitepress/cache/
 docs/.vitepress/dist/

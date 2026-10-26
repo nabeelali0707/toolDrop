@@ -4,30 +4,20 @@ import { totalmem } from 'node:os';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { parseArgs } from 'node:util';
-import { homeDir, openEngine, readConfig, writeConfig, type ModelConfig } from '../home.ts';
+import { DEFAULT_MODELS, isLocalEndpoint, ollamaUrl, type LlmSettings } from '@tooldrop/llm';
+import { homeDir, openEngine, readConfig, writeConfig } from '../home.ts';
 
 // `tooldrop init`: bring your own model (SPEC, Local LLM usage). Local Ollama
 // by default, sized to the machine's memory; or any OpenAI-compatible endpoint.
 
 /** Machines sold as 16 GB report a little less, so the 14B threshold is 15 GiB. */
 const LARGE_MODEL_BYTES = 15 * 1024 ** 3;
-const REASONING_MODEL = 'llama3.1:8b';
 
-export function recommendedModels(memoryBytes: number): ModelConfig['models'] {
+export function recommendedModels(memoryBytes: number): LlmSettings['models'] {
   return {
     code: memoryBytes >= LARGE_MODEL_BYTES ? 'qwen2.5-coder:14b' : 'qwen2.5-coder:7b',
-    reasoning: REASONING_MODEL,
+    reasoning: DEFAULT_MODELS.reasoning,
   };
-}
-
-/** Ollama's address from OLLAMA_HOST (which may omit the scheme or port), or the default. */
-export function ollamaUrl(host = process.env.OLLAMA_HOST): string {
-  if (!host) return 'http://127.0.0.1:11434';
-  const withScheme = /^https?:\/\//.test(host) ? host : `http://${host}`;
-  const url = new URL(withScheme);
-  if (!url.port) url.port = '11434';
-  if (url.hostname === '0.0.0.0') url.hostname = '127.0.0.1';
-  return url.origin;
 }
 
 export async function init(args: string[]): Promise<number> {
@@ -66,7 +56,7 @@ export async function init(args: string[]): Promise<number> {
         ? 'openai_compatible'
         : 'ollama');
 
-    let llm: ModelConfig;
+    let llm: LlmSettings;
     if (provider === 'ollama') {
       const baseUrl = values['base-url'] ?? ollamaUrl();
       llm = {
@@ -95,7 +85,7 @@ export async function init(args: string[]): Promise<number> {
         '\nEndpoints that need an API key arrive with the encrypted vault (Phase 3). toolDrop never stores a key in plain text,',
       );
       console.log('so for now use an endpoint without a key, such as llama.cpp, vLLM or LM Studio.');
-      if (!/^https?:\/\/(127\.\d+\.\d+\.\d+|localhost|\[::1\])(:\d+)?/.test(baseUrl)) {
+      if (!isLocalEndpoint(baseUrl)) {
         console.log(
           'This endpoint is not on this machine: prompts will leave it, with personal data redacted.',
         );
@@ -118,7 +108,7 @@ Other clients: https://nabeelali0707.github.io/toolDrop/getting-started`);
 }
 
 async function setUpOllama(
-  llm: ModelConfig,
+  llm: LlmSettings,
   options: { pull: boolean; confirm: ((question: string, fallback: string) => Promise<string>) | undefined },
 ): Promise<void> {
   const version = await fetchJson<{ version: string }>(`${llm.base_url}/api/version`);

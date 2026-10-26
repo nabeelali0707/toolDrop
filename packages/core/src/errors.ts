@@ -13,6 +13,7 @@ export const ERROR_CODES = [
   'heal_timeout', // the call waited 5 minutes and the heal did not publish
   'llm_invalid_output', // the model's reply failed its schema after every retry
   'llm_unavailable', // Ollama, or the configured endpoint, cannot be reached
+  'llm_prompt_too_large', // a prompt stayed over its token budget after the most pruning
   'internal',
 ] as const;
 

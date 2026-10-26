@@ -165,6 +165,8 @@ export const jobs = sqliteTable(
     id: text().primaryKey(),
     kind: text({ enum: JOB_KINDS }).notNull(),
     status: text({ enum: JOB_STATUSES }).notNull().default('queued'),
+    /** What a running job is doing now, e.g. "analyzing traffic", for get_job. */
+    step: text(),
     input: text({ mode: 'json' }).$type<unknown>().notNull(),
     questions: text({ mode: 'json' }).$type<JobQuestion[]>().notNull().default([]),
     answers: text({ mode: 'json' }).$type<JobAnswer[]>().notNull().default([]),
@@ -214,6 +216,8 @@ export const llm_calls = sqliteTable(
     provider: text({ enum: LLM_PROVIDERS }).notNull(),
     model: text().notNull(),
     role: text({ enum: LLM_ROLES }).notNull(),
+    /** What the call was for, e.g. "write_recipe". */
+    purpose: text(),
     prompt_tokens: integer().notNull(),
     completion_tokens: integer().notNull(),
     duration_ms: integer().notNull(),
