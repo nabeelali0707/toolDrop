@@ -7,10 +7,6 @@ settings:
 importers:
 
   .:
-    dependencies:
-      ollama:
-        specifier: ^0.6.4
-        version: 0.6.4
     devDependencies:
       '@changesets/cli':
         specifier: ^3.0.3
@@ -21,9 +17,6 @@ importers:
       '@tooldrop/core':
         specifier: workspace:*
         version: link:packages/core
-      '@tooldrop/llm':
-        specifier: workspace:*
-        version: link:packages/llm
       '@types/node':
         specifier: ^24.19.2
         version: 24.19.2

@@ -30,7 +30,6 @@
     "@changesets/cli": "^3.0.3",
     "@eslint/js": "^10.0.1",
     "@tooldrop/core": "workspace:*",
-    "@tooldrop/llm": "workspace:*",
     "@types/node": "^24.19.2",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
@@ -43,8 +42,5 @@
     "typescript-eslint": "^8.72.0",
     "vitest": "^5.0.5",
     "zod": "^4.6.7"
-  },
-  "dependencies": {
-    "ollama": "^0.6.4"
   }
 }
