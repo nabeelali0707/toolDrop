@@ -185,7 +185,7 @@ async function locateIfVisible(page: Page, target: RankedSelector): Promise<Loca
  * once a page has reached it, it never waits again. Bounded, so a page that
  * never goes quiet does not stall the recipe.
  */
-function trackRequests(page: Page, quietMs = 300, limitMs = 10_000): () => Promise<void> {
+export function trackRequests(page: Page, quietMs = 300, limitMs = 10_000): () => Promise<void> {
   let inFlight = 0;
   let changedAt = Date.now();
   page.on('request', () => {
@@ -209,7 +209,7 @@ function trackRequests(page: Page, quietMs = 300, limitMs = 10_000): () => Promi
   };
 }
 
-function toLocator(page: Page, selector: Selector): Locator {
+export function toLocator(page: Page, selector: Selector): Locator {
   switch (selector.kind) {
     case 'role':
       return page.getByRole(selector.role as Role, selector.name ? { name: selector.name } : {});

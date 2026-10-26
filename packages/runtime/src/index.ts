@@ -4,3 +4,5 @@ export * from './limits.ts';
 export * from './runtime.ts';
 export * from './templates.ts';
 export * from './validate.ts';
+export { BrowserPool } from './browser/pool.ts';
+export { toLocator, trackRequests } from './executors/browser.ts';

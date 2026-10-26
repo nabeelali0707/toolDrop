@@ -241,6 +241,37 @@ importers:
         specifier: ^13.5.0
         version: 13.5.0
 
+  packages/compiler:
+    dependencies:
+      '@tooldrop/core':
+        specifier: workspace:*
+        version: link:../core
+      '@tooldrop/llm':
+        specifier: workspace:*
+        version: link:../llm
+      '@tooldrop/runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      cheerio:
+        specifier: ^1.2.0
+        version: 1.2.0
+      playwright:
+        specifier: ^1.64.1
+        version: 1.64.1
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@tooldrop/fixture-html-app':
+        specifier: workspace:*
+        version: link:../../fixtures/html-app
+      '@tooldrop/fixture-json-api':
+        specifier: workspace:*
+        version: link:../../fixtures/json-api
+      '@tooldrop/fixture-kit':
+        specifier: workspace:*
+        version: link:../../fixtures/kit
+
   packages/core:
     dependencies:
       ulid:
