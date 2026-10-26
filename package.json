@@ -12,6 +12,7 @@
   "scripts": {
     "lint": "eslint .",
     "typecheck": "cross-env TURBO_TELEMETRY_DISABLED=1 DO_NOT_TRACK=1 turbo run typecheck && tsc -p tsconfig.json",
+    "build": "pnpm --filter tooldrop build",
     "test": "vitest run",
     "test:llm": "cross-env TOOLDROP_LLM_TESTS=1 vitest run",
     "format": "prettier --write .",
@@ -21,7 +22,8 @@
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm check:licenses && pnpm check:recipes",
     "check:recipes": "node scripts/check-recipes.ts",
     "docs:dev": "pnpm --filter @tooldrop/docs dev",
-    "docs:build": "pnpm --filter @tooldrop/docs build"
+    "docs:build": "pnpm --filter @tooldrop/docs build",
+    "dev": "cross-env TOOLDROP_HOME=.tooldrop node apps/cli/src/main.ts serve"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -1,0 +1,6 @@
+# Build output and files copied in by the build
+dist/
+migrations/
+README.md
+LICENSE
+*.tgz

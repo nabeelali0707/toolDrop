@@ -13,6 +13,9 @@ updates:
       # typescript-eslint supports TypeScript below 6.1 (DECISIONS.md, D-023).
       - dependency-name: typescript
         update-types: [version-update:semver-major, version-update:semver-minor]
+      # 13.x ships no prebuilt binaries, so users would need a C++ toolchain (D-015).
+      - dependency-name: better-sqlite3
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
     directory: /

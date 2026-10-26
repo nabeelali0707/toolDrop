@@ -231,3 +231,19 @@ export function revokeApiKey(db: Queryable, id: string): void {
 export function keyAllows(scopes: string[], toolName: string): boolean {
   return scopes.includes('*') || scopes.includes(toolName);
 }
+
+/** Every key's label, scopes and dates; never the key or its hash. */
+export function listApiKeys(db: Queryable) {
+  return db
+    .select({
+      id: api_keys.id,
+      label: api_keys.label,
+      scopes: api_keys.scopes,
+      created_at: api_keys.created_at,
+      last_used_at: api_keys.last_used_at,
+      revoked_at: api_keys.revoked_at,
+    })
+    .from(api_keys)
+    .orderBy(desc(api_keys.created_at))
+    .all();
+}

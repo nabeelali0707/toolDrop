@@ -24,8 +24,6 @@ pnpm install
 pnpm check        # format, lint, typecheck, tests, license check
 ```
 
-On Windows, `better-sqlite3` may compile from source during install, which needs a C++ toolchain (the free Visual Studio Build Tools with the "Desktop development with C++" workload).
-
 Useful commands:
 
 | Command | What it does |

@@ -38,6 +38,8 @@ jobs:
       - run: pnpm test
       - run: pnpm check:licenses
       - run: pnpm check:recipes
+      # Bundles the published package and fails if it imports an undeclared dependency.
+      - run: pnpm build
 
   secrets:
     # Recipes and fixtures must never contain real credentials (recipes/README.md).

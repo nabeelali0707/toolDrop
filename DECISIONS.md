@@ -157,7 +157,7 @@ The cost is a second Drizzle schema for Postgres in 5.1. To keep it small, the s
 Two more notes:
 
 - Enum columns get CHECK constraints built from the same constants as the Zod enums in `core`, so the database and the API cannot disagree on the allowed values.
-- On the Windows development machine, better-sqlite3 compiled from source during install, because no prebuilt binary was used for Node 24, so that setup needs a C++ toolchain. Node's built-in `node:sqlite` would remove the native build, and Drizzle supports it from 1.0, which is still a release candidate. Revisit once Drizzle 1.0 is stable.
+- **better-sqlite3 is pinned to `^12.11.1`.** Its 13.x releases publish no prebuilt binaries at all, so every install of `tooldrop` would compile SQLite from source, which needs a C++ toolchain most users lack. 12.11.1 ships prebuilds for Node 20 through 26 on Windows, macOS and Linux (x64 and ARM), and installs without a compiler. Dependabot skips 13.x until prebuilds return. Node's built-in `node:sqlite` would remove the native module entirely; Drizzle supports it from 1.0, still a release candidate, so revisit then.
 
 ### D-027 toolDrop is Apache-2.0
 
@@ -271,6 +271,18 @@ SPEC gives the recipe envelope, an example and the op names. `packages/core` fil
 - **Remote MCP is stateless** Streamable HTTP. Each request gets its own server, so there are no sessions to keep, and `list_changed` is pushed over stdio only. GET and DELETE on `/mcp` answer 405.
 - **API keys carry scopes:** tool names, or `*`. A key sees and runs only its tools, over both REST and MCP. Local stdio clients get every tool, since they run on the user's own machine.
 - **Errors have one shape:** `{ error: { code, message, details? } }`, with codes mapped to HTTP statuses: 400 bad input, 401 no key, 403 out of scope, 404 unknown tool, 409 approval needed, 502 when every strategy failed. Unexpected errors return a generic message, so internals never leak.
+
+### D-032 The published `tooldrop` package
+
+*Proposed · 2026-10-26*
+
+- **One npm package, `tooldrop`, built from `apps/cli`.** The name is free on npm. "webforge" is taken by an unrelated package, so the old name was never an option.
+- **Bundled.** Node will not strip TypeScript types inside `node_modules`, so the package ships JavaScript: esbuild bundles the CLI and every `@tooldrop/*` workspace package into `dist/tooldrop.js` (about 85 KiB). Third-party packages stay normal npm dependencies. The build fails if the bundle imports a package that is not a declared dependency, and CI runs the build on every pull request.
+- **Built with `pnpm pack`,** which rewrites the `workspace:` versions npm cannot read. The tarball holds 9 files: the bundle, the migrations, README, LICENSE and package.json.
+- **`mcpName`** is `io.github.nabeelali0707/tooldrop`, matching `server.json`, as the MCP Registry requires.
+- **Commands:** `init`, `mcp`, `serve`, `run`, `tools list` and `tools add` (a tool file, or a community recipe folder), `keys create`, `keys list` and `keys revoke`, and `build`, which explains that it arrives with Phase 2.
+- **`serve` creates a first API key** when none exists and prints it once. Every route needs a key, and a fresh install should work without reading docs first.
+- **`init` and model keys.** Keys for OpenAI-compatible endpoints wait for the vault (Phase 3), because toolDrop never stores a key in plain text. Until then, `init` accepts keyless endpoints such as llama.cpp, vLLM and LM Studio, and says so.
 
 ### D-026 Fixture switches simulate site changes
 

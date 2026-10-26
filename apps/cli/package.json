@@ -1,0 +1,67 @@
+{
+  "name": "tooldrop",
+  "version": "0.1.0",
+  "description": "Turn website tasks into fast, self-healing tools your AI agent can call. Free, local and open source.",
+  "license": "Apache-2.0",
+  "mcpName": "io.github.nabeelali0707/tooldrop",
+  "type": "module",
+  "bin": {
+    "tooldrop": "dist/tooldrop.js"
+  },
+  "files": [
+    "dist",
+    "migrations",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nabeelali0707/toolDrop.git",
+    "directory": "apps/cli"
+  },
+  "homepage": "https://nabeelali0707.github.io/toolDrop/",
+  "bugs": "https://github.com/nabeelali0707/toolDrop/issues",
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "ai-agents",
+    "web-automation",
+    "playwright",
+    "ollama",
+    "local-first",
+    "self-healing"
+  ],
+  "scripts": {
+    "build": "node build.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "better-sqlite3": "^12.11.1",
+    "cheerio": "^1.2.0",
+    "drizzle-orm": "^0.45.4",
+    "fastify": "^5.12.7",
+    "got-scraping": "^4.2.2",
+    "jsonpath-plus": "^11.2.1",
+    "playwright": "^1.64.1",
+    "tough-cookie": "^6.0.2",
+    "ulid": "^3.0.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@tooldrop/core": "workspace:*",
+    "@tooldrop/db": "workspace:*",
+    "@tooldrop/engine": "workspace:*",
+    "@tooldrop/fixture-html-app": "workspace:*",
+    "@tooldrop/fixture-kit": "workspace:*",
+    "@tooldrop/mcp": "workspace:*",
+    "@tooldrop/runtime": "workspace:*",
+    "@tooldrop/server": "workspace:*",
+    "esbuild": "^0.28.2"
+  }
+}
