@@ -302,12 +302,18 @@ importers:
 
   packages/engine:
     dependencies:
+      '@tooldrop/compiler':
+        specifier: workspace:*
+        version: link:../compiler
       '@tooldrop/core':
         specifier: workspace:*
         version: link:../core
       '@tooldrop/db':
         specifier: workspace:*
         version: link:../db
+      '@tooldrop/llm':
+        specifier: workspace:*
+        version: link:../llm
       '@tooldrop/runtime':
         specifier: workspace:*
         version: link:../runtime

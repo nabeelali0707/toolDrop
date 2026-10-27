@@ -12,8 +12,10 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@tooldrop/compiler": "workspace:*",
     "@tooldrop/core": "workspace:*",
     "@tooldrop/db": "workspace:*",
+    "@tooldrop/llm": "workspace:*",
     "@tooldrop/runtime": "workspace:*"
   },
   "devDependencies": {

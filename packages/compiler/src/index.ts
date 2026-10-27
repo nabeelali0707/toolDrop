@@ -7,3 +7,4 @@ export * from './prompt/ax-prune.ts';
 export * from './prompt/har-summary.ts';
 export * from './prompt/html-subtree.ts';
 export * from './prompt/json-shape.ts';
+export * from './recording/replay.ts';

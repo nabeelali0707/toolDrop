@@ -159,7 +159,7 @@ async function pull(baseUrl: string, model: string): Promise<void> {
   let lastShown = -10;
   const decoder = new TextDecoder();
   for await (const chunk of response.body) {
-    buffered += decoder.decode(chunk as Uint8Array, { stream: true });
+    buffered += decoder.decode(chunk, { stream: true });
     const lines = buffered.split('\n');
     buffered = lines.pop() ?? '';
     for (const line of lines.filter(Boolean)) {

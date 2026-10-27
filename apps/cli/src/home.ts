@@ -38,7 +38,7 @@ export function openEngine(): { engine: Engine; close: () => Promise<void> } {
   mkdirSync(homeDir(), { recursive: true });
   const handle = openDatabase(join(homeDir(), 'tooldrop.db'));
   runMigrations(handle.db);
-  const engine = new Engine({ db: handle.db });
+  const engine = new Engine({ db: handle.db, dataDir: homeDir() });
   return {
     engine,
     close: async () => {

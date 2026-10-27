@@ -1,4 +1,4 @@
-import { ToolDropError, type RecipeOrigin, type ToolFile } from '@tooldrop/core';
+import { ToolDropError, type RecipeOrigin, type Recording, type ToolFile } from '@tooldrop/core';
 import {
   findTools,
   getTool,
@@ -10,6 +10,7 @@ import {
   type PublishedTool,
 } from '@tooldrop/db';
 import { Runtime, type RunOutcome } from '@tooldrop/runtime';
+import { readRecording, writeRecording } from './recordings.ts';
 
 // What the interfaces (MCP, REST, CLI) call. Builds, heals and watches join
 // this class in later phases.
@@ -18,14 +19,45 @@ import { Runtime, type RunOutcome } from '@tooldrop/runtime';
 export type Scopes = string[];
 const ALL: Scopes = ['*'];
 
+/** Building tools and uploading recordings change what every key can see, so they need full access. */
+export function requireFullAccess(scopes: Scopes): void {
+  if (!scopes.includes('*')) {
+    throw new ToolDropError('forbidden', 'this needs an API key with access to every tool (scope "*")');
+  }
+}
+
+export interface EngineOptions {
+  db: Db;
+  runtime?: Runtime;
+  /** Where recordings and captures are kept: ~/.tooldrop locally, /data in the image. */
+  dataDir?: string;
+}
+
 export class Engine {
   readonly db: Db;
   readonly runtime: Runtime;
+  readonly #dataDir: string | undefined;
   readonly #listeners = new Set<() => void>();
 
-  constructor(options: { db: Db; runtime?: Runtime }) {
+  constructor(options: EngineOptions) {
     this.db = options.db;
     this.runtime = options.runtime ?? new Runtime();
+    this.#dataDir = options.dataDir;
+  }
+
+  get dataDir(): string {
+    if (!this.#dataDir) throw new ToolDropError('internal', 'this engine has no data directory');
+    return this.#dataDir;
+  }
+
+  /** Stores an uploaded recording for a later build (SPEC, POST /v1/recordings). */
+  saveRecording(recording: unknown, scopes: Scopes = ALL): { id: string } {
+    requireFullAccess(scopes);
+    return { id: writeRecording(this.dataDir, recording).id };
+  }
+
+  getRecording(id: string): Recording {
+    return readRecording(this.dataDir, id);
   }
 
   listTools(scopes: Scopes = ALL): PublishedTool[] {

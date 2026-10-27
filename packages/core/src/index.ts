@@ -9,5 +9,6 @@ export * from './recipe/ops.ts';
 export * from './recipe/schema.ts';
 export * from './recipe/selectors.ts';
 export * from './recipe/templates.ts';
+export * from './recording.ts';
 export * from './run.ts';
 export * from './tool.ts';

@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -14,11 +17,13 @@ let engine: Engine;
 let fixture: RunningFixture;
 let app: FastifyInstance;
 let key: string;
+let dataDir: string;
 
 beforeEach(async () => {
   handle = openDatabase(':memory:');
   runMigrations(handle.db);
-  engine = new Engine({ db: handle.db });
+  dataDir = mkdtempSync(join(tmpdir(), 'tooldrop-server-'));
+  engine = new Engine({ db: handle.db, dataDir });
   fixture = await startHtmlAppFixture();
   engine.publish(
     readToolFile(
@@ -35,6 +40,7 @@ afterEach(async () => {
   await engine.close();
   await fixture.close();
   handle.close();
+  rmSync(dataDir, { recursive: true, force: true });
 });
 
 const auth = () => ({ authorization: `Bearer ${key}` });
@@ -84,6 +90,98 @@ describe('REST API', () => {
 
     const scoped = createApiKey(handle.db, { label: 'scoped', scopes: ['list_orders'] }).key;
     expect((await run('search_invoices', {}, { authorization: `Bearer ${scoped}` })).statusCode).toBe(403);
+  });
+});
+
+describe('recordings', () => {
+  const recording = (url: string) => ({
+    version: 1,
+    recorder: 'cli',
+    recorded_at: 1_790_000_000_000,
+    actions: [
+      { kind: 'goto', url: `${url}/invoices` },
+      {
+        kind: 'select',
+        target: [{ kind: 'css', value: 'select[name="status"]' }],
+        label: 'combobox "Status"',
+        value: 'paid',
+        options: [{ value: 'paid', label: 'Paid' }],
+      },
+    ],
+    inputs: [{ name: 'status', action: 1, example: 'paid' }],
+    target: { selector: [{ kind: 'test_id', value: 'invoices' }] },
+    har: {
+      log: {
+        version: '1.2',
+        creator: { name: 'recorder', version: '1' },
+        entries: [
+          {
+            startedDateTime: '2026-10-26T10:00:00.000Z',
+            time: 5,
+            request: {
+              method: 'GET',
+              url: `${url}/invoices`,
+              httpVersion: 'HTTP/1.1',
+              headers: [{ name: 'Cookie', value: 'sid=session-value-0123456789' }],
+              queryString: [],
+              headersSize: -1,
+              bodySize: 0,
+            },
+            response: {
+              status: 200,
+              statusText: 'OK',
+              httpVersion: 'HTTP/1.1',
+              headers: [],
+              content: { size: 9, mimeType: 'text/html', text: 'sid=session-value-0123456789' },
+              redirectURL: '',
+              headersSize: -1,
+              bodySize: 9,
+            },
+            cache: {},
+            timings: { send: 0, wait: 5, receive: 0 },
+          },
+        ],
+      },
+    },
+  });
+
+  it('stores an uploaded recording, with its network log masked', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/recordings',
+      headers: auth(),
+      payload: recording(fixture.url),
+    });
+    expect(response.statusCode).toBe(201);
+    const { id } = response.json<{ id: string }>();
+    const stored = engine.getRecording(id);
+    expect(stored.inputs).toEqual([{ name: 'status', action: 1, example: 'paid' }]);
+    expect(JSON.stringify(stored.har)).not.toContain('session-value-0123456789');
+  });
+
+  it('rejects a recording that does not follow the format', async () => {
+    const broken = { ...recording(fixture.url), inputs: [{ name: 'status', action: 0, example: 'x' }] };
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/recordings',
+      headers: auth(),
+      payload: broken,
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ error: { code: 'invalid_input' } });
+  });
+
+  it('needs a key with access to every tool', async () => {
+    const scoped = createApiKey(handle.db, { label: 'scoped', scopes: ['search_invoices'] }).key;
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/recordings',
+      headers: { authorization: `Bearer ${scoped}` },
+      payload: recording(fixture.url),
+    });
+    expect(response.statusCode).toBe(403);
+    expect(() => engine.getRecording('01JZZZZZZZZZZZZZZZZZZZZZZZ')).toThrow(/no recording/);
+    expect(() => engine.getRecording('../tooldrop')).toThrow(/no recording/);
   });
 });
 

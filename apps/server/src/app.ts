@@ -69,6 +69,12 @@ export function createServer({ engine, version = '0.0.0' }: ServerOptions): Fast
     return { result, meta };
   });
 
+  // A recording may carry its network log as HAR, so it gets a larger body limit.
+  app.post('/v1/recordings', { bodyLimit: 20 * 1024 * 1024 }, async (request, reply) => {
+    const { id } = engine.saveRecording(request.body, request.scopes);
+    return reply.code(201).send({ id });
+  });
+
   app.post('/mcp', async (request, reply) => {
     reply.hijack();
     await handleMcpHttp(engine, request.raw, reply.raw, request.body, { scopes: request.scopes, version });

@@ -93,8 +93,8 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
   Files: `packages/compiler/package.json`, `packages/compiler/src/capture/{capture,har,network,page-helpers,store}.ts`, tests against fixtures
 - [x] **2.7 `compiler`: prompt builders.** Accessibility-tree pruner, HAR summarizer (URL templates, JSON shapes, truncated samples) and the HTML subtree pruner for `html_fetch`.
   Files: `packages/compiler/src/prompt/{ax-prune,har-summary,html-subtree,json-shape}.ts`, tests
-- [ ] **2.8 Recordings.** Recording format v1 (actions with ranked selectors, marked inputs, HAR), recording-mode replay into a capture, `POST /v1/recordings`.
-  Files: `packages/core/src/recording.ts`, `packages/compiler/src/recording/replay.ts`, `apps/server/src/routes/recordings.ts`, tests
+- [x] **2.8 Recordings.** Recording format v1 (actions with ranked selectors, marked inputs, HAR), recording-mode replay into a capture, `POST /v1/recordings`.
+  Files: `packages/core/src/recording.ts`, `packages/compiler/src/recording/replay.ts`, `packages/engine/src/recordings.ts`, `apps/server/src/app.ts`, tests
 - [ ] **2.9 `cli`: `tooldrop record`.** A headed Playwright browser that records clicks, inputs and HAR, lets the user mark inputs at the end, then saves and uploads the recording (D-016).
   Files: `apps/cli/package.json`, `apps/cli/src/commands/record.ts`, `packages/compiler/src/recording/recorder.ts`, tests with a scripted session on a fixture
 - [ ] **2.10 `compiler`: traffic analyzer.** Rank requests by how much target data they return; classify fields (`constant`, `user_input`, `derived`, `auth`, `pagination`) with heuristics first and the `reasoning` model only for leftovers.

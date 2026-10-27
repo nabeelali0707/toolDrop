@@ -1,4 +1,11 @@
-import { newId, ToolDropError, type RankedSelector, type Selector } from '@tooldrop/core';
+import {
+  newId,
+  ToolDropError,
+  type MarkedInput,
+  type RankedSelector,
+  type RecordedAction,
+  type Selector,
+} from '@tooldrop/core';
 import { toLocator, trackRequests } from '@tooldrop/runtime';
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from 'playwright';
 import type { Exchange } from './har.ts';
@@ -16,34 +23,8 @@ import {
 // actions taken with ranked selectors, the inputs and the data on screen.
 // The explore agent drives it by ref; a recording replays into it.
 
-export type CaptureAction =
-  | { kind: 'goto'; url: string }
-  | { kind: 'click'; target: RankedSelector; label: string }
-  | {
-      kind: 'fill';
-      target: RankedSelector;
-      label: string;
-      /** Null for a password field: its value is never kept. */
-      value: string | null;
-      secret?: boolean;
-    }
-  | {
-      kind: 'select';
-      target: RankedSelector;
-      label: string;
-      /** The option's value, which is what a recipe selects. */
-      value: string;
-      options: { value: string; label: string }[];
-    };
-
-/** A value the user typed or picked that becomes a tool input. */
-export interface MarkedInput {
-  name: string;
-  /** Index of the fill or select action whose value it replaces. */
-  action: number;
-  example: string;
-  description?: string;
-}
+/** Actions are recorded in the recording format, so a capture can be saved as a recording. */
+export type CaptureAction = RecordedAction;
 
 /** The element holding the data the tool returns, and what it held. */
 export interface CaptureTarget {
