@@ -99,6 +99,9 @@ importers:
         specifier: ^4.6.7
         version: 4.6.7
     devDependencies:
+      '@tooldrop/compiler':
+        specifier: workspace:*
+        version: link:../../packages/compiler
       '@tooldrop/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -271,6 +274,9 @@ importers:
       '@tooldrop/fixture-kit':
         specifier: workspace:*
         version: link:../../fixtures/kit
+      '@tooldrop/fixture-login-totp':
+        specifier: workspace:*
+        version: link:../../fixtures/login-totp
 
   packages/core:
     dependencies:

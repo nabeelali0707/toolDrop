@@ -22,6 +22,7 @@
   "devDependencies": {
     "@tooldrop/fixture-html-app": "workspace:*",
     "@tooldrop/fixture-json-api": "workspace:*",
-    "@tooldrop/fixture-kit": "workspace:*"
+    "@tooldrop/fixture-kit": "workspace:*",
+    "@tooldrop/fixture-login-totp": "workspace:*"
   }
 }

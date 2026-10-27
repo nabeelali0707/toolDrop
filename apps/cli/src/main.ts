@@ -3,6 +3,7 @@ import { build } from './commands/build.ts';
 import { init } from './commands/init.ts';
 import { keys } from './commands/keys.ts';
 import { mcp } from './commands/mcp.ts';
+import { record } from './commands/record.ts';
 import { run } from './commands/run.ts';
 import { serve } from './commands/serve.ts';
 import { tools } from './commands/tools.ts';
@@ -21,7 +22,8 @@ Usage: tooldrop <command> [options]
   keys create            Create an API key for REST and remote MCP (--label, --scopes a,b)
   keys list              List API keys
   keys revoke <id>       Revoke an API key
-  build                  Build a tool from a description (arrives with the build pipeline)
+  build <url> --task     Build a tool for a task (--recording <id or file>, --hint)
+  record <url>           Do a task once in a browser, for the most reliable builds (--task, --out)
 
 Data lives in ~/.tooldrop; set TOOLDROP_HOME to use another folder.
 Docs: https://nabeelali0707.github.io/toolDrop/`;
@@ -34,6 +36,7 @@ const COMMANDS: Record<string, (args: string[]) => Promise<number>> = {
   tools,
   keys,
   build,
+  record,
 };
 
 async function main(argv: string[]): Promise<number> {

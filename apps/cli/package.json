@@ -55,6 +55,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@tooldrop/compiler": "workspace:*",
     "@tooldrop/core": "workspace:*",
     "@tooldrop/db": "workspace:*",
     "@tooldrop/engine": "workspace:*",

@@ -95,8 +95,8 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
   Files: `packages/compiler/src/prompt/{ax-prune,har-summary,html-subtree,json-shape}.ts`, tests
 - [x] **2.8 Recordings.** Recording format v1 (actions with ranked selectors, marked inputs, HAR), recording-mode replay into a capture, `POST /v1/recordings`.
   Files: `packages/core/src/recording.ts`, `packages/compiler/src/recording/replay.ts`, `packages/engine/src/recordings.ts`, `apps/server/src/app.ts`, tests
-- [ ] **2.9 `cli`: `tooldrop record`.** A headed Playwright browser that records clicks, inputs and HAR, lets the user mark inputs at the end, then saves and uploads the recording (D-016).
-  Files: `apps/cli/package.json`, `apps/cli/src/commands/record.ts`, `packages/compiler/src/recording/recorder.ts`, tests with a scripted session on a fixture
+- [x] **2.9 `cli`: `tooldrop record`.** A headed Playwright browser that records clicks, inputs and HAR, lets the user mark inputs at the end, then saves and uploads the recording (D-016).
+  Files: `apps/cli/src/commands/record.ts`, `packages/compiler/src/recording/{recorder,recorder-page}.ts`, tests with a scripted session on a fixture
 - [x] **2.10 `compiler`: traffic analyzer.** Rank requests by how much target data they return; classify fields (`constant`, `user_input`, `derived`, `auth`, `pagination`) with heuristics first and the `reasoning` model only for leftovers.
   Files: `packages/compiler/src/analyze/{rank,classify,values}.ts`, `packages/compiler/src/generate/questions.ts`, tests against fixture captures
 - [x] **2.11 `compiler`: strategy picker and recipe generator.** Pick the cheapest viable strategy; the `code` model writes the recipe JSON, validated by the `core` recipe schema.
@@ -111,8 +111,8 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
   Files: `packages/engine/src/{builds,queue}.ts` (in the engine, so the stdio MCP server, `serve` and the CLI all run builds), `packages/db/src/repos/jobs.ts`, tests
 - [x] **2.16 Build interfaces.** MCP `build_tool`, `get_job`, `answer_question` and `find_tool`; REST `/v1/builds`, `/v1/jobs/:id`, `/v1/jobs/:id/answers`.
   Files: `apps/server/src/app.ts`, `apps/mcp/src/server.ts`, tests
-- [ ] **2.17 `cli`: `init`, `build`, `run`, `serve`.** `init` creates the data directory and config, checks that Ollama is running and pulls missing models.
-  Files: `apps/cli/src/commands/{init,build,run,serve}.ts`, tests
+- [x] **2.17 `cli`: `init`, `build`, `run`, `serve`.** `init` creates the data directory and config, checks that Ollama is running and pulls missing models.
+  Files: `apps/cli/src/commands/build.ts`, `apps/cli/src/home.ts` (`init`, `run` and `serve` were done in 1.14), tests with a stand-in Ollama
 - [ ] **2.18 End-to-end build tests.** Recorded model replies in CI; the same tests with real Ollama models via `pnpm test:llm`.
   Files: `apps/server/test/build.e2e.test.ts`, `apps/server/test/build.llm.test.ts`, `fixtures/llm-replies/*.json`
 

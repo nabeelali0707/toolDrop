@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { openDatabase, runMigrations } from '@tooldrop/db';
 import { Engine } from '@tooldrop/engine';
-import type { LlmSettings } from '@tooldrop/llm';
+import { defaultSettings, llmSettingsSchema, modelSetup, type LlmSettings } from '@tooldrop/llm';
 
 // Where toolDrop keeps its data: ~/.tooldrop, or TOOLDROP_HOME (DECISIONS.md, D-022).
 
@@ -33,12 +33,22 @@ export function writeConfig(config: Config): void {
   if (process.platform !== 'win32') chmodSync(configPath(), 0o600);
 }
 
+/** The model settings from config.json, or local Ollama with the default models before `init` ran. */
+export function modelSettings(): LlmSettings {
+  const configured = readConfig().llm;
+  return configured ? llmSettingsSchema.parse(configured) : defaultSettings();
+}
+
 /** Opens the database in the home directory, applies migrations and starts an engine. */
 export function openEngine(): { engine: Engine; close: () => Promise<void> } {
   mkdirSync(homeDir(), { recursive: true });
   const handle = openDatabase(join(homeDir(), 'tooldrop.db'));
   runMigrations(handle.db);
-  const engine = new Engine({ db: handle.db, dataDir: homeDir() });
+  const engine = new Engine({
+    db: handle.db,
+    dataDir: homeDir(),
+    builds: { models: modelSetup(modelSettings()) },
+  });
   return {
     engine,
     close: async () => {

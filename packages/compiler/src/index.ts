@@ -20,3 +20,5 @@ export * from './generate/recipe.ts';
 export * from './generate/schemas.ts';
 export * from './generate/strategy.ts';
 export * from './validate/double.ts';
+export * from './recording/recorder-page.ts';
+export * from './recording/recorder.ts';

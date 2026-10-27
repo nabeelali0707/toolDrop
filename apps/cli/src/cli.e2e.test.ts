@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -85,10 +85,112 @@ describe('tooldrop CLI', { timeout: 120_000 }, () => {
     expect((await cli('keys', 'list')).stdout).toContain('revoked');
   });
 
-  it('says plainly that building arrives later', async () => {
-    const build = await cli('build');
-    expect(build.status).toBe(2);
-    expect(build.stderr).toContain('arrives with the build pipeline');
+  it('builds a tool from a recording file, with a stand-in Ollama', async () => {
+    // A stand-in for Ollama's chat API that answers like a model would.
+    const ollama = createServer((request, response) => {
+      response.setHeader('content-type', 'application/json');
+      if (request.url === '/api/tags') {
+        return response.end(
+          JSON.stringify({ models: [{ name: 'qwen2.5-coder:7b' }, { name: 'llama3.1:8b' }] }),
+        );
+      }
+      let body = '';
+      request.on('data', (chunk: Buffer) => (body += chunk.toString()));
+      request.on('end', () => {
+        const { model, messages } = JSON.parse(body) as { model: string; messages: { content: string }[] };
+        const [system = '', user = ''] = messages.map((message) => message.content);
+        let reply: unknown = { questions: [] };
+        if (system.startsWith('You write toolDrop recipes')) {
+          reply = JSON.parse(user.split('\n').find((line) => line.startsWith('{"strategy"')) ?? '{}');
+        } else if (system.startsWith('You name and describe tools')) {
+          reply = {
+            name: 'list_invoices_by_status',
+            description: 'The 10 newest invoices, optionally only those with a given status.',
+            inputs: [{ name: 'status', description: 'Only invoices with this status.', required: false }],
+            fields: [],
+          };
+        }
+        response.end(
+          JSON.stringify({
+            model,
+            message: { role: 'assistant', content: JSON.stringify(reply) },
+            done: true,
+            done_reason: 'stop',
+            prompt_eval_count: 900,
+            eval_count: 120,
+          }),
+        );
+      });
+    });
+    await new Promise<void>((resolve) => ollama.listen(0, '127.0.0.1', resolve));
+    const address = ollama.address();
+    const url = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}`;
+    try {
+      writeFileSync(
+        join(home, 'config.json'),
+        JSON.stringify({
+          llm: {
+            provider: 'ollama',
+            base_url: url,
+            models: { code: 'qwen2.5-coder:7b', reasoning: 'llama3.1:8b' },
+          },
+        }),
+      );
+      const recordingFile = join(home, 'recording.json');
+      writeFileSync(
+        recordingFile,
+        JSON.stringify({
+          version: 1,
+          recorder: 'cli',
+          recorded_at: Date.now(),
+          actions: [
+            { kind: 'goto', url: `${fixture.url}/invoices` },
+            {
+              kind: 'select',
+              target: [{ kind: 'css', value: 'select[name="status"]' }],
+              label: 'combobox "Status"',
+              value: 'overdue',
+              options: ['', 'open', 'paid', 'overdue', 'draft'].map((value) => ({
+                value,
+                label: value || 'All',
+              })),
+            },
+            { kind: 'click', target: [{ kind: 'test_id', value: 'search' }], label: 'button "Search"' },
+          ],
+          inputs: [{ name: 'status', action: 1, example: 'overdue' }],
+          target: { selector: [{ kind: 'test_id', value: 'invoices' }] },
+        }),
+      );
+
+      const built = await cli(
+        'build',
+        `${fixture.url}/invoices`,
+        '--task',
+        'Invoices by status',
+        '--recording',
+        recordingFile,
+      );
+      expect(built.stderr).toContain('... capturing');
+      expect(built.status).toBe(0);
+      expect(built.stdout).toContain('Built list_invoices_by_status (html_fetch, version 1) in 1 attempt.');
+      expect(built.stdout).toContain('Model use: 3 calls, 2700 prompt and 360 completion tokens');
+
+      const run = await cli('run', 'list_invoices_by_status', '--input', '{"status":"paid"}');
+      expect(run.status).toBe(0);
+      expect(
+        (JSON.parse(run.stdout) as { result: { status: string }[] }).result.every(
+          (row) => row.status === 'paid',
+        ),
+      ).toBe(true);
+    } finally {
+      ollama.close();
+    }
+  });
+
+  it('records only in a terminal', async () => {
+    const recorded = await cli('record', fixture.url);
+    expect(recorded.status).toBe(1);
+    expect(recorded.stderr).toContain('run it in a terminal');
   });
 
   it('serves MCP over stdio, as an MCP client starts it', async () => {
