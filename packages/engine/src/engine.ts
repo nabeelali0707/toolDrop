@@ -17,9 +17,10 @@ import {
   type PublishedTool,
 } from '@tooldrop/db';
 import { addLogin as saveLogin, Vault, viewLogins, type KeyStore } from '@tooldrop/auth';
-import { Runtime, type RunOutcome } from '@tooldrop/runtime';
+import { Runtime, type RunnableTool, type RunOutcome } from '@tooldrop/runtime';
 import { Builds, type BuildOptions, type JobView } from './builds.ts';
 import { readRecording, writeRecording } from './recordings.ts';
+import { Sessions, type SignInOptions } from './sessions.ts';
 
 // What the interfaces (MCP, REST, CLI) call: tools, recordings and builds.
 // Heals and watches join this class in later phases.
@@ -50,6 +51,7 @@ export class Engine {
   readonly db: Db;
   readonly runtime: Runtime;
   readonly builds: Builds;
+  readonly sessions: Sessions;
   readonly #dataDir: string | undefined;
   readonly #keyStore: (() => Promise<KeyStore>) | undefined;
   #vault: Promise<Vault> | undefined;
@@ -61,12 +63,22 @@ export class Engine {
     this.#dataDir = options.dataDir;
     this.#keyStore = options.keyStore;
     this.builds = new Builds(this, options.builds);
+    this.sessions = new Sessions(this, options.builds?.browser ? { browser: options.builds.browser } : {});
   }
 
   /** Saves a login, sealed in the vault (SPEC, add_login). Returns only the masked view. */
   async addLogin(input: unknown, scopes: Scopes = ALL): Promise<LoginView> {
     requireFullAccess(scopes);
     return saveLogin(this.db, await this.vault(), input);
+  }
+
+  /**
+   * Signs in to a site now with its saved login, and keeps the session. For a
+   * login whose codes arrive by hand, `ask` gets the code from a person.
+   */
+  async signIn(site: string, options: SignInOptions = {}, scopes: Scopes = ALL): Promise<boolean> {
+    requireFullAccess(scopes);
+    return (await this.sessions.ensure(site, { ...options, force: true })) !== undefined;
   }
 
   /** Saved logins, masked (SPEC, list_logins). */
@@ -163,19 +175,27 @@ export class Engine {
     if (!keyAllows(scopes, name)) throw new ToolDropError('forbidden', `this API key may not run ${name}`);
 
     try {
-      const outcome = await this.runtime.run(
-        {
-          name: tool.name,
-          authority: tool.authority,
-          input_schema: tool.input_schema,
-          output_schema: tool.output_schema,
-          version: tool.version,
-          recipe: tool.recipe,
-          site: tool.site.origin,
-          rate_limit: tool.site.rate_limit,
-        },
-        input,
-      );
+      const signedIn = await this.sessions.ensure(tool.site.origin);
+      const runnable: RunnableTool = {
+        name: tool.name,
+        authority: tool.authority,
+        input_schema: tool.input_schema,
+        output_schema: tool.output_schema,
+        version: tool.version,
+        recipe: tool.recipe,
+        site: tool.site.origin,
+        rate_limit: tool.site.rate_limit,
+        ...(signedIn && { login: { url: signedIn.loginUrl } }),
+      };
+      let outcome: RunOutcome;
+      try {
+        outcome = await this.runtime.run(runnable, input);
+      } catch (error) {
+        // An expired session signs in again, then the call runs once more (SPEC, Sessions).
+        if (!signedIn || !(error instanceof ToolDropError && error.code === 'session_expired')) throw error;
+        await this.sessions.ensure(tool.site.origin, { force: true });
+        outcome = await this.runtime.run(runnable, input);
+      }
       recordRun(this.db, {
         tool_id: tool.id,
         recipe_version: tool.version,

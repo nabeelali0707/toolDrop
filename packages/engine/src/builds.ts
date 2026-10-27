@@ -201,6 +201,12 @@ export class Builds {
       }
       await llm.provider.ping?.([...new Set(Object.values(llm.models))]);
 
+      // Step 2: sign in, when the site has a saved login.
+      setJobStep(db, jobId, 'signing in');
+      const signedIn = await this.#engine.sessions.ensure(request.url, {
+        ask: (question) => this.#ask(jobId, question),
+      });
+
       const result = await buildTool(
         {
           url: request.url,
@@ -214,6 +220,7 @@ export class Builds {
           runtime: this.#engine.runtime,
           jobId,
           nameTaken: (name) => getTool(db, name) !== undefined,
+          ...(signedIn && { signedIn }),
           ...(this.#options.browser && { browser: this.#options.browser }),
           ...this.#options.compiler,
         },

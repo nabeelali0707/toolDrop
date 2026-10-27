@@ -124,12 +124,12 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
   Files: `packages/auth/package.json`, `packages/auth/src/vault/{vault,key-store}.ts`, `packages/engine/src/engine.ts`, `apps/cli/src/commands/init.ts`, tests
 - [x] **3.2 `auth`: logins.** `add_login` and `list_logins` over MCP and REST, encrypted secrets, masked previews only.
   Files: `packages/auth/src/logins.ts`, `packages/db/src/repos/logins.ts`, `apps/server/src/app.ts`, `apps/mcp/src/server.ts`, `apps/cli/src/commands/logins.ts` (`tooldrop logins add` with a hidden prompt), tests
-- [ ] **3.3 `auth`: login recipes.** Build and run a site's login recipe, verify the signed-in state, save the session.
-  Files: `packages/auth/src/login-recipe.ts`, tests against `fixtures/login-totp`
-- [ ] **3.4 `auth`: 2FA.** TOTP via `otplib`; human in the loop through a job question answered over MCP or REST.
-  Files: `packages/auth/src/twofa/{index,totp,human}.ts`, tests
-- [ ] **3.5 `auth`: session refresh.** Detect expiry (401/403, login redirect, failed check), re-login silently, hook into the runtime session pool.
-  Files: `packages/auth/src/sessions.ts`, `packages/runtime/src/sessions/pool.ts`, tests
+- [x] **3.3 `auth`: login recipes.** Build and run a site's login recipe, verify the signed-in state, save the session.
+  Files: `packages/core/src/login.ts`, `packages/compiler/src/login/build-login.ts`, `packages/runtime/src/runtime.ts` (`signIn`), `packages/db/src/repos/sessions.ts`, `packages/db/migrations/0003_*`, tests against `fixtures/login-totp` and `fixtures/demo-shop`
+- [x] **3.4 `auth`: 2FA.** TOTP via `otplib`; human in the loop through a job question answered over MCP or REST.
+  Files: `packages/auth/src/twofa/totp.ts`, `packages/engine/src/sessions.ts` (codes from a person through job questions or `tooldrop logins verify`), tests
+- [x] **3.5 `auth`: session refresh.** Detect expiry (401/403, login redirect, failed check), re-login silently, hook into the runtime session pool.
+  Files: `packages/engine/src/sessions.ts`, `packages/runtime/src/{sessions,browser/pool}.ts`, `packages/runtime/src/executors/{http,browser}.ts`, tests
 - [ ] **3.6 `healer`: detect.** Runtime-failure trigger, daily health check with saved test inputs, drift alert when the output shape changes.
   Files: `packages/healer/package.json`, `packages/healer/src/detect.ts`, `apps/server/src/jobs/health-check.ts`, tests
 - [ ] **3.7 `healer`: diagnose.** Re-run up to the failing step with full capture; try the ranked-selector fallback before calling the model; build the diagnosis prompt (D-006).

@@ -405,3 +405,14 @@ Node's built-in fetch gives up when a server sends no response headers for 5 min
 - `pnpm test:llm` runs the same builds against the local Ollama. With `TOOLDROP_RECORD_REPLIES=1` it saves the replies to `fixtures/llm-replies/`, and `build-replay.e2e.test.ts` replays every saved file in CI.
 - No replies are recorded yet. On the development machine, a single model call takes several minutes, so a full build runs for most of an hour. Recording belongs on a machine with a GPU or Apple Silicon.
 - One real check so far, on the development machine: `qwen2.5-coder:7b` reviewed the JSON-API fixture's draft and returned a valid recipe on its first try. Ollama constrained the reply to the recipe schema, which confirms that its grammar converter accepts the schema. The call used 965 prompt and 169 completion tokens and took about 4 minutes. The model kept the draft unchanged.
+
+### D-041 Login recipes, sessions and codes
+
+*Proposed · 2026-10-28*
+
+- **A login recipe is browser steps plus a check.** Its values come only from the saved login, as `{{input.username}}`, `{{input.password}}` and `{{input.otp}}`. It ends in a check: a page that must load without landing on the sign-in page and show no password field, or an element that must be visible. Login recipes are versioned per site in a new `login_recipes` table, and `sites.login_recipe_id` names the one in use.
+- **Built by signing in once, without a model.** The builder finds the password field (or first follows a "Sign in" link), the username field before it, and the button after it. It fills them, and when a code page follows, fills the code; then it checks the signed-in page. Every selector is checked on the live page, as in captures. A site these heuristics do not fit gets a clear error that asks for a recording.
+- **One session per login,** sealed in the vault. The runtime starts the site's browser context and HTTP cookie jar from it. A tool call that gets a 401 or 403, or lands on the sign-in page, fails with `session_expired` instead of falling back to the browser, which would fail the same way. The engine then signs in again and runs the call once more, so an expired session costs one sign-in, not a failed call.
+- **Codes:** a login with an authenticator secret signs in unattended, with codes from `otplib`. A login marked `human` asks a person: during a build, as a job question; outside one, `tooldrop logins verify <site>` asks in the terminal. A call that needs a code and has no one to ask fails with a message saying so.
+- **The site's login is the verified one,** else the newest. Choosing between several accounts for one site waits for multi-user support (task 5.5).
+- **Build step 2** signs in before the capture, and the capture and the validation runs use the session.

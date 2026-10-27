@@ -1,18 +1,19 @@
 import { ToolDropError, type RankedSelector, type Selector, type Step } from '@tooldrop/core';
-import type { Locator, Page } from 'playwright';
-import type { BrowserPool } from '../browser/pool.ts';
+import type { BrowserContext, Locator, Page } from 'playwright';
 import type { SiteLimiter } from '../limits.ts';
-import { atStep, columnIndexes, describeTarget, mapPages } from '../steps.ts';
+import { atStep, columnIndexes, describeTarget, mapPages, samePage } from '../steps.ts';
 import { render, renderText, type TemplateContext } from '../templates.ts';
 
 // Runs browser_script recipes in a warm Playwright context for the site.
 
 export interface BrowserDeps {
-  pool: BrowserPool;
-  siteKey: string;
+  /** The browser context to run in: the site's warm one, or a fresh one for signing in. */
+  context: () => Promise<BrowserContext>;
   limiter: SiteLimiter;
   /** How long the first selector of a target may wait for the page (default 10 s). */
   waitMs?: number;
+  /** The sign-in page of a signed-in site: landing there means the session expired. */
+  loginUrl?: string;
 }
 
 type Role = Parameters<Page['getByRole']>[0];
@@ -22,7 +23,7 @@ export async function runBrowserRecipe(
   context: TemplateContext,
   deps: BrowserDeps,
 ): Promise<unknown> {
-  const browserContext = await deps.pool.context(deps.siteKey);
+  const browserContext = await deps.context();
   return deps.limiter.run(async () => {
     const page = await browserContext.newPage();
     const settle = trackRequests(page);
@@ -34,6 +35,12 @@ export async function runBrowserRecipe(
             ? Promise.resolve(mapPages([result], step))
             : runStep(page, step, context, deps.waitMs ?? 10_000, settle),
         );
+        if (deps.loginUrl && samePage(page.url(), deps.loginUrl)) {
+          throw new ToolDropError(
+            'session_expired',
+            'the session has expired: the page went to ' + page.url(),
+          );
+        }
         if (value !== undefined) {
           result = value;
           if ('save' in step && typeof step.save === 'string') context.vars[step.save] = value;

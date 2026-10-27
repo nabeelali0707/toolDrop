@@ -71,3 +71,15 @@ export async function atStep<T>(index: number, step: Step, run: () => Promise<T>
     });
   }
 }
+
+/** Whether two URLs are the same page: origin and path, ignoring the query and a trailing slash. */
+export function samePage(a: string, b: string): boolean {
+  try {
+    const x = new URL(a);
+    const y = new URL(b);
+    const path = (url: URL) => url.pathname.replace(/\/+$/, '') || '/';
+    return x.origin === y.origin && path(x) === path(y);
+  } catch {
+    return false;
+  }
+}

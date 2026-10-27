@@ -22,3 +22,4 @@ export * from './generate/strategy.ts';
 export * from './validate/double.ts';
 export * from './recording/recorder-page.ts';
 export * from './recording/recorder.ts';
+export * from './login/build-login.ts';

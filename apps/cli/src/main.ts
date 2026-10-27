@@ -25,6 +25,7 @@ Usage: tooldrop <command> [options]
   keys revoke <id>       Revoke an API key
   logins add <site>      Save a login, sealed in the vault (--username, --totp, --human, --password-stdin)
   logins list            List saved logins, masked
+  logins verify <site>   Sign in now and keep the session, asking for a code when needed
   build <url> --task     Build a tool for a task (--recording <id or file>, --hint)
   record <url>           Do a task once in a browser, for the most reliable builds (--task, --out)
 

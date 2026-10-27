@@ -20,9 +20,11 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@tooldrop/fixture-demo-shop": "workspace:*",
     "@tooldrop/fixture-html-app": "workspace:*",
     "@tooldrop/fixture-json-api": "workspace:*",
     "@tooldrop/fixture-kit": "workspace:*",
-    "@tooldrop/fixture-login-totp": "workspace:*"
+    "@tooldrop/fixture-login-totp": "workspace:*",
+    "otplib": "^13.5.0"
   }
 }

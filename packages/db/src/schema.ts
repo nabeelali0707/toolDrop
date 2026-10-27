@@ -13,6 +13,7 @@ import {
   type JobAnswer,
   type JobQuestion,
   type JsonSchema,
+  type LoginRecipe,
   type Step,
   type TwofaConfig,
 } from '@tooldrop/core';
@@ -291,6 +292,28 @@ export const api_keys = sqliteTable(
     ...timestamps,
   },
   (t) => [uniqueIndex('api_keys_key_hash_unique').on(t.key_hash)],
+);
+
+/**
+ * Each site's login recipes, versioned like tools; `sites.login_recipe_id`
+ * names the one in use (SPEC, Authentication).
+ */
+export const login_recipes = sqliteTable(
+  'login_recipes',
+  {
+    id: text().primaryKey(),
+    site_id: text()
+      .notNull()
+      .references(() => sites.id, { onDelete: 'cascade' }),
+    version: integer().notNull(),
+    recipe: text({ mode: 'json' }).$type<LoginRecipe>().notNull(),
+    created_by: text({ enum: RECIPE_ORIGINS }).notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('login_recipes_site_version_unique').on(t.site_id, t.version),
+    oneOf('login_recipes_created_by', t.created_by, RECIPE_ORIGINS),
+  ],
 );
 
 /** Raw evidence from a build or recording. Large files live on disk; rows hold their paths. */

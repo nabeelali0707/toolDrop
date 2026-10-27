@@ -1,0 +1,139 @@
+import { memoryKeyStore, type KeyStore } from '@tooldrop/auth';
+import { toolFileSchema } from '@tooldrop/core';
+import { latestSession, listLogins, openDatabase, runMigrations, type DatabaseHandle } from '@tooldrop/db';
+import type { RunningFixture } from '@tooldrop/fixture-kit';
+import { FIXTURE_ACCOUNT, startLoginTotpFixture } from '@tooldrop/fixture-login-totp';
+import { Runtime } from '@tooldrop/runtime';
+import { generate } from 'otplib';
+import { chromium, type Browser } from 'playwright';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { Engine } from './engine.ts';
+
+// SPEC's Login + 2FA criterion: the TOTP fixture signs in unattended, and an
+// expired session refreshes without failing the call. Fixture-only account.
+
+let browser: Browser;
+let fixture: RunningFixture;
+let handle: DatabaseHandle;
+let keyStore: KeyStore;
+const engines: Engine[] = [];
+
+/** The fixture's protected invoice page, as a hand-written tool. */
+const protectedInvoices = toolFileSchema.parse({
+  name: 'protected_invoices',
+  description: 'The 10 newest invoices on the signed-in page.',
+  authority: 'read',
+  input_schema: { type: 'object', properties: {} },
+  output_schema: { type: 'array' },
+  recipe: {
+    strategy: 'html_fetch',
+    steps: [
+      { op: 'http', method: 'GET', url: '{{site}}/invoices' },
+      {
+        op: 'extract_table',
+        target: [{ kind: 'test_id', value: 'invoices' }],
+        columns: { number: 'Number' },
+      },
+    ],
+  },
+});
+
+function start(): Engine {
+  const engine = new Engine({
+    db: handle.db,
+    runtime: new Runtime({ browserWaitMs: 5_000 }),
+    keyStore: () => Promise.resolve(keyStore),
+    builds: { browser },
+  });
+  engines.push(engine);
+  return engine;
+}
+
+beforeAll(async () => {
+  browser = await chromium.launch();
+  fixture = await startLoginTotpFixture();
+});
+afterAll(async () => {
+  await browser.close();
+  await fixture.close();
+});
+beforeEach(() => {
+  handle = openDatabase(':memory:');
+  runMigrations(handle.db);
+  keyStore = memoryKeyStore();
+});
+afterEach(async () => {
+  for (const engine of engines.splice(0)) await engine.close();
+  handle.close();
+});
+
+describe('signed-in sites', () => {
+  it('signs in unattended with TOTP, and refreshes an expired session within the call', async () => {
+    const engine = start();
+    await engine.addLogin({
+      site: fixture.url,
+      username: FIXTURE_ACCOUNT.username,
+      password: FIXTURE_ACCOUNT.password,
+      totp_secret: FIXTURE_ACCOUNT.totpSecret,
+    });
+    engine.publish(protectedInvoices, fixture.url);
+
+    const first = await engine.runTool('protected_invoices', {});
+    expect(first.result).toHaveLength(10);
+    const [login] = listLogins(handle.db);
+    expect(login?.login.status).toBe('verified');
+    const session = latestSession(handle.db, login?.login.id ?? '');
+    expect(session?.storage_state.toString('latin1')).not.toContain('session');
+
+    // The site forgets every session; the next call signs in again and still answers.
+    await fetch(`${fixture.url}/__fixture/expire-sessions`, { method: 'POST' });
+    const second = await engine.runTool('protected_invoices', {});
+    expect(second.result).toHaveLength(10);
+    expect(latestSession(handle.db, login?.login.id ?? '')?.id).not.toBe(session?.id);
+
+    // After a restart, the saved session is used as it is.
+    const kept = latestSession(handle.db, login?.login.id ?? '')?.id;
+    const restarted = start();
+    expect((await restarted.runTool('protected_invoices', {})).result).toHaveLength(10);
+    expect(latestSession(handle.db, login?.login.id ?? '')?.id).toBe(kept);
+  }, 120_000);
+
+  it('asks a person for the code when the login has no authenticator secret', async () => {
+    const engine = start();
+    await engine.addLogin({
+      site: fixture.url,
+      username: FIXTURE_ACCOUNT.username,
+      password: FIXTURE_ACCOUNT.password,
+      twofa: 'human',
+    });
+    engine.publish(protectedInvoices, fixture.url);
+    // Without a person to ask, a call cannot sign in.
+    await expect(engine.runTool('protected_invoices', {})).rejects.toMatchObject({
+      code: 'session_expired',
+      message: expect.stringContaining('one-time code') as string,
+    });
+
+    // The person reads the code from their authenticator app.
+    const questions: string[] = [];
+    const ask = async (question: { text: string }) => {
+      questions.push(question.text);
+      return generate({ secret: FIXTURE_ACCOUNT.totpSecret });
+    };
+    expect(await engine.signIn(fixture.url, { ask })).toBe(true);
+    expect(questions).toEqual([`Enter the sign-in code ${fixture.url} just sent you.`]);
+    expect((await engine.runTool('protected_invoices', {})).result).toHaveLength(10);
+  }, 120_000);
+
+  it('marks a login that no longer works, and says so', async () => {
+    const engine = start();
+    await engine.addLogin({
+      site: fixture.url,
+      username: FIXTURE_ACCOUNT.username,
+      password: 'wrong-password-not-real',
+      totp_secret: FIXTURE_ACCOUNT.totpSecret,
+    });
+    engine.publish(protectedInvoices, fixture.url);
+    await expect(engine.runTool('protected_invoices', {})).rejects.toMatchObject({ code: 'session_expired' });
+    expect(listLogins(handle.db)[0]?.login.status).toBe('needs_attention');
+  }, 60_000);
+});

@@ -7,7 +7,7 @@ import {
   type ToolFile,
 } from '@tooldrop/core';
 import { Masker, type Llm } from '@tooldrop/llm';
-import type { RateLimit, Runtime } from '@tooldrop/runtime';
+import type { RateLimit, Runtime, StorageState } from '@tooldrop/runtime';
 import type { Browser } from 'playwright';
 import type { Capture } from './capture/capture.ts';
 import { collectSecrets } from './capture/har.ts';
@@ -51,6 +51,8 @@ export interface BuildDeps {
   rateLimit?: RateLimit;
   /** How long capture steps wait for the page. */
   waitMs?: number;
+  /** A signed-in session for the site (SPEC, Build pipeline step 2), and its sign-in page. */
+  signedIn?: { loginUrl: string; state: StorageState };
   /** Most explore actions (default 30). */
   actionBudget?: number;
 }
@@ -111,6 +113,7 @@ export async function buildTool(
   const captureOptions = {
     ...(deps.browser && { browser: deps.browser }),
     ...(deps.waitMs !== undefined && { waitMs: deps.waitMs }),
+    ...(deps.signedIn && { storageState: deps.signedIn.state }),
   };
 
   // Step 3: replay the recording, or explore; if exploring fails, ask for a recording.
@@ -171,6 +174,7 @@ export async function buildTool(
             recipe: { strategy: primary.strategy, steps: primary.steps },
             site,
             ...(deps.rateLimit && { rate_limit: deps.rateLimit }),
+            ...(deps.signedIn && { login: { url: deps.signedIn.loginUrl } }),
           },
           sets[0] ?? {},
         )
@@ -195,6 +199,7 @@ export async function buildTool(
         recipe,
         site,
         ...(deps.rateLimit && { rate_limit: deps.rateLimit }),
+        ...(deps.signedIn && { login: { url: deps.signedIn.loginUrl } }),
       },
       sets,
     );

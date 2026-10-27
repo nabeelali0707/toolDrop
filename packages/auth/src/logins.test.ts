@@ -61,7 +61,12 @@ describe('saved logins', () => {
   it('reports bad input by field, never repeating a value', () => {
     let message = '';
     try {
-      addLogin(handle.db, vault, { site: 'not a site', username: 'u', password, totp_secret: 'not base32!!' });
+      addLogin(handle.db, vault, {
+        site: 'not a site',
+        username: 'u',
+        password,
+        totp_secret: 'not base32!!',
+      });
     } catch (error) {
       message = error instanceof Error ? error.message : '';
     }

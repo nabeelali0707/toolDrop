@@ -6,7 +6,7 @@ import {
   type RecordedAction,
   type Selector,
 } from '@tooldrop/core';
-import { toLocator, trackRequests } from '@tooldrop/runtime';
+import { toLocator, trackRequests, type StorageState } from '@tooldrop/runtime';
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from 'playwright';
 import type { Exchange } from './har.ts';
 import { NetworkRecorder } from './network.ts';
@@ -57,6 +57,8 @@ export interface CaptureOptions {
   headed?: boolean;
   /** How long an action may wait for its element (default 10 s). */
   waitMs?: number;
+  /** Start signed in, from a saved session (SPEC, Build pipeline step 2). */
+  storageState?: StorageState;
   /** Reuse a running browser instead of launching one. */
   browser?: Browser;
 }
@@ -101,7 +103,9 @@ export class CaptureSession {
     const owned = options.browser ? undefined : await chromium.launch({ headless: !options.headed });
     const browser = options.browser ?? owned;
     if (!browser) throw new ToolDropError('internal', 'no browser to capture with');
-    const context = await browser.newContext();
+    const context = await browser.newContext(
+      options.storageState ? { storageState: options.storageState } : {},
+    );
     await context.addInitScript(installPageHelpers);
     const page = await context.newPage();
     const session = new CaptureSession(page, context, url, options, owned);
@@ -240,6 +244,11 @@ export class CaptureSession {
       snapshots: this.snapshots,
       final_html: finalHtml,
     };
+  }
+
+  /** The session now: cookies and local storage, e.g. after signing in. */
+  storageState(): Promise<StorageState> {
+    return this.#context.storageState();
   }
 
   /** Closes the browser without returning anything, e.g. when the build fails. */

@@ -5,7 +5,7 @@ import type { CookieJar } from 'tough-cookie';
 import { evaluateCondition } from '../conditions.ts';
 import { queryOne } from '../jsonpath.ts';
 import type { SiteLimiter } from '../limits.ts';
-import { atStep, columnIndexes, describeTarget, mapPages } from '../steps.ts';
+import { atStep, columnIndexes, describeTarget, mapPages, samePage } from '../steps.ts';
 import { render, renderText, stringify, type TemplateContext } from '../templates.ts';
 
 // Runs the strategies that need no browser: official_api, http_replay and
@@ -18,6 +18,8 @@ export interface HttpDeps {
   cookieJar: CookieJar;
   limiter: SiteLimiter;
   timeoutMs?: number;
+  /** The sign-in page of a signed-in site: landing there means the session expired. */
+  loginUrl?: string;
 }
 
 interface State {
@@ -116,6 +118,22 @@ async function send(step: HttpStep, context: TemplateContext, deps: HttpDeps): P
     }),
   );
 
+  if (deps.loginUrl) {
+    const rejected = response.statusCode === 401 || response.statusCode === 403;
+    if (rejected || samePage(response.url, deps.loginUrl)) {
+      throw new ToolDropError(
+        'session_expired',
+        'the session has expired: ' +
+          step.method +
+          ' ' +
+          url +
+          (rejected ? ' answered ' + response.statusCode : ' led to the sign-in page'),
+        {
+          details: { status: response.statusCode },
+        },
+      );
+    }
+  }
   if (response.statusCode >= 400) {
     throw new ToolDropError('strategy_failed', `${step.method} ${url} answered ${response.statusCode}`, {
       details: { status: response.statusCode },

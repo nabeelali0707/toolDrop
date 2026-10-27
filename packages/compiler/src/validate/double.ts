@@ -14,6 +14,8 @@ export interface ToolUnderTest {
   recipe: Recipe;
   site: string;
   rate_limit?: RateLimit;
+  /** The sign-in page of a signed-in site, so an expired session is reported as one. */
+  login?: { url: string };
 }
 
 export interface ValidationRun {
@@ -103,6 +105,7 @@ async function runOnly(
       recipe: { strategy: plan.strategy, steps: plan.steps },
       site: tool.site,
       ...(tool.rate_limit && { rate_limit: tool.rate_limit }),
+      ...(tool.login && { login: tool.login }),
     },
     input,
   );

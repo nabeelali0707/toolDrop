@@ -2,18 +2,20 @@ import {
   ToolDropError,
   type Authority,
   type JsonSchema,
+  type LoginRecipe,
   type Recipe,
   type RunMeta,
   type Step,
   type Strategy,
   type ToolDropErrorJson,
 } from '@tooldrop/core';
-import { BrowserPool } from './browser/pool.ts';
-import { runBrowserRecipe } from './executors/browser.ts';
+import { BrowserPool, type StorageState } from './browser/pool.ts';
+import { runBrowserRecipe, toLocator, trackRequests } from './executors/browser.ts';
 import { runHttpRecipe } from './executors/http.ts';
 import { DEFAULT_RATE_LIMIT, SiteLimiter, type RateLimit } from './limits.ts';
 import { SessionPool } from './sessions.ts';
-import type { TemplateContext } from './templates.ts';
+import { samePage } from './steps.ts';
+import { renderText, type TemplateContext } from './templates.ts';
 import { SchemaValidator } from './validate.ts';
 
 /** Everything the runtime needs to call one published tool. */
@@ -30,6 +32,15 @@ export interface RunnableTool {
   rate_limit?: RateLimit;
   /** Optional response cache for read tools, set at publish time (default off). */
   cache_ttl_ms?: number;
+  /** For a site that needs signing in: its sign-in page, where an expired session lands. */
+  login?: { url: string };
+}
+
+/** What a login recipe signs in with; the one-time code only when the site asks for one. */
+export interface LoginValues {
+  username: string;
+  password: string;
+  otp?: string;
 }
 
 export interface Attempt {
@@ -124,6 +135,8 @@ export class Runtime {
         }
         return this.#finish(tool, cacheKey, { result, strategy: plan.strategy, started, attempts });
       } catch (error) {
+        // An expired session fails every strategy alike: the caller signs in again instead.
+        if (error instanceof ToolDropError && error.code === 'session_expired') throw error;
         attempts.push({
           strategy: plan.strategy,
           ok: false,
@@ -139,6 +152,55 @@ export class Runtime {
       `every strategy failed for ${tool.name}: ${attempts.map((a) => `${a.strategy}: ${a.error?.message}`).join(' | ')}`,
       { details: { attempts } },
     );
+  }
+
+  /**
+   * Signs in with a login recipe in a fresh browser context and returns the
+   * session (SPEC, Authentication). Fails with `session_expired` when the
+   * signed-in check does not pass, e.g. after a wrong password or code.
+   */
+  async signIn(recipe: LoginRecipe, site: string, values: LoginValues): Promise<StorageState> {
+    const context = await this.#browsers.fresh();
+    try {
+      const templates: TemplateContext = { site, input: { ...values }, session: {}, vars: {}, loop: {} };
+      const waitMs = this.#options.browserWaitMs ?? 10_000;
+      await runBrowserRecipe(recipe.steps, templates, {
+        context: () => Promise.resolve(context),
+        limiter: this.#limiter(site),
+        waitMs,
+      });
+      const login = renderText(recipe.url, templates);
+      const page = await context.newPage();
+      try {
+        const settle = trackRequests(page);
+        const check = recipe.check;
+        await page.goto(renderText(check.url, templates), { waitUntil: 'domcontentloaded', timeout: waitMs });
+        await settle();
+        const onSignIn =
+          samePage(page.url(), login) || (await page.locator('input[type=password]').first().isVisible());
+        let shown = check.kind !== 'element';
+        for (const selector of check.kind === 'element' ? check.target : []) {
+          if (await toLocator(page, selector).first().isVisible()) shown = true;
+        }
+        if (onSignIn || !shown) {
+          throw new ToolDropError(
+            'session_expired',
+            `signing in to ${site} did not work: the site still asks to sign in`,
+          );
+        }
+      } finally {
+        await page.close();
+      }
+      return await context.storageState();
+    } finally {
+      await context.close();
+    }
+  }
+
+  /** Makes calls to a site use a saved session: its browser context and its cookie jar. */
+  async useSession(site: string, state: StorageState): Promise<void> {
+    await this.#browsers.useState(site, state);
+    this.#sessions.load(site, state.cookies);
   }
 
   /** Stops the browser. Call before the process exits. */
@@ -170,15 +232,16 @@ export class Runtime {
     const limiter = this.#limiter(tool.site, tool.rate_limit);
     if (plan.strategy === 'browser_script') {
       return runBrowserRecipe(plan.steps, context, {
-        pool: this.#browsers,
-        siteKey: tool.site,
+        context: () => this.#browsers.context(tool.site),
         limiter,
+        ...(tool.login && { loginUrl: tool.login.url }),
         ...(this.#options.browserWaitMs !== undefined && { waitMs: this.#options.browserWaitMs }),
       });
     }
     return runHttpRecipe(plan.steps, context, {
       cookieJar: this.#sessions.cookieJar(tool.site),
       limiter,
+      ...(tool.login && { loginUrl: tool.login.url }),
       ...(this.#options.httpTimeoutMs !== undefined && { timeoutMs: this.#options.httpTimeoutMs }),
     });
   }

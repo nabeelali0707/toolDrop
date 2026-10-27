@@ -6,7 +6,8 @@ import { askHidden, readStdin } from '../prompt.ts';
 
 const USAGE = `usage:
   tooldrop logins add <site> [--username name] [--label text] [--totp] [--human] [--password-stdin]
-  tooldrop logins list [--site <url>]`;
+  tooldrop logins list [--site <url>]
+  tooldrop logins verify <site>`;
 
 /**
  * `tooldrop logins`: save logins without handing them to an agent. The
@@ -17,7 +18,35 @@ export async function logins(args: string[]): Promise<number> {
   const [command, ...rest] = args;
   if (command === 'list') return list(rest);
   if (command === 'add') return add(rest);
+  if (command === 'verify') return verify(rest);
   throw new ToolDropError('invalid_input', USAGE);
+}
+
+/** Signs in now and keeps the session; asks for the code here when the site sends one by hand. */
+async function verify(args: string[]): Promise<number> {
+  const [site] = args;
+  if (!site) throw new ToolDropError('invalid_input', USAGE);
+  const { engine, close } = openEngine();
+  try {
+    const ask = async (question: { text: string }) => {
+      if (!process.stdin.isTTY)
+        throw new ToolDropError('invalid_input', `${question.text} Run this in a terminal.`);
+      const terminal = createInterface({ input: process.stdin, output: process.stdout });
+      try {
+        return await terminal.question(`${question.text} `);
+      } finally {
+        terminal.close();
+      }
+    };
+    if (!(await engine.signIn(site, { ask }))) {
+      console.error(`There is no saved login for ${site}. Add one with: tooldrop logins add ${site}`);
+      return 1;
+    }
+    console.log(`Signed in to ${new URL(site).origin}; the session is saved.`);
+    return 0;
+  } finally {
+    await close();
+  }
 }
 
 async function add(args: string[]): Promise<number> {
