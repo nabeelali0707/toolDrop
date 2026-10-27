@@ -31,7 +31,12 @@ export interface CaptureTarget {
   selector: RankedSelector;
   label: string;
   data: TargetData;
+  /** A button that adds more rows to it, such as "Load more", for browser recipes. */
+  more?: { selector: RankedSelector; label: string };
 }
+
+/** Buttons that append rows rather than open another page. */
+const MORE_BUTTON = /^(load|show|view|see) more\b|^more\b/i;
 
 export interface Capture {
   id: string;
@@ -186,6 +191,14 @@ export class CaptureSession {
     if (!extracted) throw new ToolDropError('invalid_input', `no element ${ref} on the page`);
     const { target, label } = await this.#describe(extracted.ref);
     this.target = { selector: target, label, data: extracted.data };
+
+    const button = (await this.snapshot()).nodes.find(
+      (node) => node.role === 'button' && MORE_BUTTON.test(node.name),
+    );
+    if (button) {
+      const more = await this.#describe(button.ref);
+      this.target.more = { selector: more.target, label: more.label };
+    }
     return this.target;
   }
 

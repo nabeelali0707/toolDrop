@@ -52,6 +52,11 @@ const BOILERPLATE = new Set([
   'user-agent',
 ]);
 
+/** Headers that say nothing about the API: what every browser sends. */
+export function isBoilerplateHeader(name: string): boolean {
+  return BOILERPLATE.has(name) || name.startsWith('sec-') || name.startsWith(':');
+}
+
 /** The fields of a request: query and body fields, and the headers that are not boilerplate. */
 export function requestFields(exchange: Exchange): FieldNote[] {
   const url = new URL(exchange.url);
@@ -71,7 +76,7 @@ export function requestFields(exchange: Exchange): FieldNote[] {
     }
   }
   for (const [name, value] of Object.entries(exchange.request_headers)) {
-    if (BOILERPLATE.has(name) || name.startsWith('sec-') || name.startsWith(':')) continue;
+    if (isBoilerplateHeader(name)) continue;
     fields.push({ location: 'header', name, value });
   }
   return fields;

@@ -86,6 +86,13 @@ function findData($: CheerioAPI, values: readonly string[]): Selection | undefin
   return table.length > 0 ? table : current;
 }
 
+/** Share of the values that appear anywhere in the page's visible markup. */
+export function htmlCoverage(html: string, values: readonly string[]): number {
+  const $ = cleanDocument(html);
+  const body = bodyOf($).first();
+  return coverage($, body.length > 0 ? body : $.root().children().first(), sampleValues(values));
+}
+
 /** Whether the HTML holds the values: the test for html_fetch. */
 export function htmlHoldsData(html: string, values: readonly string[]): boolean {
   return findData(cleanDocument(html), sampleValues(values)) !== undefined;
