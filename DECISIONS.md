@@ -8,15 +8,19 @@ What was decided while turning [SPEC.md](SPEC.md) into a build, and why. SPEC.md
 
 ## Open questions
 
-### Q-1 Which library reads the OS keychain?
-
-*Open · needed before task 3.1*
-
-SPEC names `keytar`, but [keytar](https://github.com/atom/node-keytar) was archived when the Atom organization was sunset and gets no more fixes, security fixes included. [`@napi-rs/keyring`](https://www.npmjs.com/package/@napi-rs/keyring) (MIT, actively maintained) covers the same OS stores: macOS Keychain, Windows Credential Manager and the Linux Secret Service.
-
-Recommendation: use `@napi-rs/keyring`, and change SPEC's tech stack to match.
+None at the moment.
 
 ## Accepted
+
+### D-040 The OS keychain through `@napi-rs/keyring` (answers Q-1)
+
+*Accepted · 2026-10-28 · from you*
+
+SPEC named `keytar`, which was archived with the Atom organization and gets no more fixes, security fixes included. toolDrop uses [`@napi-rs/keyring`](https://www.npmjs.com/package/@napi-rs/keyring) (MIT, actively maintained) instead. It covers the same stores: macOS Keychain, Windows Credential Manager and the Linux Secret Service. It ships prebuilt binaries for Windows, macOS and Linux on x64 and ARM, so installing toolDrop needs no compiler. SPEC's tech stack is changed to match.
+
+- **Vault encryption:** `libsodium-wrappers` (ISC), libsodium compiled to WebAssembly, so it also installs without a compiler. A sealed value is a format byte, a random 24-byte nonce and the secretbox (XSalsa20-Poly1305).
+- **First use:** the vault creates the master key the first time it is needed, in the OS keychain, or in `<home>/master.key` (mode 600) where there is no keychain. A key file the operator mounts (`TOOLDROP_KEY_FILE` or the Compose secret) is never created by toolDrop, except by `tooldrop init`, and a key file is never overwritten.
+- **Tests** never touch the machine's real keychain: they use an in-memory store, or point `TOOLDROP_KEY_FILE` at a temporary file.
 
 ### D-001 Project name
 

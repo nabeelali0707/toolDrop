@@ -2,6 +2,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'n
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { findKeyStore } from '@tooldrop/auth';
 import { openDatabase, runMigrations } from '@tooldrop/db';
 import { Engine } from '@tooldrop/engine';
 import { defaultSettings, llmSettingsSchema, modelSetup, type LlmSettings } from '@tooldrop/llm';
@@ -48,6 +49,7 @@ export function openEngine(): { engine: Engine; close: () => Promise<void> } {
     db: handle.db,
     dataDir: homeDir(),
     builds: { models: modelSetup(modelSettings()) },
+    keyStore: () => findKeyStore({ home: homeDir() }),
   });
   return {
     engine,

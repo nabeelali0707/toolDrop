@@ -4,6 +4,7 @@ import { totalmem } from 'node:os';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { parseArgs } from 'node:util';
+import { findKeyStore, Vault } from '@tooldrop/auth';
 import { DEFAULT_MODELS, isLocalEndpoint, ollamaUrl, type LlmSettings } from '@tooldrop/llm';
 import { homeDir, openEngine, readConfig, writeConfig } from '../home.ts';
 
@@ -41,7 +42,10 @@ export async function init(args: string[]): Promise<number> {
   try {
     // The database, so tools can be added right away.
     await openEngine().close();
-    console.log(`toolDrop keeps its data in ${homeDir()}\n`);
+    console.log(`toolDrop keeps its data in ${homeDir()}`);
+    // The vault's master key, for saved logins (SPEC, Authentication).
+    const vault = await Vault.open(await findKeyStore({ home: homeDir(), init: true }));
+    console.log(`The vault's master key is in ${vault.source}.\n`);
 
     const memory = totalmem();
     const recommended = recommendedModels(memory);

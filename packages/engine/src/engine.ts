@@ -9,6 +9,7 @@ import {
   type Db,
   type PublishedTool,
 } from '@tooldrop/db';
+import { Vault, type KeyStore } from '@tooldrop/auth';
 import { Runtime, type RunOutcome } from '@tooldrop/runtime';
 import { Builds, type BuildOptions, type JobView } from './builds.ts';
 import { readRecording, writeRecording } from './recordings.ts';
@@ -34,6 +35,8 @@ export interface EngineOptions {
   dataDir?: string;
   /** Models and browser for builds. */
   builds?: BuildOptions;
+  /** Where the vault's master key lives; the vault opens on first use (SPEC, Authentication). */
+  keyStore?: () => Promise<KeyStore>;
 }
 
 export class Engine {
@@ -41,12 +44,15 @@ export class Engine {
   readonly runtime: Runtime;
   readonly builds: Builds;
   readonly #dataDir: string | undefined;
+  readonly #keyStore: (() => Promise<KeyStore>) | undefined;
+  #vault: Promise<Vault> | undefined;
   readonly #listeners = new Set<() => void>();
 
   constructor(options: EngineOptions) {
     this.db = options.db;
     this.runtime = options.runtime ?? new Runtime();
     this.#dataDir = options.dataDir;
+    this.#keyStore = options.keyStore;
     this.builds = new Builds(this, options.builds);
   }
 
@@ -65,6 +71,20 @@ export class Engine {
   answerQuestion(jobId: string, questionId: string, answer: string, scopes: Scopes = ALL): JobView {
     requireFullAccess(scopes);
     return this.builds.answer(jobId, questionId, answer);
+  }
+
+  /** The vault, opened on first use with the master key from the key store. */
+  vault(): Promise<Vault> {
+    const keyStore = this.#keyStore;
+    if (!keyStore) {
+      return Promise.reject(
+        new ToolDropError('vault_unavailable', 'this engine has no key store for the vault'),
+      );
+    }
+    this.#vault ??= keyStore().then((store) => Vault.open(store));
+    // A failed open is not kept, so the next call tries again.
+    this.#vault.catch(() => (this.#vault = undefined));
+    return this.#vault;
   }
 
   get dataDir(): string {

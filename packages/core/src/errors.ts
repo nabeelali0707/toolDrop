@@ -14,6 +14,7 @@ export const ERROR_CODES = [
   'llm_invalid_output', // the model's reply failed its schema after every retry
   'llm_unavailable', // Ollama, or the configured endpoint, cannot be reached
   'llm_prompt_too_large', // a prompt stayed over its token budget after the most pruning
+  'vault_unavailable', // the master key cannot be read, or a sealed value does not open
   'internal',
 ] as const;
 

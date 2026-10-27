@@ -2,7 +2,7 @@
 
 The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of under a day, with the files each task touches. Choices and open questions are in [DECISIONS.md](DECISIONS.md).
 
-**Status:** Phases 0, 1 and 2 done (2026-10-28). Phase 1 waits on a manual MCP check in Claude Desktop or Claude Code, and Phase 2 on full builds with real models on a machine with a GPU. The open-source release track is partly done (below). Phase 3 is next.
+**Status:** Phases 0, 1 and 2 done (2026-10-28). Phase 1 waits on a manual MCP check in Claude Desktop or Claude Code, and Phase 2 on full builds with real models on a machine with a GPU. The open-source release track is partly done (below). Phase 3 is in progress.
 
 **How this file works**
 
@@ -120,8 +120,8 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
 
 ## Phase 3: Auth and self-healing
 
-- [ ] **3.1 `auth`: vault and master key.** libsodium secretbox; master key from the OS keychain (library per Q-1) or a mounted key file; `tooldrop init` generates the key (D-009).
-  Files: `packages/auth/package.json`, `packages/auth/src/vault/{vault,keychain,key-file}.ts`, `apps/cli/src/commands/init.ts`, tests
+- [x] **3.1 `auth`: vault and master key.** libsodium secretbox; master key from the OS keychain (`@napi-rs/keyring`, D-040) or a mounted key file; `tooldrop init` generates the key (D-009).
+  Files: `packages/auth/package.json`, `packages/auth/src/vault/{vault,key-store}.ts`, `packages/engine/src/engine.ts`, `apps/cli/src/commands/init.ts`, tests
 - [ ] **3.2 `auth`: logins.** `add_login` and `list_logins` over MCP and REST, encrypted secrets, masked previews only.
   Files: `packages/auth/src/logins.ts`, `apps/server/src/routes/logins.ts`, `apps/mcp/src/tools/logins.ts`, tests
 - [ ] **3.3 `auth`: login recipes.** Build and run a site's login recipe, verify the signed-in state, save the session.

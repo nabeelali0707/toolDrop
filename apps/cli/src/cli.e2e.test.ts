@@ -35,7 +35,9 @@ afterEach(async () => {
  */
 function cli(...args: string[]): Promise<{ status: number | null; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [main, ...args], { env: { ...process.env, TOOLDROP_HOME: home } });
+    // A key file in the test's folder keeps tests away from the machine's real keychain.
+    const env = { ...process.env, TOOLDROP_HOME: home, TOOLDROP_KEY_FILE: join(home, 'master.key') };
+    const child = spawn(process.execPath, [main, ...args], { env });
     let stdout = '';
     let stderr = '';
     child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString()));
@@ -285,6 +287,8 @@ describe('tooldrop init', { timeout: 60_000 }, () => {
     const result = await cli('init', '--yes', '--skip-browser', '--base-url', url);
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('Found Ollama 0.30.10');
+    expect(result.stdout).toContain("The vault's master key is in " + join(home, 'master.key'));
+    expect(readFileSync(join(home, 'master.key'), 'utf8').trim()).toMatch(/^[A-Za-z0-9+/]{43}=$/);
 
     const config = JSON.parse(readFileSync(join(home, 'config.json'), 'utf8')) as {
       llm: { provider: string; models: { code: string; reasoning: string } };

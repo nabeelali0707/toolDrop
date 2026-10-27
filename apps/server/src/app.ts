@@ -27,6 +27,7 @@ const STATUS: Record<ErrorCode, number> = {
   llm_invalid_output: 502,
   llm_prompt_too_large: 502,
   llm_unavailable: 503,
+  vault_unavailable: 503,
   heal_timeout: 504,
 };
 

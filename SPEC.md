@@ -317,7 +317,7 @@ toolDrop is self-host only: there is no managed cloud version, and no setup uses
 | Models | `qwen2.5-coder:7b` or `:14b`, `llama3.1:8b` | Apache-2.0; Llama 3.1 Community License (free to self-host, not OSI) |
 | Jobs and scheduling | BullMQ + Valkey when self-hosted; in-process queue + `node-cron` locally | MIT, BSD-3-Clause, ISC |
 | Database | SQLite (better-sqlite3) local, Postgres self-hosted, Drizzle ORM | Public domain, MIT, PostgreSQL License, Apache-2.0 |
-| Secrets | libsodium, `keytar` for the OS keychain (local), mounted key file (self-hosted) | ISC, MIT |
+| Secrets | libsodium (`libsodium-wrappers`), `@napi-rs/keyring` for the OS keychain (local), mounted key file (self-hosted) | ISC, MIT |
 | Dashboard | Next.js + Tailwind + shadcn/ui | MIT |
 | Extension | Chrome Manifest V3, TypeScript, Vite | Apache-2.0, MIT |
 | Self-hosting | Docker Compose: app, Postgres, Valkey, Ollama | Apache-2.0, PostgreSQL License, BSD-3-Clause, MIT |

@@ -12,6 +12,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@tooldrop/auth": "workspace:*",
     "@tooldrop/compiler": "workspace:*",
     "@tooldrop/core": "workspace:*",
     "@tooldrop/db": "workspace:*",
