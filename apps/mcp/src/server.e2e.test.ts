@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { ToolListChangedNotificationSchema, type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { memoryKeyStore } from '@tooldrop/auth';
 import { openDatabase, runMigrations, type DatabaseHandle } from '@tooldrop/db';
 import { Engine, readToolFile } from '@tooldrop/engine';
 import { startHtmlAppFixture } from '@tooldrop/fixture-html-app';
@@ -20,7 +21,7 @@ let fixture: RunningFixture;
 beforeEach(async () => {
   handle = openDatabase(':memory:');
   runMigrations(handle.db);
-  engine = new Engine({ db: handle.db });
+  engine = new Engine({ db: handle.db, keyStore: () => Promise.resolve(memoryKeyStore()) });
   fixture = await startHtmlAppFixture();
   engine.publish(searchInvoices, fixture.url);
 });
@@ -52,6 +53,8 @@ describe('MCP server', () => {
       'build_tool',
       'get_job',
       'answer_question',
+      'add_login',
+      'list_logins',
       'search_invoices',
     ]);
 
@@ -130,6 +133,16 @@ describe('MCP server', () => {
     });
     expect(answer.isError).toBe(true);
     expect((await call('build_tool', { url: 'not a url', task: 'x', authority: 'read' })).isError).toBe(true);
+  });
+
+  it('saves logins and lists them masked', async () => {
+    const { call } = await connect();
+    const password = 'fixture-password-not-real';
+    const saved = await call('add_login', { site: fixture.url, username: 'fixture-user', password });
+    expect(saved.structuredContent).toMatchObject({ login: { username: 'fi••••er', twofa: null } });
+    const listed = await call('list_logins', {});
+    expect(listed.structuredContent).toMatchObject({ logins: [{ username: 'fi••••er' }] });
+    expect(JSON.stringify([saved, listed])).not.toContain(password);
   });
 
   it("shows only the tools an API key's scopes allow", async () => {

@@ -139,6 +139,49 @@ const BUILD_TOOLS: Tool[] = [
   },
 ];
 
+/** Saved logins (SPEC, Management MCP tools); like builds, they need access to every tool. */
+const LOGIN_TOOLS: Tool[] = [
+  {
+    name: 'add_login',
+    title: 'Save a login',
+    description:
+      'Save a login for a site, so toolDrop can sign in there when it builds and runs tools. Only call it with credentials the user gave you for this. The values are encrypted on this machine and never returned. The user can also add logins without sharing them: `tooldrop logins add <site>`.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        site: { type: 'string', description: 'Any page of the site, e.g. "https://shop.example.com".' },
+        username: { type: 'string' },
+        password: { type: 'string' },
+        label: { type: 'string', description: 'Optional: a name for this login, e.g. "work account".' },
+        totp_secret: {
+          type: 'string',
+          description: 'Optional: the authenticator secret (base32), for sites that ask for 6-digit codes.',
+        },
+        twofa: {
+          type: 'string',
+          enum: ['human'],
+          description:
+            'Optional: "human" when codes arrive another way and toolDrop should ask for each one.',
+        },
+      },
+      required: ['site', 'username', 'password'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, openWorldHint: false },
+  },
+  {
+    name: 'list_logins',
+    title: 'List saved logins',
+    description: 'Saved logins, with masked usernames. Passwords and secrets are never shown.',
+    inputSchema: {
+      type: 'object',
+      properties: { site: { type: 'string', description: 'Optional: only logins for this site.' } },
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+];
+
 export function createMcpServer(engine: Engine, options: McpOptions = {}): Server {
   const scopes = options.scopes ?? ['*'];
   const server = new Server(
@@ -146,7 +189,9 @@ export function createMcpServer(engine: Engine, options: McpOptions = {}): Serve
     { capabilities: { tools: { listChanged: true } }, instructions: INSTRUCTIONS },
   );
 
-  const management = scopes.includes('*') ? [...MANAGEMENT_TOOLS, ...BUILD_TOOLS] : MANAGEMENT_TOOLS;
+  const management = scopes.includes('*')
+    ? [...MANAGEMENT_TOOLS, ...BUILD_TOOLS, ...LOGIN_TOOLS]
+    : MANAGEMENT_TOOLS;
   server.setRequestHandler(ListToolsRequestSchema, () => ({
     tools: [...management, ...engine.listTools(scopes).map(toMcpTool)],
   }));
@@ -155,6 +200,10 @@ export function createMcpServer(engine: Engine, options: McpOptions = {}): Serve
     const args = params.arguments ?? {};
     try {
       if (params.name === 'build_tool') return success({ job: engine.startBuild(args, scopes) });
+      if (params.name === 'add_login') return success({ login: await engine.addLogin(args, scopes) });
+      if (params.name === 'list_logins') {
+        return success({ logins: await engine.listLogins(scopes, optionalString(args.site, 'site')) });
+      }
       if (params.name === 'get_job') {
         return success({ job: engine.getJob(requiredString(args.job_id, 'job_id'), scopes) });
       }

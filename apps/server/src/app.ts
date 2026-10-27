@@ -89,6 +89,16 @@ export function createServer({ engine, version = '0.0.0' }: ServerOptions): Fast
     return { job: engine.answerQuestion(id, questionId, answer, request.scopes) };
   });
 
+  // Saved logins: sealed in the vault, shown masked (SPEC, add_login and list_logins).
+  app.post('/v1/logins', async (request, reply) =>
+    reply.code(201).send({ login: await engine.addLogin(request.body ?? {}, request.scopes) }),
+  );
+
+  app.get('/v1/logins', async (request) => {
+    const { site } = request.query as { site?: string };
+    return { logins: await engine.listLogins(request.scopes, site) };
+  });
+
   // A recording may carry its network log as HAR, so it gets a larger body limit.
   app.post('/v1/recordings', { bodyLimit: 20 * 1024 * 1024 }, async (request, reply) => {
     const { id } = engine.saveRecording(request.body, request.scopes);

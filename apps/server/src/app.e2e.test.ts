@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { memoryKeyStore } from '@tooldrop/auth';
 import { createApiKey, openDatabase, runMigrations, type DatabaseHandle } from '@tooldrop/db';
 import { Engine, readToolFile } from '@tooldrop/engine';
 import { startHtmlAppFixture } from '@tooldrop/fixture-html-app';
@@ -23,7 +24,7 @@ beforeEach(async () => {
   handle = openDatabase(':memory:');
   runMigrations(handle.db);
   dataDir = mkdtempSync(join(tmpdir(), 'tooldrop-server-'));
-  engine = new Engine({ db: handle.db, dataDir });
+  engine = new Engine({ db: handle.db, dataDir, keyStore: () => Promise.resolve(memoryKeyStore()) });
   fixture = await startHtmlAppFixture();
   engine.publish(
     readToolFile(
@@ -90,6 +91,43 @@ describe('REST API', () => {
 
     const scoped = createApiKey(handle.db, { label: 'scoped', scopes: ['list_orders'] }).key;
     expect((await run('search_invoices', {}, { authorization: `Bearer ${scoped}` })).statusCode).toBe(403);
+  });
+});
+
+describe('logins', () => {
+  const password = 'fixture-password-not-real';
+
+  it('saves a login and lists it masked, never returning a value', async () => {
+    const saved = await app.inject({
+      method: 'POST',
+      url: '/v1/logins',
+      headers: auth(),
+      payload: { site: fixture.url, username: 'fixture-user', password, label: 'test account' },
+    });
+    expect(saved.statusCode).toBe(201);
+    expect(saved.json()).toMatchObject({
+      login: { label: 'test account', username: 'fi••••er', status: 'unchecked' },
+    });
+
+    const listed = await app.inject({
+      url: `/v1/logins?site=${encodeURIComponent(fixture.url)}`,
+      headers: auth(),
+    });
+    expect(listed.json<{ logins: unknown[] }>().logins).toHaveLength(1);
+    for (const body of [saved.body, listed.body]) expect(body).not.toContain(password);
+
+    const invalid = await app.inject({
+      method: 'POST',
+      url: '/v1/logins',
+      headers: auth(),
+      payload: { site: 'x', password },
+    });
+    expect(invalid.statusCode).toBe(400);
+    expect(invalid.body).not.toContain(password);
+
+    const scoped = createApiKey(handle.db, { label: 'scoped', scopes: ['search_invoices'] }).key;
+    const forbidden = await app.inject({ url: '/v1/logins', headers: { authorization: `Bearer ${scoped}` } });
+    expect(forbidden.statusCode).toBe(403);
   });
 });
 

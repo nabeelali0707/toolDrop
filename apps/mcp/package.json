@@ -19,6 +19,7 @@
     "@tooldrop/runtime": "workspace:*"
   },
   "devDependencies": {
+    "@tooldrop/auth": "workspace:*",
     "@tooldrop/fixture-html-app": "workspace:*",
     "@tooldrop/fixture-kit": "workspace:*"
   }

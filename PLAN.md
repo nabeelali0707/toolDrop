@@ -122,8 +122,8 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
 
 - [x] **3.1 `auth`: vault and master key.** libsodium secretbox; master key from the OS keychain (`@napi-rs/keyring`, D-040) or a mounted key file; `tooldrop init` generates the key (D-009).
   Files: `packages/auth/package.json`, `packages/auth/src/vault/{vault,key-store}.ts`, `packages/engine/src/engine.ts`, `apps/cli/src/commands/init.ts`, tests
-- [ ] **3.2 `auth`: logins.** `add_login` and `list_logins` over MCP and REST, encrypted secrets, masked previews only.
-  Files: `packages/auth/src/logins.ts`, `apps/server/src/routes/logins.ts`, `apps/mcp/src/tools/logins.ts`, tests
+- [x] **3.2 `auth`: logins.** `add_login` and `list_logins` over MCP and REST, encrypted secrets, masked previews only.
+  Files: `packages/auth/src/logins.ts`, `packages/db/src/repos/logins.ts`, `apps/server/src/app.ts`, `apps/mcp/src/server.ts`, `apps/cli/src/commands/logins.ts` (`tooldrop logins add` with a hidden prompt), tests
 - [ ] **3.3 `auth`: login recipes.** Build and run a site's login recipe, verify the signed-in state, save the session.
   Files: `packages/auth/src/login-recipe.ts`, tests against `fixtures/login-totp`
 - [ ] **3.4 `auth`: 2FA.** TOTP via `otplib`; human in the loop through a job question answered over MCP or REST.

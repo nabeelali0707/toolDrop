@@ -1,15 +1,22 @@
-import { ToolDropError, type RecipeOrigin, type Recording, type ToolFile } from '@tooldrop/core';
+import {
+  ToolDropError,
+  type LoginView,
+  type RecipeOrigin,
+  type Recording,
+  type ToolFile,
+} from '@tooldrop/core';
 import {
   findTools,
   getTool,
   keyAllows,
+  listLogins,
   listTools,
   publishTool,
   recordRun,
   type Db,
   type PublishedTool,
 } from '@tooldrop/db';
-import { Vault, type KeyStore } from '@tooldrop/auth';
+import { addLogin as saveLogin, Vault, viewLogins, type KeyStore } from '@tooldrop/auth';
 import { Runtime, type RunOutcome } from '@tooldrop/runtime';
 import { Builds, type BuildOptions, type JobView } from './builds.ts';
 import { readRecording, writeRecording } from './recordings.ts';
@@ -54,6 +61,19 @@ export class Engine {
     this.#dataDir = options.dataDir;
     this.#keyStore = options.keyStore;
     this.builds = new Builds(this, options.builds);
+  }
+
+  /** Saves a login, sealed in the vault (SPEC, add_login). Returns only the masked view. */
+  async addLogin(input: unknown, scopes: Scopes = ALL): Promise<LoginView> {
+    requireFullAccess(scopes);
+    return saveLogin(this.db, await this.vault(), input);
+  }
+
+  /** Saved logins, masked (SPEC, list_logins). */
+  async listLogins(scopes: Scopes = ALL, site?: string): Promise<LoginView[]> {
+    requireFullAccess(scopes);
+    if (listLogins(this.db, site ? { site } : {}).length === 0) return [];
+    return viewLogins(this.db, await this.vault(), site ? { site } : {});
   }
 
   /** Starts a build job (SPEC, build_tool and POST /v1/builds); poll it with getJob. */

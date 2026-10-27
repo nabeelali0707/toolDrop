@@ -34,6 +34,14 @@ afterEach(async () => {
  * purpose: the fixture sites run in this process and must keep answering.
  */
 function cli(...args: string[]): Promise<{ status: number | null; stdout: string; stderr: string }> {
+  return cliWithInput(undefined, ...args);
+}
+
+/** The same, with text piped into the command, as `--password-stdin` reads it. */
+function cliWithInput(
+  input: string | undefined,
+  ...args: string[]
+): Promise<{ status: number | null; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     // A key file in the test's folder keeps tests away from the machine's real keychain.
     const env = { ...process.env, TOOLDROP_HOME: home, TOOLDROP_KEY_FILE: join(home, 'master.key') };
@@ -44,6 +52,7 @@ function cli(...args: string[]): Promise<{ status: number | null; stdout: string
     child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
     child.once('error', reject);
     child.once('close', (status) => resolve({ status, stdout, stderr }));
+    child.stdin.end(input);
   });
 }
 
@@ -187,6 +196,36 @@ describe('tooldrop CLI', { timeout: 120_000 }, () => {
     } finally {
       ollama.close();
     }
+  });
+
+  it('saves a login sealed in the vault, and lists it masked', async () => {
+    const password = 'fixture-password-not-real';
+    await cli('init', '--yes', '--skip-browser', '--base-url', 'http://127.0.0.1:9');
+    const added = await cliWithInput(
+      `${password}\n`,
+      'logins',
+      'add',
+      fixture.url,
+      '--username',
+      'fixture-user',
+      '--password-stdin',
+    );
+    expect(added.stderr).toBe('');
+    expect(added.status).toBe(0);
+    expect(added.stdout).toContain(`Saved login fi••••er (fi••••er) for ${fixture.url}.`);
+
+    const listed = await cli('logins', 'list');
+    expect(listed.stdout).toContain(`${fixture.url}  fi••••er  fi••••er  no 2FA  unchecked`);
+    // Neither the output nor the database file holds the password in plain text.
+    for (const text of [
+      added.stdout,
+      listed.stdout,
+      readFileSync(join(home, 'tooldrop.db')).toString('latin1'),
+    ]) {
+      expect(text).not.toContain(password);
+    }
+    const refused = await cli('logins', 'add', fixture.url, '--username', 'x');
+    expect(refused.stderr).toContain('--password-stdin');
   });
 
   it('records only in a terminal', async () => {

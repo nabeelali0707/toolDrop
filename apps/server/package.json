@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
+    "@tooldrop/auth": "workspace:*",
     "@tooldrop/fixture-html-app": "workspace:*",
     "@tooldrop/fixture-json-api": "workspace:*",
     "@tooldrop/fixture-kit": "workspace:*",

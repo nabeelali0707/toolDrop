@@ -160,6 +160,9 @@ importers:
         specifier: workspace:*
         version: link:../../packages/runtime
     devDependencies:
+      '@tooldrop/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@tooldrop/fixture-html-app':
         specifier: workspace:*
         version: link:../../fixtures/html-app
@@ -188,6 +191,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.32.2
         version: 1.32.2(zod@4.6.7)
+      '@tooldrop/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@tooldrop/fixture-html-app':
         specifier: workspace:*
         version: link:../../fixtures/html-app
