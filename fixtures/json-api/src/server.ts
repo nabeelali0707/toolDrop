@@ -115,6 +115,17 @@ function parseSearch(body: unknown): { filter: InvoiceFilter; page: number } | u
 }
 
 /** The API's own field names differ from ours on purpose, so recipes have to map them. */
+/**
+ * Each supplier's billing contact. The page never shows it, but the API sends
+ * it, as real APIs do: the privacy tests check it never reaches an external
+ * model. Fake values: the .example domain and the 555-01xx range.
+ */
+export function supplierContact(supplier: string): { email: string; phone: string } {
+  const slug = supplier.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const number = 34 + (supplier.length % 60);
+  return { email: `billing@${slug}.example`, phone: `+1 415 555 01${String(number).padStart(2, '0')}` };
+}
+
 function toApiItem(invoice: Invoice) {
   return {
     invoiceNo: invoice.number,
@@ -122,6 +133,7 @@ function toApiItem(invoice: Invoice) {
     issuedOn: invoice.issued_on,
     total: { value: invoice.amount, currency: invoice.currency },
     state: invoice.status,
+    contact: supplierContact(invoice.supplier),
   };
 }
 

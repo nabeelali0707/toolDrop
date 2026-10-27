@@ -1,14 +1,17 @@
 import { ToolDropError } from '@tooldrop/core';
 import { Ollama } from 'ollama';
+import { patientFetch } from './http.ts';
 import type { ChatReply, ChatRequest, LlmProvider } from './provider.ts';
 
 // The default provider: Ollama through its official client (DECISIONS.md, D-003).
 
 export interface OllamaProviderOptions {
-  /** How long one call may take (default 10 minutes; CPU-only machines are slow). */
+  /** How long one call may take (default 30 minutes: a 7B model on a CPU reads long prompts slowly). */
   timeoutMs?: number;
   fetch?: typeof fetch;
 }
+
+export const DEFAULT_TIMEOUT_MS = 30 * 60_000;
 
 export class OllamaProvider implements LlmProvider {
   readonly name = 'ollama' as const;
@@ -18,8 +21,8 @@ export class OllamaProvider implements LlmProvider {
 
   constructor(endpoint: string, options: OllamaProviderOptions = {}) {
     this.endpoint = endpoint.replace(/\/+$/, '');
-    this.#timeoutMs = options.timeoutMs ?? 600_000;
-    this.#fetch = options.fetch ?? fetch;
+    this.#timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.#fetch = options.fetch ?? patientFetch;
   }
 
   async chat(request: ChatRequest): Promise<ChatReply> {

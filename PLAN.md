@@ -2,7 +2,7 @@
 
 The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of under a day, with the files each task touches. Choices and open questions are in [DECISIONS.md](DECISIONS.md).
 
-**Status:** Phases 0 and 1 done (2026-10-26); Phase 1 waits only on a manual MCP check in Claude Desktop or Claude Code. The open-source release track is partly done (below). Phase 2 is next.
+**Status:** Phases 0, 1 and 2 done (2026-10-28). Phase 1 waits on a manual MCP check in Claude Desktop or Claude Code, and Phase 2 on full builds with real models on a machine with a GPU. The open-source release track is partly done (below). Phase 3 is next.
 
 **How this file works**
 
@@ -113,10 +113,10 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
   Files: `apps/server/src/app.ts`, `apps/mcp/src/server.ts`, tests
 - [x] **2.17 `cli`: `init`, `build`, `run`, `serve`.** `init` creates the data directory and config, checks that Ollama is running and pulls missing models.
   Files: `apps/cli/src/commands/build.ts`, `apps/cli/src/home.ts` (`init`, `run` and `serve` were done in 1.14), tests with a stand-in Ollama
-- [ ] **2.18 End-to-end build tests.** Recorded model replies in CI; the same tests with real Ollama models via `pnpm test:llm`.
-  Files: `apps/server/test/build.e2e.test.ts`, `apps/server/test/build.llm.test.ts`, `fixtures/llm-replies/*.json`
+- [x] **2.18 End-to-end build tests.** Recorded model replies in CI; the same tests with real Ollama models via `pnpm test:llm`.
+  Files: `apps/server/src/{build,build-replay}.e2e.test.ts`, `apps/server/src/build.llm.test.ts`, `fixtures/llm-replies/*.json` (recorded on a machine with a GPU, D-039)
 
-**Gate:** *Build (JSON API fixture)*, *Build (HTML fixture)*, *Recording* (with `tooldrop record`), *LLM output* and *Privacy* criteria.
+**Gate:** *Build (JSON API fixture)*, *Build (HTML fixture)*, *Recording* (with `tooldrop record`), *LLM output* and *Privacy* criteria. All five pass in CI with a scripted model (`apps/server/src/build.e2e.test.ts`, D-039). Still open: the same builds with real models (`pnpm test:llm`), which need a machine with a GPU.
 
 ## Phase 3: Auth and self-healing
 
@@ -250,3 +250,17 @@ Filled in at the end of each phase: what shipped, test results and the commit.
 - **Results:** 179 tests pass. The license check passes for 484 packages. Install paths A, C and D work from clean folders. *Cascade* passes: when the JSON API moves, the browser returns the same 57 invoices. *MCP* passes over stdio and HTTP.
 - **Commits:** `68078d8` (runtime), `ae646ae` (db, engine, MCP, REST), `4240b84` (CLI and package), plus the release automation.
 - **Still open:** the one-time MCP check in Claude Desktop or Claude Code. Q-2 is answered (Apache-2.0); Q-1, the keychain library, is still needed before task 3.1.
+
+### Phase 2: Build pipeline, done 2026-10-28
+
+- **Shipped:**
+  - `@tooldrop/llm`: Ollama and OpenAI-compatible providers, strict JSON with retries, masking and PII redaction, prompt budgets, and usage per job.
+  - `@tooldrop/compiler`: capture, prompt builders, the traffic analyzer, drafts, the recipe writer, schemas, double validation, the explore agent, recordings and the recorder.
+  - Build jobs in the engine: `build_tool`, `get_job` and `answer_question` over MCP and REST, plus `POST /v1/recordings`.
+  - `tooldrop record` and `tooldrop build`.
+- **Results:**
+  - Every gate criterion passes in CI with a scripted model: *Build (JSON API fixture)*, *Build (HTML fixture)*, *Recording*, *LLM output* and *Privacy*.
+  - One real model call: `qwen2.5-coder:7b` wrote a valid recipe for the JSON-API fixture on its first try, with Ollama holding it to the recipe schema. It took about 4 minutes on the development machine, whose 2 GB GPU leaves the model mostly on the CPU.
+  - Testing on that machine found that Node's fetch gives up on model calls after 5 minutes; fixed (D-038).
+- **Commits:** `168a363` (llm), `c04baf8` (capture and prompts), `40ace21` (recordings), `b3b740f` and `4a32b7f` (analyzer, generator, validation, explore agent), `f3c9343` (jobs), `a8e6f27` (interfaces), `798aedc` (record and build commands), plus the acceptance tests.
+- **Still open:** full builds with real models (`pnpm test:llm`) on a machine with a GPU, and the replies they record for CI (D-039).

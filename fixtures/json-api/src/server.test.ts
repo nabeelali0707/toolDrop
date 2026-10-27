@@ -1,6 +1,6 @@
 import { createInvoices, type RunningFixture } from '@tooldrop/fixture-kit';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { startJsonApiFixture } from './server.ts';
+import { startJsonApiFixture, supplierContact } from './server.ts';
 
 let fixture: RunningFixture;
 
@@ -63,6 +63,7 @@ describe('json-api fixture', () => {
       issuedOn: newest?.issued_on,
       total: { value: newest?.amount, currency: 'USD' },
       state: newest?.status,
+      contact: supplierContact(newest?.supplier ?? ''),
     });
   });
 

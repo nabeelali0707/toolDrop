@@ -1,7 +1,7 @@
 # Models
 
 ::: info Status
-Planned for Phase 2.
+Builds use these models since Phase 2. Repairs arrive with Phase 3.
 :::
 
 toolDrop needs a model only to **build** and **repair** tools. Running a tool never calls one. The default is free local models through [Ollama](https://ollama.com), so nothing leaves your machine.
@@ -17,7 +17,7 @@ toolDrop needs a model only to **build** and **repair** tools. Running a tool ne
 
 ## Bring your own model
 
-Any server that speaks the OpenAI `/v1/chat/completions` API works: llama.cpp, vLLM, LM Studio, LocalAI, or a hosted API with a free tier. `tooldrop init` asks for the base URL, the model name and an optional key. The key is stored encrypted in the vault, never in a config file.
+Any server that speaks the OpenAI `/v1/chat/completions` API works: llama.cpp, vLLM, LM Studio, LocalAI, or a hosted API with a free tier. `tooldrop init` asks for the base URL and the model name. Endpoints that need a key wait for the encrypted vault (Phase 3): toolDrop never stores a key in a config file.
 
 Nothing in toolDrop requires a paid API.
 

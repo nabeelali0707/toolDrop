@@ -2,6 +2,7 @@ export * from './budget.ts';
 export * from './config.ts';
 export * from './endpoint.ts';
 export * from './fake.ts';
+export * from './http.ts';
 export * from './json.ts';
 export * from './llm.ts';
 export * from './ollama.ts';

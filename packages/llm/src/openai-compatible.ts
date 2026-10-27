@@ -1,4 +1,6 @@
 import { ToolDropError } from '@tooldrop/core';
+import { patientFetch } from './http.ts';
+import { DEFAULT_TIMEOUT_MS } from './ollama.ts';
 import type { ChatReply, ChatRequest, LlmProvider } from './provider.ts';
 
 // Any `/v1/chat/completions` server: llama.cpp, vLLM, LM Studio, LocalAI or a
@@ -66,7 +68,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
     const headers: Record<string, string> = { 'content-type': 'application/json' };
     if (this.#options.apiKey) headers.authorization = `Bearer ${this.#options.apiKey}`;
     try {
-      return await (this.#options.fetch ?? fetch)(`${this.endpoint}/chat/completions`, {
+      return await (this.#options.fetch ?? patientFetch)(`${this.endpoint}/chat/completions`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -78,7 +80,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
           stream: false,
           ...this.#responseFormat(request),
         }),
-        signal: AbortSignal.timeout(this.#options.timeoutMs ?? 600_000),
+        signal: AbortSignal.timeout(this.#options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
       });
     } catch (error) {
       throw new ToolDropError(

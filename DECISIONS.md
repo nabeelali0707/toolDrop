@@ -355,3 +355,49 @@ Community recipes live in `recipes/` in the main repository, not in a separate r
   - Template placeholders are kept as they are.
 - **PII redaction** replaces emails with `[email]`, phone numbers with `[phone]`, and runs of 9 or more digits with `[number]`. Dates, prices and short numbers are kept.
 - **Usage:** `llm_calls` gained a `purpose` column, and `jobs` a `step` column that says what a running build is doing (migration `0002`). When Ollama reused a cached prompt and reports no prompt tokens, the 3-characters-per-token estimate stands in.
+
+### D-035 How a build divides the work between code and the model
+
+*Proposed · 2026-10-28*
+
+A 7B model is good at judging a recipe against a task, and poor at matching hundreds of values or writing a whole recipe from nothing. So code does the evidence work and the model does the judging:
+
+- **Code drafts.** The analyzer finds the response behind the data on screen, the JSON path behind each column, and what every request field is (`constant`, `user_input`, `derived`, `auth`, `pagination`), including where a CSRF token or ID came from. From that it drafts a complete recipe for each viable strategy.
+- **The model reviews.** The `code` model gets the task, the evidence and the draft, and returns the recipe: it names the fields and keeps the ones the task needs. The reply is a full recipe, validated by the recipe schema, so SPEC's "the model writes the recipe as JSON" still holds.
+- **The fallback is built by code.** The browser recipe comes from the capture and reads the same fields. Each field is tied to its column by its JSON path, or else by its draft name, so a field the model points at another path is still compared against the page.
+- **Other model calls are small:** `clarify` (questions for the caller, usually none), `describe_tool` (name and descriptions), `classify_fields` (only for opaque fields the heuristics cannot explain), and `explore` (agent mode only).
+- **Limits today:** builds read tables and text. A list of cards is read as one text, until an op for repeated items exists. `html_fetch` reads the first page of a list, since the format cannot page HTML. `official_api` is never picked by a build; any API in the site's traffic is `http_replay`. Builds make read tools only, until safe mode (Phase 4).
+- **Reuse (step 1):** a published tool on the same site whose name and description contain every word of the task is returned instead of building.
+
+### D-036 Build jobs run in the engine, in the process that started them
+
+*Proposed · 2026-10-28*
+
+- Jobs live in `packages/engine`, not in the REST app, because the stdio MCP server, `tooldrop serve` and `tooldrop build` each run builds.
+- One build at a time per process (a browser and a model each), on an in-process queue; BullMQ replaces it when self-hosted (task 5.2).
+- A clarifying question is stored on the job, and the build polls the database for the answer, so an answer given through any process sharing the database reaches it.
+- A running job writes a heartbeat every 10 seconds. One that nobody has touched for a minute belongs to a process that stopped, and is reported as failed instead of hanging.
+- Before capturing, a build checks that Ollama runs and has both models, so a missing model fails the job in a second, not after a capture.
+
+### D-037 Recordings carry steps, not traffic
+
+*Proposed · 2026-10-28*
+
+- Recording format v1 (`packages/core/src/recording.ts`) holds the steps with ranked selectors, the marked inputs and the marked data. The build replays the steps in its own browser and records the network itself, so a recording holds no cookies and stays small. A HAR is optional, for the extension (Phase 4), and the server masks it again on upload.
+- `tooldrop record` never keeps a password field's value. Pressing Enter in a form is recorded as a click on its submit button. An address typed into the browser's bar is not recorded; the instructions say to navigate by clicking.
+- A recording lists the selectors that find only one element first, so a replay finds each element at once. The build then checks every selector on the live page and orders the recipe's selectors as SPEC says: role, test id, text, CSS.
+
+### D-038 Model calls do not use Node's built-in fetch
+
+*Proposed · 2026-10-28 · found by testing on the development machine*
+
+Node's built-in fetch gives up when a server sends no response headers for 5 minutes. Ollama sends its headers only when a reply is complete, and on a machine without a usable GPU a 7B model can take longer than that to read a long prompt. On the development machine (2 GB GPU), it read about 5 tokens per second. Streaming does not help, since nothing arrives while the prompt is read. Both adapters therefore send requests through `node:http`, which waits as long as needed, with toolDrop's own timeout: 30 minutes per call by default, `timeout_ms` in the model settings.
+
+### D-039 Acceptance tests use a scripted model; real replies are recorded where models are fast
+
+*Proposed · 2026-10-28*
+
+- CI runs Phase 2's acceptance criteria through the REST API with a scripted model that answers each prompt as a well-behaved local model would: it picks elements from the page list in its prompt and returns the draft it was given. This tests everything but the model's own judgement, deterministically.
+- `pnpm test:llm` runs the same builds against the local Ollama. With `TOOLDROP_RECORD_REPLIES=1` it saves the replies to `fixtures/llm-replies/`, and `build-replay.e2e.test.ts` replays every saved file in CI.
+- No replies are recorded yet. On the development machine, a single model call takes several minutes, so a full build runs for most of an hour. Recording belongs on a machine with a GPU or Apple Silicon.
+- One real check so far, on the development machine: `qwen2.5-coder:7b` reviewed the JSON-API fixture's draft and returned a valid recipe on its first try. Ollama constrained the reply to the recipe schema, which confirms that its grammar converter accepts the schema. The call used 965 prompt and 169 completion tokens and took about 4 minutes. The model kept the draft unchanged.

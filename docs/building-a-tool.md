@@ -1,7 +1,7 @@
 # Building a tool
 
 ::: info Status
-Planned for Phase 2 (the build pipeline); signing in arrives with Phase 3.
+Works since Phase 2, for sites that need no sign-in: signing in arrives with Phase 3. Builds make read tools; `write` tools wait for [safe mode](./safe-mode) in Phase 4.
 :::
 
 Ask your agent to build a tool, or call `build_tool` yourself. A build is a background job: it may pause to ask you a question, and it ends with a published, tested tool.
@@ -43,6 +43,21 @@ curl -X POST http://127.0.0.1:3000/v1/builds \
 ```
 
 Then poll `GET /v1/jobs/:id`, and answer questions with `POST /v1/jobs/:id/answers`.
+
+## From the terminal
+
+```sh
+tooldrop build http://127.0.0.1:4101 --task "List my invoices, filtered by status"
+```
+
+The build runs in the terminal, prints each step, and asks its questions there. Add `--recording <id or file>` to build from a [recording](./recording-mode). On a machine without a GPU, a build can take many minutes: local models read long prompts slowly there.
+
+## What builds can read today
+
+- Data in a **table**, from the site's own JSON API (`http_replay`), its HTML (`html_fetch`), or a browser (`browser_script`). Every recipe also gets the browser version as its fallback.
+- **Text** in one element.
+- A list whose items are cards rather than table rows is read as one text for now.
+- `html_fetch` recipes read the first page of a list; API recipes follow every page, at most 50.
 
 ## Tips
 
