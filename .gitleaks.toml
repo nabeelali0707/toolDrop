@@ -9,3 +9,9 @@ description = "Fixture-only test values (DECISIONS.md, D-026)"
 # RFC 6238's published TOTP test secret ("12345678901234567890", base32), used by
 # the login fixtures. It is a public test vector, never a real account's secret.
 regexes = ['''GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ''']
+
+[[allowlists]]
+description = "A test value from the masking tests (packages/llm), in history since 168a363"
+# A sample HS256 JWT for subject "1234567890", the subject jwt.io uses in its examples;
+# it grants nothing. The test now builds its JWT at runtime; this keeps the old commit passing.
+regexes = ['''eyJhbGciOiJIUzI1NiJ9\.eyJzdWIiOiIxMjM0NTY3ODkwIn0\.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U''']

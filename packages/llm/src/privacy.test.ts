@@ -53,8 +53,12 @@ describe('Masker', () => {
   });
 
   it('masks values by their shape or by the name they sit under', () => {
-    const jwt =
-      'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U';
+    // Built from parts, so the secret scanner does not take the test value for a real token.
+    const jwt = [
+      Buffer.from('{"alg":"none"}').toString('base64url'),
+      Buffer.from('{"sub":"fixture-user"}').toString('base64url'),
+      'not-a-real-signature',
+    ].join('.');
     expect(maskPatterns(`token ${jwt} end`)).toBe(`token ${MASKED} end`);
     expect(maskPatterns('Authorization: Bearer abcdefgh12345678')).toBe(`Authorization: Bearer ${MASKED}`);
     expect(maskPatterns('{"csrfToken": "q8w7e6", "status": "paid", "apiKey":"k-123"}')).toBe(

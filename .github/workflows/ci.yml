@@ -83,4 +83,11 @@ jobs:
             "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
           echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum -c -
           tar -xzf gitleaks.tar.gz gitleaks
-          ./gitleaks git --no-banner --redact --config "$GITHUB_WORKSPACE/.gitleaks.toml" "$GITHUB_WORKSPACE"
+          # Findings also become annotations (redacted), so they show on the commit and in pull requests.
+          status=0
+          ./gitleaks git --no-banner --redact --config "$GITHUB_WORKSPACE/.gitleaks.toml" \
+            --report-format json --report-path findings.json "$GITHUB_WORKSPACE" || status=$?
+          if [ "$status" -ne 0 ] && [ -s findings.json ]; then
+            jq -r '.[] | "::error file=\(.File),line=\(.StartLine)::gitleaks rule \(.RuleID) matched in commit \(.Commit[0:7])"' findings.json
+          fi
+          exit "$status"
