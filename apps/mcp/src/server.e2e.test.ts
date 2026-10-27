@@ -46,7 +46,14 @@ describe('MCP server', () => {
   it('lists the management tools and one tool per published recipe', async () => {
     const { client } = await connect();
     const { tools } = await client.listTools();
-    expect(tools.map((tool) => tool.name)).toEqual(['find_tool', 'run_tool', 'search_invoices']);
+    expect(tools.map((tool) => tool.name)).toEqual([
+      'find_tool',
+      'run_tool',
+      'build_tool',
+      'get_job',
+      'answer_question',
+      'search_invoices',
+    ]);
 
     const tool = tools.find((candidate) => candidate.name === 'search_invoices');
     expect(tool?.inputSchema.properties).toHaveProperty('status');
@@ -91,6 +98,38 @@ describe('MCP server', () => {
     engine.publish({ ...searchInvoices, name: 'search_invoices_copy' }, fixture.url);
     await changed;
     expect((await client.listTools()).tools.map((tool) => tool.name)).toContain('search_invoices_copy');
+  });
+
+  it('starts builds and reports their jobs', async () => {
+    const { call } = await connect();
+    // A task a published tool already does finishes at once.
+    const reused = (
+      await call('build_tool', { url: fixture.url, task: 'search invoices', authority: 'read' })
+    ).structuredContent as { job: { status: string; result: unknown } };
+    expect(reused.job).toMatchObject({
+      status: 'succeeded',
+      result: { tool: 'search_invoices', reused: true },
+    });
+
+    // Without a model the build fails, and get_job says why.
+    const started = (
+      await call('build_tool', { url: fixture.url, task: 'list suppliers', authority: 'read' })
+    ).structuredContent as { job: { id: string } };
+    let job: { status: string; error: unknown } = { status: 'queued', error: null };
+    for (let i = 0; i < 100 && job.status !== 'failed'; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      job = ((await call('get_job', { job_id: started.job.id })).structuredContent as { job: typeof job })
+        .job;
+    }
+    expect(job).toMatchObject({ status: 'failed', error: { code: 'llm_unavailable' } });
+
+    const answer = await call('answer_question', {
+      job_id: started.job.id,
+      question_id: 'nope',
+      answer: 'yes',
+    });
+    expect(answer.isError).toBe(true);
+    expect((await call('build_tool', { url: 'not a url', task: 'x', authority: 'read' })).isError).toBe(true);
   });
 
   it("shows only the tools an API key's scopes allow", async () => {

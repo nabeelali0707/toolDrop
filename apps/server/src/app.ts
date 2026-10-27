@@ -69,6 +69,25 @@ export function createServer({ engine, version = '0.0.0' }: ServerOptions): Fast
     return { result, meta };
   });
 
+  // Builds run as jobs: start one, poll it, answer its questions (SPEC, REST API).
+  app.post('/v1/builds', async (request, reply) =>
+    reply.code(202).send({ job: engine.startBuild(request.body ?? {}, request.scopes) }),
+  );
+
+  app.get('/v1/jobs/:id', (request) => {
+    const { id } = request.params as { id: string };
+    return { job: engine.getJob(id, request.scopes) };
+  });
+
+  app.post('/v1/jobs/:id/answers', (request) => {
+    const { id } = request.params as { id: string };
+    const { question_id: questionId, answer } = (request.body ?? {}) as Record<string, unknown>;
+    if (typeof questionId !== 'string' || typeof answer !== 'string' || answer === '') {
+      throw new ToolDropError('invalid_input', 'send {"question_id": "...", "answer": "..."}');
+    }
+    return { job: engine.answerQuestion(id, questionId, answer, request.scopes) };
+  });
+
   // A recording may carry its network log as HAR, so it gets a larger body limit.
   app.post('/v1/recordings', { bodyLimit: 20 * 1024 * 1024 }, async (request, reply) => {
     const { id } = engine.saveRecording(request.body, request.scopes);

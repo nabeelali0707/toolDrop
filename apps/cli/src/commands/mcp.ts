@@ -3,6 +3,8 @@ import { openEngine, version } from '../home.ts';
 
 /** `tooldrop mcp`: the MCP server over stdio. Nothing but the protocol may go to stdout. */
 export async function mcp(): Promise<number> {
+  // Builds run in this process; a library that prints would break the protocol, so logs go to stderr.
+  console.log = console.info = console.debug = console.error;
   const { engine, close } = openEngine();
   const server = await serveStdio(engine, { version: version() });
   await new Promise<void>((resolve) => {

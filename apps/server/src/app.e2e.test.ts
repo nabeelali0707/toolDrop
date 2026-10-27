@@ -93,6 +93,40 @@ describe('REST API', () => {
   });
 });
 
+describe('builds', () => {
+  it('starts builds as jobs, reports them and checks answers', async () => {
+    const started = await app.inject({
+      method: 'POST',
+      url: '/v1/builds',
+      headers: auth(),
+      payload: { url: fixture.url, task: 'search invoices', authority: 'read' },
+    });
+    expect(started.statusCode).toBe(202);
+    const { job } = started.json<{ job: { id: string } }>();
+    expect(job).toMatchObject({ status: 'succeeded', result: { tool: 'search_invoices', reused: true } });
+
+    const fetched = await app.inject({ url: `/v1/jobs/${job.id}`, headers: auth() });
+    expect(fetched.json()).toMatchObject({ job: { id: job.id, usage: { calls: 0 } } });
+
+    const answer = (payload: object) =>
+      app.inject({ method: 'POST', url: `/v1/jobs/${job.id}/answers`, headers: auth(), payload });
+    expect((await answer({})).statusCode).toBe(400);
+    const notWaiting = await answer({ question_id: '01JZZZZZZZZZZZZZZZZZZZZZZZ', answer: 'yes' });
+    expect(notWaiting.json()).toMatchObject({
+      error: { code: 'invalid_input', message: expect.stringContaining('not waiting') as string },
+    });
+
+    const missing = await app.inject({ url: '/v1/jobs/01JZZZZZZZZZZZZZZZZZZZZZZZ', headers: auth() });
+    expect(missing.statusCode).toBe(404);
+    const scoped = createApiKey(handle.db, { label: 'scoped', scopes: ['search_invoices'] }).key;
+    const forbidden = await app.inject({
+      url: `/v1/jobs/${job.id}`,
+      headers: { authorization: `Bearer ${scoped}` },
+    });
+    expect(forbidden.statusCode).toBe(403);
+  });
+});
+
 describe('recordings', () => {
   const recording = (url: string) => ({
     version: 1,

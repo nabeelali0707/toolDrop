@@ -22,7 +22,8 @@ export interface McpOptions {
   version?: string;
 }
 
-const INSTRUCTIONS = `toolDrop turns tasks on websites into tools. Every published tool is listed as its own tool: call it directly with its inputs. Results are plain data, returned in a second or two without a model. Use find_tool to search published tools by site or task, and run_tool to run one by name. Building new tools from a description arrives in a later release.`;
+const INSTRUCTIONS = `toolDrop turns tasks on websites into tools. Every published tool is listed as its own tool: call it directly with its inputs. Results are plain data, returned in a second or two without a model. Use find_tool to search published tools by site or task, and run_tool to run one by name.
+To make a new tool, call build_tool with the site's URL and the task. A build takes one to a few minutes: poll get_job every 15 seconds until it succeeds or fails. When a job asks a question (status waiting_for_answer), ask the user if you cannot answer it yourself, then call answer_question. Always ask the user before building a tool with authority "write".`;
 
 const META_SCHEMA = {
   type: 'object',
@@ -69,6 +70,75 @@ const MANAGEMENT_TOOLS: Tool[] = [
   },
 ];
 
+/** Tools that change what every caller sees, listed only for callers with access to every tool. */
+const BUILD_TOOLS: Tool[] = [
+  {
+    name: 'build_tool',
+    title: 'Build a tool',
+    description:
+      'Build a new tool for a task on a website. Starts a build job and returns it at once; poll get_job until it finishes. Ask the user before building with authority "write".',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: {
+          type: 'string',
+          description: 'The page where the task starts, e.g. "https://shop.example.com/orders".',
+        },
+        task: {
+          type: 'string',
+          description:
+            'What the tool does, in plain words, e.g. "list my orders with status and delivery date".',
+        },
+        authority: {
+          type: 'string',
+          enum: ['read', 'write'],
+          description: '"read" for tools that only fetch data; "write" for tools that change it.',
+        },
+        inputs_hint: {
+          type: 'string',
+          description: 'Optional: which values the tool should take as inputs.',
+        },
+        recording_id: {
+          type: 'string',
+          description: 'Optional: a recording of the task, from `tooldrop record` or the Chrome extension.',
+        },
+      },
+      required: ['url', 'task', 'authority'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, openWorldHint: true },
+  },
+  {
+    name: 'get_job',
+    title: 'Check a build',
+    description:
+      'The status of a build job: what it is doing, its questions, and when it succeeds, the new tool with sample results.',
+    inputSchema: {
+      type: 'object',
+      properties: { job_id: { type: 'string' } },
+      required: ['job_id'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  {
+    name: 'answer_question',
+    title: 'Answer a build question',
+    description: 'Answer a question a build job asked (status waiting_for_answer); the build then continues.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        job_id: { type: 'string' },
+        question_id: { type: 'string' },
+        answer: { type: 'string', description: 'The answer; one of the options when the question has them.' },
+      },
+      required: ['job_id', 'question_id', 'answer'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, openWorldHint: false },
+  },
+];
+
 export function createMcpServer(engine: Engine, options: McpOptions = {}): Server {
   const scopes = options.scopes ?? ['*'];
   const server = new Server(
@@ -76,13 +146,27 @@ export function createMcpServer(engine: Engine, options: McpOptions = {}): Serve
     { capabilities: { tools: { listChanged: true } }, instructions: INSTRUCTIONS },
   );
 
+  const management = scopes.includes('*') ? [...MANAGEMENT_TOOLS, ...BUILD_TOOLS] : MANAGEMENT_TOOLS;
   server.setRequestHandler(ListToolsRequestSchema, () => ({
-    tools: [...MANAGEMENT_TOOLS, ...engine.listTools(scopes).map(toMcpTool)],
+    tools: [...management, ...engine.listTools(scopes).map(toMcpTool)],
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async ({ params }): Promise<CallToolResult> => {
     const args = params.arguments ?? {};
     try {
+      if (params.name === 'build_tool') return success({ job: engine.startBuild(args, scopes) });
+      if (params.name === 'get_job') {
+        return success({ job: engine.getJob(requiredString(args.job_id, 'job_id'), scopes) });
+      }
+      if (params.name === 'answer_question') {
+        const job = engine.answerQuestion(
+          requiredString(args.job_id, 'job_id'),
+          requiredString(args.question_id, 'question_id'),
+          requiredString(args.answer, 'answer'),
+          scopes,
+        );
+        return success({ job });
+      }
       if (params.name === 'find_tool') {
         const query = { site: optionalString(args.site, 'site'), task: optionalString(args.task, 'task') };
         return success({ tools: engine.findTools(query, scopes).map(describeTool) });
@@ -173,6 +257,13 @@ function failure(error: unknown): CallToolResult {
       ? error.toJSON()
       : { code: 'internal', message: error instanceof Error ? error.message : String(error) };
   return { isError: true, content: [{ type: 'text', text: JSON.stringify({ error: json }) }] };
+}
+
+function requiredString(value: unknown, name: string): string {
+  if (typeof value !== 'string' || value === '') {
+    throw new ToolDropError('invalid_input', `"${name}" is required and must be a string`);
+  }
+  return value;
 }
 
 function optionalString(value: unknown, name: string): string | undefined {
