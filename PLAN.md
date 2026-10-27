@@ -97,15 +97,15 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
   Files: `packages/core/src/recording.ts`, `packages/compiler/src/recording/replay.ts`, `packages/engine/src/recordings.ts`, `apps/server/src/app.ts`, tests
 - [ ] **2.9 `cli`: `tooldrop record`.** A headed Playwright browser that records clicks, inputs and HAR, lets the user mark inputs at the end, then saves and uploads the recording (D-016).
   Files: `apps/cli/package.json`, `apps/cli/src/commands/record.ts`, `packages/compiler/src/recording/recorder.ts`, tests with a scripted session on a fixture
-- [ ] **2.10 `compiler`: traffic analyzer.** Rank requests by how much target data they return; classify fields (`constant`, `user_input`, `derived`, `auth`, `pagination`) with heuristics first and the `reasoning` model only for leftovers.
-  Files: `packages/compiler/src/analyze/{rank,classify}.ts`, tests with recorded HAR files
-- [ ] **2.11 `compiler`: strategy picker and recipe generator.** Pick the cheapest viable strategy; the `code` model writes the recipe JSON, validated by the `core` recipe schema.
-  Files: `packages/compiler/src/generate/{strategy,recipe,prompts}.ts`, tests with the fake provider
-- [ ] **2.12 `compiler`: schemas.** Infer input and output JSON Schema from captured values; the `reasoning` model writes names and descriptions.
+- [x] **2.10 `compiler`: traffic analyzer.** Rank requests by how much target data they return; classify fields (`constant`, `user_input`, `derived`, `auth`, `pagination`) with heuristics first and the `reasoning` model only for leftovers.
+  Files: `packages/compiler/src/analyze/{rank,classify,values}.ts`, `packages/compiler/src/generate/questions.ts`, tests against fixture captures
+- [x] **2.11 `compiler`: strategy picker and recipe generator.** Pick the cheapest viable strategy; the `code` model writes the recipe JSON, validated by the `core` recipe schema.
+  Files: `packages/compiler/src/generate/{strategy,draft,recipe,prompts}.ts`, tests with the fake provider
+- [x] **2.12 `compiler`: schemas.** Infer input and output JSON Schema from captured values; the `reasoning` model writes names and descriptions.
   Files: `packages/compiler/src/generate/schemas.ts`, tests
-- [ ] **2.13 `compiler`: double validation.** Run 2 to 3 input sets via the chosen strategy and via `browser_script`, compare, and loop back to the strategy step at most 3 times.
-  Files: `packages/compiler/src/validate/double.ts`, tests
-- [ ] **2.14 `compiler`: explore agent.** The fallback when there is no recording: the `reasoning` model picks actions from the pruned accessibility tree, within a 30-action budget; when it gives up, the job asks for a recording (D-007).
+- [x] **2.13 `compiler`: double validation.** Run 2 to 3 input sets via the chosen strategy and via `browser_script`, compare, and loop back to the strategy step at most 3 times.
+  Files: `packages/compiler/src/validate/double.ts`, `packages/compiler/src/build.ts`, tests
+- [x] **2.14 `compiler`: explore agent.** The fallback when there is no recording: the `reasoning` model picks actions from the pruned accessibility tree, within a 30-action budget; when it gives up, the job asks for a recording (D-007).
   Files: `packages/compiler/src/explore/{agent,actions}.ts`, tests with the fake provider on fixtures
 - [ ] **2.15 Jobs and build orchestration.** In-process queue, job states (`queued`, `running`, `waiting_for_answer`, `succeeded`, `failed`), clarifying questions that pause and resume, and the build steps 1 to 10 wired together.
   Files: `packages/core/src/job.ts`, `apps/server/src/jobs/{queue,build}.ts`, tests
