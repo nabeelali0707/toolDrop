@@ -70,6 +70,21 @@ export function createServer({ engine, version = '0.0.0' }: ServerOptions): Fast
     return { result, meta };
   });
 
+  // A tool's history and heal log, and rollback (SPEC, Self-healing: versions kept for rollback).
+  app.get('/v1/tools/:name/versions', (request) => {
+    const { name } = request.params as { name: string };
+    return { versions: engine.versions(name, request.scopes) };
+  });
+
+  app.post('/v1/tools/:name/rollback', (request) => {
+    const { name } = request.params as { name: string };
+    const { version } = (request.body ?? {}) as { version?: unknown };
+    if (typeof version !== 'number' || !Number.isInteger(version)) {
+      throw new ToolDropError('invalid_input', 'send {"version": <number>}');
+    }
+    return { tool: describeTool(engine.rollback(name, version, request.scopes)) };
+  });
+
   // Builds run as jobs: start one, poll it, answer its questions (SPEC, REST API).
   app.post('/v1/builds', async (request, reply) =>
     reply.code(202).send({ job: engine.startBuild(request.body ?? {}, request.scopes) }),

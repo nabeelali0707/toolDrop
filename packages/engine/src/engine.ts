@@ -11,10 +11,13 @@ import {
   keyAllows,
   listLogins,
   listTools,
+  listVersions,
   publishTool,
   recordRun,
+  rollbackTool,
   type Db,
   type PublishedTool,
+  type VersionSummary,
 } from '@tooldrop/db';
 import { addLogin as saveLogin, Vault, viewLogins, type KeyStore } from '@tooldrop/auth';
 import { Runtime, type RunnableTool, type RunOutcome } from '@tooldrop/runtime';
@@ -161,6 +164,20 @@ export class Engine {
       ...(options.change_reason !== undefined && { change_reason: options.change_reason }),
       ...(options.test_inputs && { test_inputs: options.test_inputs }),
     });
+    for (const listener of this.#listeners) listener();
+    return published;
+  }
+
+  /** A tool's versions, oldest first, with who made each and why: its history and heal log. */
+  versions(name: string, scopes: Scopes = ALL): VersionSummary[] {
+    requireFullAccess(scopes);
+    return listVersions(this.db, name);
+  }
+
+  /** Makes an earlier version current again, exactly as it was (SPEC, Rollback). */
+  rollback(name: string, version: number, scopes: Scopes = ALL): PublishedTool {
+    requireFullAccess(scopes);
+    const published = rollbackTool(this.db, name, version);
     for (const listener of this.#listeners) listener();
     return published;
   }

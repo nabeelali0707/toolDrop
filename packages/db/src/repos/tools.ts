@@ -7,7 +7,7 @@ import {
   type ToolDefinition,
   type ToolStatus,
 } from '@tooldrop/core';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, max } from 'drizzle-orm';
 import type { Queryable } from '../client.ts';
 import { recipe_versions, runs, sites, tools, type RateLimit } from '../schema.ts';
 
@@ -67,7 +67,15 @@ export function publishTool(db: Queryable, input: PublishInput): PublishedTool {
       );
     }
 
-    const version = (existing?.current_version ?? 0) + 1;
+    // After a rollback the current version is not the newest, so numbering continues from the newest.
+    const newest = existing
+      ? tx
+          .select({ version: max(recipe_versions.version) })
+          .from(recipe_versions)
+          .where(eq(recipe_versions.tool_id, existing.id))
+          .get()?.version
+      : undefined;
+    const version = (newest ?? 0) + 1;
     const fields = {
       description: definition.description,
       authority: definition.authority,
@@ -102,6 +110,67 @@ export function publishTool(db: Queryable, input: PublishInput): PublishedTool {
     if (!published) throw new ToolDropError('internal', `${definition.name} vanished while publishing`);
     return published;
   });
+}
+
+export interface VersionSummary {
+  version: number;
+  strategy: Strategy;
+  created_by: RecipeOrigin;
+  change_reason: string | null;
+  created_at: string;
+  current: boolean;
+}
+
+/** Every version of a tool, oldest first: its history and heal log (SPEC, Rollback). */
+export function listVersions(db: Queryable, name: string): VersionSummary[] {
+  const tool = db.select().from(tools).where(eq(tools.name, name)).get();
+  if (!tool) throw new ToolDropError('not_found', `no tool named ${name}`);
+  return db
+    .select()
+    .from(recipe_versions)
+    .where(eq(recipe_versions.tool_id, tool.id))
+    .orderBy(asc(recipe_versions.version))
+    .all()
+    .map((row) => ({
+      version: row.version,
+      strategy: row.strategy,
+      created_by: row.created_by,
+      change_reason: row.change_reason,
+      created_at: row.created_at.toISOString(),
+      current: row.version === tool.current_version,
+    }));
+}
+
+/** Makes an earlier version current again, exactly as it was. Later versions stay in the history. */
+export function rollbackTool(db: Queryable, name: string, version: number): PublishedTool {
+  const tool = db.select().from(tools).where(eq(tools.name, name)).get();
+  if (!tool) throw new ToolDropError('not_found', `no tool named ${name}`);
+  const row = db
+    .select({ id: recipe_versions.id })
+    .from(recipe_versions)
+    .where(and(eq(recipe_versions.tool_id, tool.id), eq(recipe_versions.version, version)))
+    .get();
+  if (!row) throw new ToolDropError('not_found', `${name} has no version ${version}`);
+  db.update(tools).set({ current_version: version, status: 'live' }).where(eq(tools.id, tool.id)).run();
+  const published = getTool(db, name);
+  if (!published) throw new ToolDropError('internal', `${name} vanished during the rollback`);
+  return published;
+}
+
+/** Marks a tool's state, e.g. `degraded` after a heal that failed (SPEC, Self-healing). */
+export function setToolStatus(db: Queryable, name: string, status: ToolStatus): void {
+  db.update(tools).set({ status }).where(eq(tools.name, name)).run();
+}
+
+/** The input sets a version was validated with, for health checks and heals. */
+export function testInputs(db: Queryable, toolId: string, version: number): Record<string, unknown>[] {
+  return (
+    db
+      .select({ inputs: recipe_versions.test_inputs })
+      .from(recipe_versions)
+      .where(and(eq(recipe_versions.tool_id, toolId), eq(recipe_versions.version, version)))
+      .get()?.inputs ?? []
+  );
 }
 
 /** A tool by name, with its live recipe, or undefined. */

@@ -20,6 +20,8 @@ Usage: tooldrop <command> [options]
   run <tool>             Run a published tool (--input '{"status":"open"}')
   tools list             List published tools
   tools add <path>       Publish a tool file (with --site <url>) or a community recipe folder
+  tools versions <tool>  A tool's versions and heal log
+  tools rollback <tool> <version>  Make an earlier version current again
   keys create            Create an API key for REST and remote MCP (--label, --scopes a,b)
   keys list              List API keys
   keys revoke <id>       Revoke an API key

@@ -9,8 +9,10 @@ import {
   keyAllows,
   listTools,
   publishTool,
+  listVersions,
   recordRun,
   revokeApiKey,
+  rollbackTool,
   verifyApiKey,
 } from './index.ts';
 
@@ -62,6 +64,28 @@ describe('tools', () => {
     expect(v2.version).toBe(2);
     expect(getTool(handle.db, 'list_invoices')?.description).toBe('Version two.');
     expect(listTools(handle.db)).toHaveLength(1);
+  });
+
+  it('rolls back to an earlier version exactly, and keeps numbering from the newest', () => {
+    const v1 = publish();
+    const healed = publishTool(handle.db, {
+      site: 'http://127.0.0.1:4101',
+      definition,
+      recipe: { ...recipe, steps: [{ op: 'http', method: 'GET', url: '{{site}}/api/v3/invoices' }] },
+      created_by: 'heal',
+      change_reason: 'The API moved to /api/v3',
+    });
+    expect(healed.version).toBe(2);
+
+    const back = rollbackTool(handle.db, 'list_invoices', 1);
+    expect(back.version).toBe(1);
+    expect(back.recipe).toEqual(v1.recipe);
+    expect(listVersions(handle.db, 'list_invoices')).toMatchObject([
+      { version: 1, created_by: 'user', current: true },
+      { version: 2, created_by: 'heal', change_reason: 'The API moved to /api/v3', current: false },
+    ]);
+    expect(publish().version).toBe(3);
+    expect(() => rollbackTool(handle.db, 'list_invoices', 9)).toThrow(/no version 9/);
   });
 
   it('will not let another site take a tool name', () => {

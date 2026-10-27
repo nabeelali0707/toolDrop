@@ -136,8 +136,8 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
   Files: `packages/healer/src/diagnose.ts`, tests
 - [ ] **3.8 `healer`: patch, test, publish.** The `code` model returns a patch validated by a Zod patch schema; apply it, run the saved test inputs, publish or escalate after 3 attempts (`degraded`, owner notified); the `reasoning` model writes the heal reason.
   Files: `packages/core/src/recipe/patch.ts`, `packages/healer/src/{patch,publish}.ts`, tests
-- [ ] **3.9 Versions and rollback.** Version history, rollback over REST and the CLI, heal log.
-  Files: `packages/db/src/repos/recipes.ts`, `apps/server/src/routes/tools.ts`, `apps/cli/src/commands/rollback.ts`, tests
+- [x] **3.9 Versions and rollback.** Version history, rollback over REST and the CLI, heal log.
+  Files: `packages/db/src/repos/tools.ts`, `apps/server/src/app.ts` (`GET /v1/tools/:name/versions`, `POST /v1/tools/:name/rollback`), `apps/cli/src/commands/tools.ts` (`tools versions`, `tools rollback`), tests
 - [ ] **3.10 `runtime`: hold during heal.** Hold the call for up to 5 minutes while the heal runs, then return a structured error with the job ID; record `runs.heal_job_id`.
   Files: `packages/runtime/src/cascade.ts`, `apps/server/src/jobs/heal.ts`, tests
 - [ ] **3.11 Security sweep.** Log redaction paths; a test that greps logs and recorded prompts for the fixture credentials.

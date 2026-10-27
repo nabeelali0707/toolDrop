@@ -5,7 +5,7 @@ import { ToolDropError } from '@tooldrop/core';
 import { readLibraryRecipe, readToolFile } from '@tooldrop/engine';
 import { openEngine } from '../home.ts';
 
-/** `tooldrop tools list` and `tooldrop tools add <path>`. */
+/** `tooldrop tools`: list, add, versions and rollback. */
 export async function tools(args: string[]): Promise<number> {
   const { values, positionals } = parseArgs({
     args,
@@ -45,9 +45,29 @@ export async function tools(args: string[]): Promise<number> {
       return 0;
     }
 
+    if (action === 'versions' && path) {
+      for (const version of engine.versions(path)) {
+        const reason = version.change_reason ? `  ${version.change_reason}` : '';
+        console.log(
+          `${version.current ? '*' : ' '} v${version.version}  ${version.strategy}  ${version.created_by}  ${version.created_at}${reason}`,
+        );
+      }
+      return 0;
+    }
+
+    if (action === 'rollback' && path) {
+      const version = Number(positionals[2]);
+      if (!Number.isInteger(version)) {
+        throw new ToolDropError('invalid_input', 'usage: tooldrop tools rollback <tool> <version>');
+      }
+      const tool = engine.rollback(path, version);
+      console.log(`${tool.name} is back on version ${tool.version}.`);
+      return 0;
+    }
+
     throw new ToolDropError(
       'invalid_input',
-      'usage: tooldrop tools list | tooldrop tools add <path> [--site <url>]',
+      'usage: tooldrop tools list | tools add <path> [--site <url>] | tools versions <tool> | tools rollback <tool> <version>',
     );
   } finally {
     await close();

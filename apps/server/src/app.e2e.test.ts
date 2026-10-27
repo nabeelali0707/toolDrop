@@ -94,6 +94,21 @@ describe('REST API', () => {
   });
 });
 
+describe('versions', () => {
+  it("lists a tool's versions and rolls back", async () => {
+    const versions = await app.inject({ url: '/v1/tools/search_invoices/versions', headers: auth() });
+    expect(versions.json()).toMatchObject({ versions: [{ version: 1, current: true, created_by: 'user' }] });
+
+    const rollback = (payload: object) =>
+      app.inject({ method: 'POST', url: '/v1/tools/search_invoices/rollback', headers: auth(), payload });
+    expect((await rollback({ version: 1 })).json()).toMatchObject({
+      tool: { name: 'search_invoices', version: 1 },
+    });
+    expect((await rollback({})).statusCode).toBe(400);
+    expect((await rollback({ version: 7 })).statusCode).toBe(404);
+  });
+});
+
 describe('logins', () => {
   const password = 'fixture-password-not-real';
 
