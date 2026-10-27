@@ -10,10 +10,11 @@ import {
   type PublishedTool,
 } from '@tooldrop/db';
 import { Runtime, type RunOutcome } from '@tooldrop/runtime';
+import { Builds, type BuildOptions, type JobView } from './builds.ts';
 import { readRecording, writeRecording } from './recordings.ts';
 
-// What the interfaces (MCP, REST, CLI) call. Builds, heals and watches join
-// this class in later phases.
+// What the interfaces (MCP, REST, CLI) call: tools, recordings and builds.
+// Heals and watches join this class in later phases.
 
 /** Who is asking: the tools an API key may use. Local stdio clients get every tool. */
 export type Scopes = string[];
@@ -31,11 +32,14 @@ export interface EngineOptions {
   runtime?: Runtime;
   /** Where recordings and captures are kept: ~/.tooldrop locally, /data in the image. */
   dataDir?: string;
+  /** Models and browser for builds. */
+  builds?: BuildOptions;
 }
 
 export class Engine {
   readonly db: Db;
   readonly runtime: Runtime;
+  readonly builds: Builds;
   readonly #dataDir: string | undefined;
   readonly #listeners = new Set<() => void>();
 
@@ -43,6 +47,24 @@ export class Engine {
     this.db = options.db;
     this.runtime = options.runtime ?? new Runtime();
     this.#dataDir = options.dataDir;
+    this.builds = new Builds(this, options.builds);
+  }
+
+  /** Starts a build job (SPEC, build_tool and POST /v1/builds); poll it with getJob. */
+  startBuild(input: unknown, scopes: Scopes = ALL): JobView {
+    requireFullAccess(scopes);
+    return this.builds.start(input);
+  }
+
+  getJob(id: string, scopes: Scopes = ALL): JobView {
+    requireFullAccess(scopes);
+    return this.builds.view(id);
+  }
+
+  /** Answers a build's clarifying question (SPEC, answer_question). */
+  answerQuestion(jobId: string, questionId: string, answer: string, scopes: Scopes = ALL): JobView {
+    requireFullAccess(scopes);
+    return this.builds.answer(jobId, questionId, answer);
   }
 
   get dataDir(): string {
@@ -72,7 +94,11 @@ export class Engine {
   publish(
     file: ToolFile,
     site: string,
-    options: { created_by?: RecipeOrigin; change_reason?: string } = {},
+    options: {
+      created_by?: RecipeOrigin;
+      change_reason?: string;
+      test_inputs?: Record<string, unknown>[];
+    } = {},
   ): PublishedTool {
     const { recipe, ...definition } = file;
     const published = publishTool(this.db, {
@@ -81,6 +107,7 @@ export class Engine {
       recipe,
       created_by: options.created_by ?? 'user',
       ...(options.change_reason !== undefined && { change_reason: options.change_reason }),
+      ...(options.test_inputs && { test_inputs: options.test_inputs }),
     });
     for (const listener of this.#listeners) listener();
     return published;

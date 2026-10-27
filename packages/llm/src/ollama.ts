@@ -57,6 +57,25 @@ export class OllamaProvider implements LlmProvider {
     }
   }
 
+  async ping(models: string[]): Promise<void> {
+    let installed: Set<string>;
+    try {
+      const response = await this.#fetch(`${this.endpoint}/api/tags`, { signal: AbortSignal.timeout(3_000) });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const body = (await response.json()) as { models?: { name: string }[] };
+      installed = new Set((body.models ?? []).map((model) => model.name));
+    } catch (error) {
+      throw this.#unavailable(error, models[0] ?? '');
+    }
+    const missing = models.filter((model) => !installed.has(model) && !installed.has(`${model}:latest`));
+    if (missing.length > 0) {
+      throw new ToolDropError(
+        'llm_unavailable',
+        `Ollama does not have ${missing.join(' or ')}; download with ${missing.map((m) => `\`ollama pull ${m}\``).join(' and ')}`,
+      );
+    }
+  }
+
   #unavailable(error: unknown, model: string): ToolDropError {
     const status = (error as { status_code?: unknown }).status_code;
     const message = error instanceof Error ? error.message : String(error);

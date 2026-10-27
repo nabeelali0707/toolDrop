@@ -62,6 +62,11 @@ export function setJobStep(db: Queryable, id: string, step: string): void {
   db.update(jobs).set({ step }).where(eq(jobs.id, id)).run();
 }
 
+/** Marks a job as still alive: the process running it writes this every few seconds. */
+export function touchJob(db: Queryable, id: string): void {
+  db.update(jobs).set({ updated_at: new Date() }).where(eq(jobs.id, id)).run();
+}
+
 /** Adds a clarifying question and pauses the job until it is answered. */
 export function addJobQuestion(db: Queryable, id: string, question: JobQuestion): JobRow {
   const job = setJobStatus(db, id, 'waiting_for_answer');

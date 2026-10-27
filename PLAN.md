@@ -107,8 +107,8 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
   Files: `packages/compiler/src/validate/double.ts`, `packages/compiler/src/build.ts`, tests
 - [x] **2.14 `compiler`: explore agent.** The fallback when there is no recording: the `reasoning` model picks actions from the pruned accessibility tree, within a 30-action budget; when it gives up, the job asks for a recording (D-007).
   Files: `packages/compiler/src/explore/{agent,actions}.ts`, tests with the fake provider on fixtures
-- [ ] **2.15 Jobs and build orchestration.** In-process queue, job states (`queued`, `running`, `waiting_for_answer`, `succeeded`, `failed`), clarifying questions that pause and resume, and the build steps 1 to 10 wired together.
-  Files: `packages/core/src/job.ts`, `apps/server/src/jobs/{queue,build}.ts`, tests
+- [x] **2.15 Jobs and build orchestration.** In-process queue, job states (`queued`, `running`, `waiting_for_answer`, `succeeded`, `failed`), clarifying questions that pause and resume, and the build steps 1 to 10 wired together.
+  Files: `packages/engine/src/{builds,queue}.ts` (in the engine, so the stdio MCP server, `serve` and the CLI all run builds), `packages/db/src/repos/jobs.ts`, tests
 - [ ] **2.16 Build interfaces.** MCP `build_tool`, `get_job`, `answer_question` and `find_tool`; REST `/v1/builds`, `/v1/jobs/:id`, `/v1/jobs/:id/answers`.
   Files: `apps/server/src/routes/{builds,jobs}.ts`, `apps/mcp/src/tools/{build,jobs,find}.ts`, tests
 - [ ] **2.17 `cli`: `init`, `build`, `run`, `serve`.** `init` creates the data directory and config, checks that Ollama is running and pulls missing models.

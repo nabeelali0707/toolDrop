@@ -317,10 +317,16 @@ importers:
       '@tooldrop/runtime':
         specifier: workspace:*
         version: link:../runtime
+      playwright:
+        specifier: ^1.64.1
+        version: 1.64.1
     devDependencies:
       '@tooldrop/fixture-html-app':
         specifier: workspace:*
         version: link:../../fixtures/html-app
+      '@tooldrop/fixture-json-api':
+        specifier: workspace:*
+        version: link:../../fixtures/json-api
       '@tooldrop/fixture-kit':
         specifier: workspace:*
         version: link:../../fixtures/kit

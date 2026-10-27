@@ -47,17 +47,23 @@ export function createProvider(settings: LlmSettings, options: { apiKey?: string
       });
 }
 
-export function createLlm(
-  settings: LlmSettings,
-  options: { apiKey?: string; onCall?: LlmOptions['onCall'] } = {},
-): Llm {
-  return new Llm({
+/** What an Llm needs from the settings; the caller decides where its usage records go. */
+export type ModelSetup = Omit<LlmOptions, 'onCall'>;
+
+export function modelSetup(settings: LlmSettings, options: { apiKey?: string } = {}): ModelSetup {
+  return {
     provider: createProvider(settings, options),
     models: settings.models,
     ...(settings.num_ctx !== undefined && { numCtx: settings.num_ctx }),
     ...(settings.budget_tokens !== undefined && { budgetTokens: settings.budget_tokens }),
     ...(settings.seed !== undefined && { seed: settings.seed }),
     ...(settings.redact_pii !== undefined && { redactPii: settings.redact_pii }),
-    ...(options.onCall && { onCall: options.onCall }),
-  });
+  };
+}
+
+export function createLlm(
+  settings: LlmSettings,
+  options: { apiKey?: string; onCall?: LlmOptions['onCall'] } = {},
+): Llm {
+  return new Llm({ ...modelSetup(settings, options), ...(options.onCall && { onCall: options.onCall }) });
 }

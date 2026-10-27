@@ -42,4 +42,9 @@ export interface LlmProvider {
   /** Where calls go, for the local or external check (DECISIONS.md, D-011). */
   readonly endpoint: string;
   chat(request: ChatRequest): Promise<ChatReply>;
+  /**
+   * Checks that the provider answers and has these models, so a build fails
+   * in a second instead of after its capture. Throws `llm_unavailable`.
+   */
+  ping?(models: string[]): Promise<void>;
 }
