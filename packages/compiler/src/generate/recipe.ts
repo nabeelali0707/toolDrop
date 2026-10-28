@@ -1,4 +1,4 @@
-import { recipeSchema, type Recipe, type Step, type Strategy } from '@tooldrop/core';
+import { collectTemplateRefs, recipeSchema, type Recipe, type Step, type Strategy } from '@tooldrop/core';
 import { DEFAULT_BUDGET_TOKENS, estimateTokens, fitPrompt, type Llm, type Masker } from '@tooldrop/llm';
 import type { Capture } from '../capture/capture.ts';
 import { targetRows } from '../analyze/rank.ts';
@@ -35,12 +35,16 @@ export async function writeRecipe(
   plan: StrategyPlan,
   problem?: string,
 ): Promise<{ strategy: Strategy; steps: Step[] }> {
+  // A reply that drops the draft's data step gets it back below, instead of
+  // costing a retry: small local models often leave it out.
+  const draftData = plan.draft.steps.at(-1);
+  const restorable = draftData !== undefined && DATA_OPS.has(draftData.op);
   const schema = recipeSchema
     .refine((recipe) => recipe.strategy === plan.strategy, {
       message: `the strategy must be "${plan.strategy}"`,
       path: ['strategy'],
     })
-    .refine((recipe) => DATA_OPS.has(recipe.steps.at(-1)?.op ?? ''), {
+    .refine((recipe) => restorable || DATA_OPS.has(recipe.steps.at(-1)?.op ?? ''), {
       message: 'the last step must be map, extract_table or extract_text',
       path: ['steps'],
     });
@@ -58,7 +62,21 @@ export async function writeRecipe(
     ...(access.jobId !== undefined && { job_id: access.jobId }),
     ...(access.masker && { masker: access.masker }),
   });
-  return { strategy: recipe.strategy, steps: recipe.steps };
+  const steps = recipe.steps.map(withoutIdlePaging);
+  if (restorable && !DATA_OPS.has(steps.at(-1)?.op ?? '')) steps.push(draftData);
+  return { strategy: recipe.strategy, steps };
+}
+
+/**
+ * Paging whose page number the request never uses can only send the same
+ * request again, up to 50 times. Small models add it to HTML pages; it goes.
+ */
+function withoutIdlePaging(step: Step): Step {
+  if (step.op !== 'http' || !step.paginate) return step;
+  const variable = step.paginate.var;
+  const { paginate: _paginate, ...rest } = step;
+  const used = collectTemplateRefs(rest).refs.some((ref) => ref.root === 'loop' && ref.path[0] === variable);
+  return used ? step : rest;
 }
 
 /**

@@ -33,7 +33,12 @@ class ScriptedModel implements LlmProvider {
     if (system.startsWith('You explore a website')) {
       reply = { action: 'extract', ref: refIn(prompt, 'table'), reason: 'the orders are listed here' };
     } else if (system.startsWith('You write toolDrop recipes')) {
-      reply = JSON.parse(prompt.split('\n').find((line) => line.startsWith('{"strategy"')) ?? '{}');
+      // The draft without its data step, as qwen2.5-coder:7b answered on the development
+      // machine: toolDrop puts the draft's step back instead of failing the build.
+      const draft = JSON.parse(prompt.split('\n').find((line) => line.startsWith('{"strategy"')) ?? '{}') as {
+        steps: unknown[];
+      };
+      reply = { ...draft, steps: draft.steps.slice(0, -1) };
     } else if (system.startsWith('You name and describe tools')) {
       reply = {
         name: 'list_orders',

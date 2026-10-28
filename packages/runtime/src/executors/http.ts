@@ -96,7 +96,8 @@ async function runHttpStep(step: HttpStep, context: TemplateContext, deps: HttpD
       context.loop = { [name]: value };
       const body = await send(step, context, deps);
       pages.push(body);
-      if (evaluateCondition(until, body)) break;
+      // A page of HTML or text has no JSON to check the condition on: it is the only page.
+      if (typeof body === 'string' || evaluateCondition(until, body)) break;
       value = from === undefined ? (value as number) + increment : queryOne(body, from);
       if (value === undefined || value === null) break;
     }

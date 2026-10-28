@@ -152,6 +152,34 @@ describe('html_fetch with a browser fallback (html-app fixture)', () => {
     expect((await runtime.run(tool, {})).result).toEqual(before);
   });
 
+  it('fetches an HTML page once, even when its recipe asks to page it', async () => {
+    // The recipe qwen2.5-coder:7b wrote for this fixture: a JSON paging condition
+    // on an HTML page, which used to repeat the same request 50 times.
+    fixture = await startHtmlAppFixture();
+    const tool = fixtureTool('html-app.search_invoices.json', fixture.url);
+    tool.output_schema = { type: 'array' };
+    tool.recipe = {
+      strategy: 'html_fetch',
+      steps: [
+        {
+          op: 'http',
+          method: 'GET',
+          url: '{{site}}/invoices',
+          query: { status: '{{input.status}}' },
+          paginate: { var: 'page', until: '$.hasMore == false', start: 1 },
+        },
+        {
+          op: 'extract_table',
+          target: [{ kind: 'test_id', value: 'invoices' }],
+          columns: { number: 'Number', amount: 'Amount', status: 'Status' },
+        },
+      ],
+    };
+    const { result, meta } = await runtime.run(tool, { status: 'paid' });
+    expect(meta.duration_ms).toBeLessThan(5_000);
+    expect((result as Invoice[]).every((invoice) => invoice.status === 'paid')).toBe(true);
+  });
+
   it('accepts an empty result once the browser agrees', { timeout: 60_000 }, async () => {
     const tool = await start();
     const { result, meta, attempts } = await runtime.run(tool, { from: '2099-01-01' });
@@ -169,7 +197,7 @@ describe('before any strategy runs', () => {
     expect(error.code).toBe('invalid_input');
   });
 
-  it('refuses write tools until safe mode exists', async () => {
+  it('refuses to run a write tool directly: writes go through safe mode', async () => {
     fixture = await startHtmlAppFixture();
     const tool = fixtureTool('html-app.search_invoices.json', fixture.url, { authority: 'write' });
     expect((await failure(runtime.run(tool, {}))).code).toBe('approval_required');
