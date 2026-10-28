@@ -55,6 +55,8 @@ export interface RunOutcome {
   meta: RunMeta;
   /** Every strategy tried, in order, for the run log. */
   attempts: Attempt[];
+  /** Browser steps of the answering plan that found their element only with a later selector. */
+  drift?: { strategy: Strategy; steps: { step: number; selector: number }[] };
 }
 
 export interface RuntimeOptions {
@@ -113,7 +115,8 @@ export class Runtime {
     for (const [index, plan] of plans.entries()) {
       const attemptStarted = performance.now();
       try {
-        const result = await this.#execute(plan, tool, args);
+        const drift: { step: number; selector: number }[] = [];
+        const result = await this.#execute(plan, tool, args, drift);
         const output = this.#validator.output(tool.output_schema, result);
         if (!output.ok) {
           throw new ToolDropError(
@@ -133,7 +136,7 @@ export class Runtime {
           }
           if (empty) return this.#finish(tool, cacheKey, { ...empty, started, attempts });
         }
-        return this.#finish(tool, cacheKey, { result, strategy: plan.strategy, started, attempts });
+        return this.#finish(tool, cacheKey, { result, strategy: plan.strategy, started, attempts, drift });
       } catch (error) {
         // An expired session fails every strategy alike: the caller signs in again instead.
         if (error instanceof ToolDropError && error.code === 'session_expired') throw error;
@@ -211,7 +214,13 @@ export class Runtime {
   #finish(
     tool: RunnableTool,
     cacheKey: string,
-    run: { result: unknown; strategy: Strategy; started: number; attempts: Attempt[] },
+    run: {
+      result: unknown;
+      strategy: Strategy;
+      started: number;
+      attempts: Attempt[];
+      drift?: { step: number; selector: number }[];
+    },
   ): RunOutcome {
     const outcome: RunOutcome = {
       result: run.result,
@@ -222,12 +231,18 @@ export class Runtime {
         healed: false,
       },
       attempts: run.attempts,
+      ...(run.drift && run.drift.length > 0 && { drift: { strategy: run.strategy, steps: run.drift } }),
     };
     if (tool.cache_ttl_ms) this.#cache.set(cacheKey, { expires: Date.now() + tool.cache_ttl_ms, outcome });
     return outcome;
   }
 
-  #execute(plan: { strategy: Strategy; steps: Step[] }, tool: RunnableTool, input: Record<string, unknown>) {
+  #execute(
+    plan: { strategy: Strategy; steps: Step[] },
+    tool: RunnableTool,
+    input: Record<string, unknown>,
+    drift: { step: number; selector: number }[] = [],
+  ) {
     const context: TemplateContext = { site: tool.site, input, session: {}, vars: {}, loop: {} };
     const limiter = this.#limiter(tool.site, tool.rate_limit);
     if (plan.strategy === 'browser_script') {
@@ -235,6 +250,7 @@ export class Runtime {
         context: () => this.#browsers.context(tool.site),
         limiter,
         ...(tool.login && { loginUrl: tool.login.url }),
+        onDrift: (step, selector) => drift.push({ step, selector }),
         ...(this.#options.browserWaitMs !== undefined && { waitMs: this.#options.browserWaitMs }),
       });
     }

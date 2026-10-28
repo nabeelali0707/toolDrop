@@ -92,6 +92,16 @@ export class Builds {
       : undefined;
   }
 
+  /** The models builds use; heals use them too. Undefined when none is configured. */
+  get llm(): Llm | undefined {
+    return this.#llm;
+  }
+
+  /** The browser for captures, when one was given (tests share one). */
+  get browser(): Browser | undefined {
+    return this.#options.browser;
+  }
+
   /** Starts a build job, or finishes at once when a published tool already does the task (step 1). */
   start(input: unknown): JobView {
     const parsed = buildInputSchema.safeParse(input);

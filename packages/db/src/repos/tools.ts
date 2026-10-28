@@ -7,7 +7,7 @@ import {
   type ToolDefinition,
   type ToolStatus,
 } from '@tooldrop/core';
-import { and, asc, desc, eq, max } from 'drizzle-orm';
+import { and, asc, desc, eq, max, ne } from 'drizzle-orm';
 import type { Queryable } from '../client.ts';
 import { recipe_versions, runs, sites, tools, type RateLimit } from '../schema.ts';
 
@@ -178,9 +178,12 @@ export function getTool(db: Queryable, name: string): PublishedTool | undefined 
   return queryTools(db, eq(tools.name, name))[0];
 }
 
-/** Tools callers can use, newest first. */
+/**
+ * Tools callers can use, newest first: live ones, and degraded ones, which
+ * may still work for some inputs. Disabled tools are left out.
+ */
 export function listTools(db: Queryable, options: { status?: ToolStatus } = {}): PublishedTool[] {
-  return queryTools(db, eq(tools.status, options.status ?? 'live'));
+  return queryTools(db, options.status ? eq(tools.status, options.status) : ne(tools.status, 'disabled'));
 }
 
 /**
@@ -213,13 +216,21 @@ export interface RunRecord {
   ok: boolean;
   error_code?: string | null;
   healed?: boolean;
+  /** The heal the call waited on (DECISIONS.md, D-013). */
+  heal_job_id?: string | null;
 }
 
 /** Logs how a call went. Results are never stored (SPEC, Performance rules). */
 export function recordRun(db: Queryable, run: RunRecord): string {
   const id = newId();
   db.insert(runs)
-    .values({ id, ...run, error_code: run.error_code ?? null, healed: run.healed ?? false })
+    .values({
+      id,
+      ...run,
+      error_code: run.error_code ?? null,
+      healed: run.healed ?? false,
+      heal_job_id: run.heal_job_id ?? null,
+    })
     .run();
   return id;
 }

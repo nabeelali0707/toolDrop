@@ -130,16 +130,16 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
   Files: `packages/auth/src/twofa/totp.ts`, `packages/engine/src/sessions.ts` (codes from a person through job questions or `tooldrop logins verify`), tests
 - [x] **3.5 `auth`: session refresh.** Detect expiry (401/403, login redirect, failed check), re-login silently, hook into the runtime session pool.
   Files: `packages/engine/src/sessions.ts`, `packages/runtime/src/{sessions,browser/pool}.ts`, `packages/runtime/src/executors/{http,browser}.ts`, tests
-- [ ] **3.6 `healer`: detect.** Runtime-failure trigger, daily health check with saved test inputs, drift alert when the output shape changes.
-  Files: `packages/healer/package.json`, `packages/healer/src/detect.ts`, `apps/server/src/jobs/health-check.ts`, tests
-- [ ] **3.7 `healer`: diagnose.** Re-run up to the failing step with full capture; try the ranked-selector fallback before calling the model; build the diagnosis prompt (D-006).
-  Files: `packages/healer/src/diagnose.ts`, tests
-- [ ] **3.8 `healer`: patch, test, publish.** The `code` model returns a patch validated by a Zod patch schema; apply it, run the saved test inputs, publish or escalate after 3 attempts (`degraded`, owner notified); the `reasoning` model writes the heal reason.
-  Files: `packages/core/src/recipe/patch.ts`, `packages/healer/src/{patch,publish}.ts`, tests
+- [x] **3.6 `healer`: detect.** Runtime-failure trigger, daily health check with saved test inputs, drift alert when the output shape changes.
+  Files: `packages/runtime/src/executors/browser.ts` (drift), `packages/engine/src/{engine,heals}.ts` (triggers and the daily health check), `apps/cli/src/commands/{serve,tools}.ts`, tests
+- [x] **3.7 `healer`: diagnose.** Re-run up to the failing step with full capture; try the ranked-selector fallback before calling the model; build the diagnosis prompt (D-006).
+  Files: `packages/healer/src/{heal,prompts}.ts`, `packages/compiler/src/recording/replay-steps.ts`, tests
+- [x] **3.8 `healer`: patch, test, publish.** The `code` model returns a patch validated by a Zod patch schema; apply it, run the saved test inputs, publish or escalate after 3 attempts (`degraded`, owner notified); the `reasoning` model writes the heal reason.
+  Files: `packages/healer/src/{patch,heal}.ts`, `packages/engine/src/heals.ts`, tests
 - [x] **3.9 Versions and rollback.** Version history, rollback over REST and the CLI, heal log.
   Files: `packages/db/src/repos/tools.ts`, `apps/server/src/app.ts` (`GET /v1/tools/:name/versions`, `POST /v1/tools/:name/rollback`), `apps/cli/src/commands/tools.ts` (`tools versions`, `tools rollback`), tests
-- [ ] **3.10 `runtime`: hold during heal.** Hold the call for up to 5 minutes while the heal runs, then return a structured error with the job ID; record `runs.heal_job_id`.
-  Files: `packages/runtime/src/cascade.ts`, `apps/server/src/jobs/heal.ts`, tests
+- [x] **3.10 `runtime`: hold during heal.** Hold the call for up to 5 minutes while the heal runs, then return a structured error with the job ID; record `runs.heal_job_id`.
+  Files: `packages/engine/src/engine.ts`, `packages/db/src/repos/tools.ts` (`runs.heal_job_id`), tests
 - [ ] **3.11 Security sweep.** Log redaction paths; a test that greps logs and recorded prompts for the fixture credentials.
   Files: `packages/core/src/logging.ts`, `apps/server/test/security.e2e.test.ts`
 - [ ] **3.12 `llm`: API key in the vault.** The OpenAI-compatible adapter reads its optional API key from the vault.

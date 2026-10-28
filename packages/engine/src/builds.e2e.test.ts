@@ -79,13 +79,15 @@ function start(replies: Record<string, FakeReply[]>, withModels = true, staleMs?
   });
 }
 
-async function settle(id: string, until: JobView['status'][]): Promise<JobView> {
-  for (let i = 0; i < 600; i++) {
+/** Polls a job until it reaches a status, within a deadline shorter than the test's timeout. */
+async function settle(id: string, until: JobView['status'][], withinMs = 100_000): Promise<JobView> {
+  const deadline = Date.now() + withinMs;
+  while (Date.now() < deadline) {
     const job = engine.getJob(id);
     if (until.includes(job.status)) return job;
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  throw new Error(`job ${id} did not reach ${until.join(' or ')}`);
+  throw new Error(`job ${id} did not reach ${until.join(' or ')} within ${withinMs / 1000} s`);
 }
 
 beforeAll(async () => {

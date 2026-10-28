@@ -416,3 +416,19 @@ Node's built-in fetch gives up when a server sends no response headers for 5 min
 - **Codes:** a login with an authenticator secret signs in unattended, with codes from `otplib`. A login marked `human` asks a person: during a build, as a job question; outside one, `tooldrop logins verify <site>` asks in the terminal. A call that needs a code and has no one to ask fails with a message saying so.
 - **The site's login is the verified one,** else the newest. Choosing between several accounts for one site waits for multi-user support (task 5.5).
 - **Build step 2** signs in before the capture, and the capture and the validation runs use the session.
+
+### D-042 How tools heal
+
+*Proposed · 2026-10-28*
+
+- **Three kinds of heal, cheapest first:**
+  - *Drift:* a browser step found its element only with a later selector. The call works. Its selectors are refreshed from the live page in the background, with no model; SPEC's "try the ranked-selector fallback before calling the model".
+  - *Fast path:* the API or HTML recipe failed but the browser fallback answered. The call works. In the background, the healer captures what the fallback does now, finds the request behind the data again, and has the code model write the recipe. The fallback and the tool's field names stay as they were.
+  - *Failure:* every strategy failed. The call waits up to 5 minutes (SPEC, Runtime step 7) while the healer replays up to the broken step, shows the code model the page, and applies the patch it proposes. The call then runs on the new version, and its `meta.healed` is true.
+- **Patches name elements by ref.** The model answers with refs from the page list it was shown, such as `e12`, and the healer turns them into ranked selectors checked on the live page. A patch can retarget a step, insert one before it, or remove it. Changes like renamed table columns are not covered yet.
+- **Every repair is tested** on the version's saved test inputs before it is published, and is published as the next version with a reason in plain words for the history. Drift reasons are fixed text; the reasoning model writes the others.
+- **After 3 failed attempts** the tool is marked `degraded` and the job keeps the last error. A degraded tool stays listed and callable, since it may still work for some inputs. No new heal starts for that tool for an hour, so each failing call does not start a heal of its own.
+- **Heals have their own queue,** so a waiting call never sits behind a long build. A heal is a job like a build, visible through `get_job`.
+- **Health check:** `tooldrop serve` runs every tool's saved test inputs daily, and `tooldrop tools check` runs them now. A failure goes through the same repair as a failing call.
+- **One-shot commands leave background heals alone:** `tooldrop run` exits after printing, so drift and fast-path repairs happen in `serve`, `mcp` or the next health check.
+- **Tests run on half the cores:** many end-to-end files drive their own Chromium, and a full parallel run on a 4-core laptop made some builds outlast their timeouts.

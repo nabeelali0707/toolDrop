@@ -15,6 +15,7 @@ import {
   publishTool,
   recordRun,
   rollbackTool,
+  testInputs,
   type Db,
   type PublishedTool,
   type VersionSummary,
@@ -23,7 +24,11 @@ import { addLogin as saveLogin, Vault, viewLogins, type KeyStore } from '@tooldr
 import { Runtime, type RunnableTool, type RunOutcome } from '@tooldrop/runtime';
 import { Builds, type BuildOptions, type JobView } from './builds.ts';
 import { readRecording, writeRecording } from './recordings.ts';
+import { Heals } from './heals.ts';
 import { Sessions, type SignInOptions } from './sessions.ts';
+
+/** How long a failed call waits for its repair (SPEC, Runtime execution cascade step 7). */
+export const HEAL_HOLD_MS = 5 * 60_000;
 
 // What the interfaces (MCP, REST, CLI) call: tools, recordings and builds.
 // Heals and watches join this class in later phases.
@@ -46,6 +51,10 @@ export interface EngineOptions {
   dataDir?: string;
   /** Models and browser for builds. */
   builds?: BuildOptions;
+  /** How long a failed call waits for its repair (default 5 minutes, SPEC Runtime step 7). */
+  healHoldMs?: number;
+  /** Repair worn tools after calls that still worked (default true); off for one-shot commands. */
+  backgroundHeals?: boolean;
   /** Where the vault's master key lives; the vault opens on first use (SPEC, Authentication). */
   keyStore?: () => Promise<KeyStore>;
 }
@@ -55,6 +64,9 @@ export class Engine {
   readonly runtime: Runtime;
   readonly builds: Builds;
   readonly sessions: Sessions;
+  readonly heals: Heals;
+  readonly #healHoldMs: number;
+  readonly #backgroundHeals: boolean;
   readonly #dataDir: string | undefined;
   readonly #keyStore: (() => Promise<KeyStore>) | undefined;
   #vault: Promise<Vault> | undefined;
@@ -67,6 +79,9 @@ export class Engine {
     this.#keyStore = options.keyStore;
     this.builds = new Builds(this, options.builds);
     this.sessions = new Sessions(this, options.builds?.browser ? { browser: options.builds.browser } : {});
+    this.heals = new Heals(this);
+    this.#healHoldMs = options.healHoldMs ?? HEAL_HOLD_MS;
+    this.#backgroundHeals = options.backgroundHeals ?? true;
   }
 
   /** Saves a login, sealed in the vault (SPEC, add_login). Returns only the masked view. */
@@ -191,50 +206,126 @@ export class Engine {
     if (!tool || tool.status === 'disabled') throw new ToolDropError('not_found', `no tool named ${name}`);
     if (!keyAllows(scopes, name)) throw new ToolDropError('forbidden', `this API key may not run ${name}`);
 
+    let outcome: RunOutcome;
     try {
-      const signedIn = await this.sessions.ensure(tool.site.origin);
-      const runnable: RunnableTool = {
-        name: tool.name,
-        authority: tool.authority,
-        input_schema: tool.input_schema,
-        output_schema: tool.output_schema,
-        version: tool.version,
-        recipe: tool.recipe,
-        site: tool.site.origin,
-        rate_limit: tool.site.rate_limit,
-        ...(signedIn && { login: { url: signedIn.loginUrl } }),
-      };
-      let outcome: RunOutcome;
-      try {
-        outcome = await this.runtime.run(runnable, input);
-      } catch (error) {
-        // An expired session signs in again, then the call runs once more (SPEC, Sessions).
-        if (!signedIn || !(error instanceof ToolDropError && error.code === 'session_expired')) throw error;
-        await this.sessions.ensure(tool.site.origin, { force: true });
-        outcome = await this.runtime.run(runnable, input);
-      }
-      recordRun(this.db, {
+      outcome = await this.#run(tool, input);
+    } catch (error) {
+      if (!(error instanceof ToolDropError && error.code === 'strategy_failed')) throw error;
+      // Every strategy failed: repair the recipe while the call waits (SPEC, Runtime step 7).
+      const healJob = this.heals.start(tool, { kind: 'failure', error: error.toJSON() });
+      const ended = healJob ? await this.heals.wait(healJob, this.#healHoldMs) : 'failed';
+      // Only calls that reached the site are runs; bad input or a refused write is not.
+      const failed = {
         tool_id: tool.id,
         recipe_version: tool.version,
+        strategy_used: tool.recipe.fallback?.strategy ?? tool.recipe.strategy,
+        duration_ms: 0,
+        ok: false,
+        error_code: error.code,
+        heal_job_id: healJob ?? null,
+      };
+      if (ended !== 'healed' || !healJob) {
+        recordRun(this.db, failed);
+        if (ended === 'timeout' && healJob) {
+          throw new ToolDropError(
+            'heal_timeout',
+            `${name} is being repaired, and the repair did not finish within ${Math.round(this.#healHoldMs / 60_000)} minutes; check heal job ${healJob}`,
+            { details: { heal_job_id: healJob } },
+          );
+        }
+        throw healJob
+          ? new ToolDropError(
+              'strategy_failed',
+              `${error.message}. The repair failed too: see heal job ${healJob}`,
+              {
+                details: { ...error.details, heal_job_id: healJob },
+              },
+            )
+          : error;
+      }
+      const healed = getTool(this.db, name);
+      if (!healed) throw error;
+      outcome = await this.#run(healed, input);
+      outcome.meta.healed = true;
+      recordRun(this.db, {
+        tool_id: healed.id,
+        recipe_version: healed.version,
         strategy_used: outcome.meta.strategy,
         duration_ms: outcome.meta.duration_ms,
         ok: true,
+        healed: true,
+        heal_job_id: healJob,
       });
       return outcome;
+    }
+    recordRun(this.db, {
+      tool_id: tool.id,
+      recipe_version: tool.version,
+      strategy_used: outcome.meta.strategy,
+      duration_ms: outcome.meta.duration_ms,
+      ok: true,
+    });
+    // The call worked, but something wore out: repair it in the background (SPEC, Self-healing).
+    const fastPath = outcome.attempts[0];
+    if (!this.#backgroundHeals) return outcome;
+    if (tool.recipe.fallback && fastPath && !fastPath.ok && outcome.meta.strategy === 'browser_script') {
+      this.heals.start(tool, { kind: 'fast_path', error: fastPath.error?.message ?? 'it failed' });
+    } else if (outcome.drift) {
+      this.heals.start(tool, { kind: 'drift', drift: outcome.drift });
+    }
+    return outcome;
+  }
+
+  /** Runs a tool's current version, signed in when its site has a login. */
+  async #run(tool: PublishedTool, input: unknown): Promise<RunOutcome> {
+    const signedIn = await this.sessions.ensure(tool.site.origin);
+    const runnable: RunnableTool = {
+      name: tool.name,
+      authority: tool.authority,
+      input_schema: tool.input_schema,
+      output_schema: tool.output_schema,
+      version: tool.version,
+      recipe: tool.recipe,
+      site: tool.site.origin,
+      rate_limit: tool.site.rate_limit,
+      ...(signedIn && { login: { url: signedIn.loginUrl } }),
+    };
+    try {
+      return await this.runtime.run(runnable, input);
     } catch (error) {
-      // Only calls that reached the site are runs; bad input or a refused write is not.
-      if (error instanceof ToolDropError && error.code === 'strategy_failed') {
-        recordRun(this.db, {
-          tool_id: tool.id,
-          recipe_version: tool.version,
-          strategy_used: tool.recipe.fallback?.strategy ?? tool.recipe.strategy,
-          duration_ms: 0,
+      // An expired session signs in again, then the call runs once more (SPEC, Sessions).
+      if (!signedIn || !(error instanceof ToolDropError && error.code === 'session_expired')) throw error;
+      await this.sessions.ensure(tool.site.origin, { force: true });
+      return this.runtime.run(runnable, input);
+    }
+  }
+
+  /**
+   * Runs every tool's saved test inputs (SPEC, Self-healing: a daily health
+   * check). A failing tool goes through the same repair as a failing call.
+   */
+  async healthCheck(
+    scopes: Scopes = ALL,
+  ): Promise<{ tool: string; ok: boolean; healed: boolean; error?: string }[]> {
+    requireFullAccess(scopes);
+    const results: { tool: string; ok: boolean; healed: boolean; error?: string }[] = [];
+    for (const tool of this.listTools()) {
+      const inputs = testInputs(this.db, tool.id, tool.version);
+      if (inputs.length === 0) continue;
+      let healed = false;
+      try {
+        for (const input of inputs) healed = (await this.runTool(tool.name, input)).meta.healed || healed;
+        results.push({ tool: tool.name, ok: true, healed });
+      } catch (error) {
+        results.push({
+          tool: tool.name,
           ok: false,
-          error_code: error.code,
+          healed,
+          error: error instanceof Error ? error.message : String(error),
         });
       }
-      throw error;
     }
+    return results;
   }
 
   /** Calls `listener` whenever the published tools change, e.g. to send MCP's list_changed. */

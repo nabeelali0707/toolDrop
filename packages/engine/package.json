@@ -16,6 +16,7 @@
     "@tooldrop/compiler": "workspace:*",
     "@tooldrop/core": "workspace:*",
     "@tooldrop/db": "workspace:*",
+    "@tooldrop/healer": "workspace:*",
     "@tooldrop/llm": "workspace:*",
     "@tooldrop/runtime": "workspace:*",
     "playwright": "^1.64.1"

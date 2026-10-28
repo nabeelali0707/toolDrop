@@ -41,7 +41,10 @@ export function modelSettings(): LlmSettings {
 }
 
 /** Opens the database in the home directory, applies migrations and starts an engine. */
-export function openEngine(): { engine: Engine; close: () => Promise<void> } {
+export function openEngine(options: { backgroundHeals?: boolean } = {}): {
+  engine: Engine;
+  close: () => Promise<void>;
+} {
   mkdirSync(homeDir(), { recursive: true });
   const handle = openDatabase(join(homeDir(), 'tooldrop.db'));
   runMigrations(handle.db);
@@ -50,6 +53,7 @@ export function openEngine(): { engine: Engine; close: () => Promise<void> } {
     dataDir: homeDir(),
     builds: { models: modelSetup(modelSettings()) },
     keyStore: () => findKeyStore({ home: homeDir() }),
+    ...(options.backgroundHeals === false && { backgroundHeals: false }),
   });
   return {
     engine,

@@ -3,6 +3,8 @@ import { createApiKey, listApiKeys } from '@tooldrop/db';
 import { createServer } from '@tooldrop/server';
 import { openEngine, version } from '../home.ts';
 
+const HEALTH_CHECK_MS = 24 * 60 * 60_000;
+
 /** `tooldrop serve`: the REST API and remote MCP, on loopback unless told otherwise. */
 export async function serve(args: string[]): Promise<number> {
   const { values } = parseArgs({
@@ -30,10 +32,17 @@ export async function serve(args: string[]): Promise<number> {
     );
   }
 
+  // Every day, each tool runs its saved test inputs; a failure starts a repair (SPEC, Self-healing).
+  const healthCheck = setInterval(() => {
+    engine.healthCheck().catch(() => undefined);
+  }, HEALTH_CHECK_MS);
+  healthCheck.unref();
+
   await new Promise<void>((resolve) => {
     process.once('SIGINT', resolve);
     process.once('SIGTERM', resolve);
   });
+  clearInterval(healthCheck);
   await app.close();
   await close();
   return 0;

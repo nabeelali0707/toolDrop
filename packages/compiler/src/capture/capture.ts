@@ -246,6 +246,24 @@ export class CaptureSession {
     };
   }
 
+  /** Ranked selectors for an element, each checked to find it on the live page. */
+  async selectorsFor(ref: string): Promise<{ target: RankedSelector; label: string }> {
+    const { target, label } = await this.#describe(ref);
+    return { target, label };
+  }
+
+  /** The ref of a target's element when it is visible now, without waiting: for "Load more" loops. */
+  async visibleRef(selector: RankedSelector): Promise<string | undefined> {
+    await this.#helpers();
+    for (const candidate of selector) {
+      const locator = toLocator(this.page, candidate).first();
+      if (!(await locator.isVisible())) continue;
+      const ref = await locator.evaluate((element) => (window as HelperWindow).__tooldrop?.refFor(element));
+      if (ref) return ref;
+    }
+    return undefined;
+  }
+
   /** The session now: cookies and local storage, e.g. after signing in. */
   storageState(): Promise<StorageState> {
     return this.#context.storageState();

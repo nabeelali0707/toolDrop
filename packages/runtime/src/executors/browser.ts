@@ -14,6 +14,8 @@ export interface BrowserDeps {
   waitMs?: number;
   /** The sign-in page of a signed-in site: landing there means the session expired. */
   loginUrl?: string;
+  /** Hears of each step that found its element only with a later selector. */
+  onDrift?: (step: number, selector: number) => void;
 }
 
 type Role = Parameters<Page['getByRole']>[0];
@@ -30,10 +32,11 @@ export async function runBrowserRecipe(
     try {
       let result: unknown;
       for (const [index, step] of steps.entries()) {
+        const drift = (selector: number) => deps.onDrift?.(index, selector);
         const value = await atStep(index, step, () =>
           step.op === 'map'
             ? Promise.resolve(mapPages([result], step))
-            : runStep(page, step, context, deps.waitMs ?? 10_000, settle),
+            : runStep(page, step, context, deps.waitMs ?? 10_000, settle, drift),
         );
         if (deps.loginUrl && samePage(page.url(), deps.loginUrl)) {
           throw new ToolDropError(
@@ -60,8 +63,11 @@ async function runStep(
   context: TemplateContext,
   waitMs: number,
   settle: () => Promise<void>,
+  drift: (selector: number) => void,
 ): Promise<unknown> {
   const timeout = { timeout: waitMs };
+  const locate = (target: RankedSelector, state: 'visible' | 'attached', wait = waitMs) =>
+    locateTarget(page, target, state, wait, drift);
   switch (step.op) {
     case 'goto': {
       const url = renderText(step.url, context);
@@ -76,7 +82,7 @@ async function runStep(
     }
     case 'click': {
       if (!step.repeat) {
-        await (await locate(page, step.target, 'visible', waitMs)).first().click(timeout);
+        await (await locate(step.target, 'visible', waitMs)).first().click(timeout);
         await settle();
         return undefined;
       }
@@ -94,7 +100,7 @@ async function runStep(
       const value = render(step.value, context);
       if (value === undefined) return undefined;
       await (
-        await locate(page, step.target, 'visible', waitMs)
+        await locate(step.target, 'visible', waitMs)
       )
         .first()
         .fill(renderText(step.value, context), timeout);
@@ -104,7 +110,7 @@ async function runStep(
       const value = render(step.value, context);
       if (value === undefined) return undefined;
       await (
-        await locate(page, step.target, 'visible', waitMs)
+        await locate(step.target, 'visible', waitMs)
       )
         .first()
         .selectOption(renderText(step.value, context), timeout);
@@ -112,12 +118,12 @@ async function runStep(
       return undefined;
     }
     case 'wait_for':
-      if (step.target) await locate(page, step.target, 'visible', step.timeout_ms ?? waitMs);
+      if (step.target) await locate(step.target, 'visible', step.timeout_ms ?? waitMs);
       if (step.url)
         await page.waitForURL(renderText(step.url, context), { timeout: step.timeout_ms ?? waitMs });
       return undefined;
     case 'extract_text': {
-      const matches = await locate(page, step.target, 'attached', waitMs);
+      const matches = await locate(step.target, 'attached', waitMs);
       const read = async (locator: Locator) =>
         (step.attribute
           ? await locator.getAttribute(step.attribute)
@@ -126,7 +132,7 @@ async function runStep(
       return Promise.all((await matches.all()).map(read));
     }
     case 'extract_table': {
-      const table = (await locate(page, step.target, 'visible', waitMs)).first();
+      const table = (await locate(step.target, 'visible', waitMs)).first();
       const { headers, rows } = await table.evaluate((element) => {
         // Typed structurally, so packages importing the runtime need no DOM types.
         const text = (cell: { textContent: string | null }) => (cell.textContent ?? '').trim();
@@ -158,16 +164,19 @@ async function runStep(
  * the rest are quick checks. Falling back to a later selector is how a renamed
  * button keeps working without a heal.
  */
-async function locate(
+async function locateTarget(
   page: Page,
   target: RankedSelector,
   state: 'visible' | 'attached',
   waitMs: number,
+  drift: (selector: number) => void,
 ): Promise<Locator> {
   for (const [index, selector] of target.entries()) {
     const locator = toLocator(page, selector);
     try {
       await locator.first().waitFor({ state, timeout: index === 0 ? waitMs : 1_000 });
+      // A later selector did the job: the step still works, but has drifted (SPEC, Self-healing).
+      if (index > 0) drift(index);
       return locator;
     } catch {
       // Try the next selector.

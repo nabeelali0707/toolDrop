@@ -45,6 +45,18 @@ export async function tools(args: string[]): Promise<number> {
       return 0;
     }
 
+    if (action === 'check') {
+      const results = await engine.healthCheck();
+      if (results.length === 0) console.log('No tool has saved test inputs to check with.');
+      for (const result of results) {
+        const state = result.ok ? (result.healed ? 'repaired' : 'ok') : 'FAILED';
+        console.log(`${state}  ${result.tool}${result.error ? `: ${result.error}` : ''}`);
+      }
+      // Repairs started by the check finish before the command exits.
+      await engine.heals.idle();
+      return results.every((result) => result.ok) ? 0 : 1;
+    }
+
     if (action === 'versions' && path) {
       for (const version of engine.versions(path)) {
         const reason = version.change_reason ? `  ${version.change_reason}` : '';
@@ -67,7 +79,7 @@ export async function tools(args: string[]): Promise<number> {
 
     throw new ToolDropError(
       'invalid_input',
-      'usage: tooldrop tools list | tools add <path> [--site <url>] | tools versions <tool> | tools rollback <tool> <version>',
+      'usage: tooldrop tools list | tools add <path> [--site <url>] | tools check | tools versions <tool> | tools rollback <tool> <version>',
     );
   } finally {
     await close();

@@ -19,7 +19,8 @@ export async function run(args: string[]): Promise<number> {
     throw new ToolDropError('invalid_input', '--input must be JSON, e.g. --input \'{"status":"open"}\'');
   }
 
-  const { engine, close } = openEngine();
+  // A one-shot command exits after printing, so it leaves background repairs to serve and mcp.
+  const { engine, close } = openEngine({ backgroundHeals: false });
   try {
     const { result, meta } = await engine.runTool(name, input);
     console.log(JSON.stringify({ result, meta }, null, 2));

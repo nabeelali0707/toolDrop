@@ -1,3 +1,4 @@
+import { availableParallelism } from 'node:os';
 import { defineConfig } from 'vitest/config';
 
 // `pnpm test` runs every unit and end-to-end test. Tests that call real Ollama
@@ -12,5 +13,7 @@ export default defineConfig({
     exclude: ['**/node_modules/**', ...(llmOnly ? [] : [llmTestFiles])],
     passWithNoTests: llmOnly,
     testTimeout: llmOnly ? 300_000 : 15_000,
+    // Many end-to-end files drive their own Chromium; half the cores keeps them from starving each other.
+    maxWorkers: Math.max(2, Math.floor(availableParallelism() / 2)),
   },
 });
