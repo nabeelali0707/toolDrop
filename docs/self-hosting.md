@@ -1,7 +1,7 @@
 # Self-hosting
 
 ::: info Status
-`tooldrop serve` and the Docker image work today: the REST API and remote MCP on port 3000, with SQLite. The dashboard arrives with Phase 4, and Postgres and Valkey join the Compose stack with Phase 5.
+`tooldrop serve` and the Docker image work today: the REST API, remote MCP and the [dashboard](./dashboard) on port 3000, with SQLite. Postgres and Valkey join the Compose stack with Phase 5.
 :::
 
 toolDrop is self-host only: there is no managed cloud version, and no setup uses a paid cloud service.

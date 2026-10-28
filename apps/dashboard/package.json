@@ -1,0 +1,34 @@
+{
+  "name": "@tooldrop/dashboard",
+  "version": "0.0.0",
+  "private": true,
+  "description": "toolDrop's dashboard: tools, runs, logins, approvals, questions and repairs. A static export that tooldrop serve serves.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "next build",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "clsx": "2.1.1",
+    "next": "16.4.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "tailwind-merge": "3.7.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@tooldrop/auth": "workspace:*",
+    "@tooldrop/core": "workspace:*",
+    "@tooldrop/db": "workspace:*",
+    "@tooldrop/engine": "workspace:*",
+    "@tooldrop/fixture-html-app": "workspace:*",
+    "@tooldrop/fixture-kit": "workspace:*",
+    "@tooldrop/runtime": "workspace:*",
+    "@tooldrop/server": "workspace:*",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "playwright": "^1.64.1",
+    "tailwindcss": "4.3.3"
+  }
+}

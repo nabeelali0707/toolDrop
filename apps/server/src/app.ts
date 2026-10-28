@@ -1,13 +1,18 @@
 import {
   APPROVAL_STATUSES,
+  JOB_KINDS,
+  JOB_STATUSES,
   ToolDropError,
   type ApprovalStatus,
   type ErrorCode,
+  type JobKind,
+  type JobStatus,
   type ToolDropErrorJson,
 } from '@tooldrop/core';
 import { verifyApiKey, type PublishedTool } from '@tooldrop/db';
 import { callInputSchema, type Engine, type Scopes } from '@tooldrop/engine';
 import { handleMcpHttp } from '@tooldrop/mcp';
+import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 
 // The REST API (SPEC, MCP and REST interfaces) and remote MCP. Every route but
@@ -17,6 +22,8 @@ export interface ServerOptions {
   engine: Engine;
   /** toolDrop's version, for /health and MCP clients. */
   version?: string;
+  /** The dashboard's static files, served at / next to the API (apps/dashboard). */
+  dashboardDir?: string;
 }
 
 const STATUS: Record<ErrorCode, number> = {
@@ -47,13 +54,14 @@ declare module 'fastify' {
   }
 }
 
-export function createServer({ engine, version = '0.0.0' }: ServerOptions): FastifyInstance {
+export function createServer({ engine, version = '0.0.0', dashboardDir }: ServerOptions): FastifyInstance {
   const app = Fastify({ logger: false });
   app.decorateRequest('scopes', null as unknown as Scopes);
   app.decorateRequest('by', '');
 
   app.addHook('onRequest', (request, _reply, done) => {
-    if (request.url === '/health') return done();
+    // The dashboard's pages are the same for everyone; what they show comes from the API, with a key.
+    if (!needsKey(request.url)) return done();
     try {
       const key = authenticate(engine, request);
       request.scopes = key.scopes;
@@ -74,7 +82,60 @@ export function createServer({ engine, version = '0.0.0' }: ServerOptions): Fast
 
   app.get('/health', () => ({ ok: true, version }));
 
+  if (dashboardDir) {
+    void app.register(fastifyStatic, { root: dashboardDir, prefix: '/', redirect: true });
+  } else {
+    app.get('/', (_request, reply) =>
+      reply
+        .type('text/html')
+        .send(
+          `<!doctype html><title>toolDrop</title><p>toolDrop ${version} is running: the REST API is at /v1 and MCP at /mcp. This installation has no dashboard; build it with <code>pnpm --filter @tooldrop/dashboard build</code>.</p>`,
+        ),
+    );
+  }
+  app.setNotFoundHandler((request, reply) =>
+    needsKey(request.url)
+      ? reply.code(404).send({
+          error: { code: 'not_found', message: `no route ${request.method} ${request.url.split('?')[0]}` },
+        })
+      : reply
+          .code(404)
+          .type('text/html')
+          .send(
+            '<!doctype html><title>Not found</title><p>Not found. <a href="/">Open the dashboard</a></p>',
+          ),
+  );
+
   app.get('/v1/tools', (request) => ({ tools: engine.listTools(request.scopes).map(describeTool) }));
+
+  app.get('/v1/tools/:name', (request) => {
+    const { name } = request.params as { name: string };
+    return { tool: describeTool(engine.getTool(name, request.scopes)) };
+  });
+
+  // The run log: how each call went, never its result (SPEC, runs table).
+  app.get('/v1/runs', (request) => {
+    const { tool, limit } = request.query as { tool?: string; limit?: string };
+    return { runs: engine.listRuns(request.scopes, { ...(tool && { tool }), limit: pageSize(limit) }) };
+  });
+
+  // Builds and heals, e.g. those waiting for an answer, such as a 2FA code.
+  app.get('/v1/jobs', (request) => {
+    const { status, kind, limit } = request.query as { status?: string; kind?: string; limit?: string };
+    if (status !== undefined && !(JOB_STATUSES as readonly string[]).includes(status)) {
+      throw new ToolDropError('invalid_input', `status is one of ${JOB_STATUSES.join(', ')}`);
+    }
+    if (kind !== undefined && !(JOB_KINDS as readonly string[]).includes(kind)) {
+      throw new ToolDropError('invalid_input', `kind is one of ${JOB_KINDS.join(', ')}`);
+    }
+    return {
+      jobs: engine.listJobs(request.scopes, {
+        ...(status && { status: status as JobStatus }),
+        ...(kind && { kind: kind as JobKind }),
+        limit: pageSize(limit),
+      }),
+    };
+  });
 
   app.post('/v1/tools/:name/run', async (request) => {
     const { name } = request.params as { name: string };
@@ -214,6 +275,12 @@ export function createServer({ engine, version = '0.0.0' }: ServerOptions): Fast
   return app;
 }
 
+/** API routes need a key; /health and the dashboard's files do not. */
+function needsKey(url: string): boolean {
+  const path = url.split('?')[0] ?? '';
+  return path.startsWith('/v1/') || path === '/mcp' || path.startsWith('/mcp/');
+}
+
 function authenticate(engine: Engine, request: FastifyRequest): { scopes: Scopes; label: string } {
   const key = /^Bearer\s+(\S+)$/i.exec(request.headers.authorization ?? '')?.[1];
   const record = key ? verifyApiKey(engine.db, key) : undefined;
@@ -224,6 +291,12 @@ function authenticate(engine: Engine, request: FastifyRequest): { scopes: Scopes
     );
   }
   return record;
+}
+
+/** A list's length from ?limit=, between 1 and 200 (default 50). */
+function pageSize(limit: string | undefined): number {
+  const n = Number(limit ?? 50);
+  return Number.isInteger(n) ? Math.min(200, Math.max(1, n)) : 50;
 }
 
 function describeTool(tool: PublishedTool) {

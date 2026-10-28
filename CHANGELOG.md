@@ -43,6 +43,7 @@ This file covers the project as a whole. From the first release on, the publishe
   - A daily health check in `tooldrop serve`, and `tooldrop tools check` to run it now.
   - Version history and rollback: `GET /v1/tools/:name/versions` and `POST /v1/tools/:name/rollback`, and `tooldrop tools versions` and `tooldrop tools rollback`.
   - API keys for OpenAI-compatible endpoints, sealed in the vault.
+- The dashboard (Phase 4), served by `tooldrop serve` on the same port as the API: tools with their schema, a cURL example, versions and rollback; runs; writes waiting for approval with screenshots, and the audit log; questions such as 2FA codes; repairs; and saved logins. New read routes: `GET /v1/tools/:name`, `GET /v1/runs` and `GET /v1/jobs`.
 - The toolDrop Recorder Chrome extension (Phase 4): record a task once in your own Chrome, pick the inputs on a review page, and upload it to your toolDrop server or start the build from there. Installs unpacked.
 - Safe mode (Phase 4): a write tool shows a preview with a screenshot of the filled form, and submits only once approved with `approve_action`, `POST /v1/approvals/:id` or `tooldrop approvals approve`. `dry_run`, policies such as "amount < 100", and an audit log of every write with screenshots from before and after.
 - Watches (Phase 4): run a read tool every 5 minutes or more, and get each new, changed or removed row as a signed webhook and as an MCP log message. `create_watch`, `list_watches` and `delete_watch` over MCP, and `/v1/watches` over REST.

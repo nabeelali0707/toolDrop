@@ -8,7 +8,7 @@ import {
   type JobStatus,
   type ToolDropErrorJson,
 } from '@tooldrop/core';
-import { desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { Queryable } from '../client.ts';
 import { captures, jobs } from '../schema.ts';
 
@@ -26,9 +26,20 @@ export function getJob(db: Queryable, id: string): JobRow | undefined {
   return db.select().from(jobs).where(eq(jobs.id, id)).get();
 }
 
-export function listJobs(db: Queryable, options: { status?: JobStatus; limit?: number } = {}): JobRow[] {
-  const query = db.select().from(jobs);
-  return (options.status ? query.where(eq(jobs.status, options.status)) : query)
+/** Newest first, optionally only one status or kind: e.g. the jobs waiting for an answer, or the heals. */
+export function listJobs(
+  db: Queryable,
+  options: { status?: JobStatus; kind?: JobKind; limit?: number } = {},
+): JobRow[] {
+  return db
+    .select()
+    .from(jobs)
+    .where(
+      and(
+        options.status ? eq(jobs.status, options.status) : undefined,
+        options.kind ? eq(jobs.kind, options.kind) : undefined,
+      ),
+    )
     .orderBy(desc(jobs.created_at))
     .limit(options.limit ?? 50)
     .all();

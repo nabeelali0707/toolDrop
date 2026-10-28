@@ -39,6 +39,7 @@ export default defineConfig({
         text: 'Running toolDrop',
         items: [
           { text: 'Models', link: '/models' },
+          { text: 'The dashboard', link: '/dashboard' },
           { text: 'Self-hosting', link: '/self-hosting' },
         ],
       },

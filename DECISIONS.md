@@ -485,3 +485,15 @@ SPEC's Security criterion: no API, log, error or model prompt ever holds a plain
 - **Review, then upload:** after Finish, a review page picks the inputs, takes the task, and uploads to `POST /v1/recordings`. It can start the build (`POST /v1/builds`) or download the file. Finish needs marked data first, as in the CLI.
 - **The build is not minified,** so the injected functions run as written and anyone can read what runs.
 - **Tests** build the extension with Vite, load it unpacked in Chromium's new headless mode, record on the HTML fixture, and build from the upload with a scripted model.
+
+### D-047 How the dashboard is built and served
+
+*Proposed · 2026-10-28*
+
+- **A static export.** The dashboard is Next.js with Tailwind and components in shadcn/ui's style, as SPEC says, built with `output: 'export'`. `tooldrop serve` serves the files on the same port as the API, so nothing else runs. The published package and the image carry the built files.
+- **Pages call the REST API with a key,** pasted once and kept in the browser's local storage until you sign out. The pages are the same for everyone, so they need no key; every request for data does. A key limited to some tools shows only those tools.
+- **Query parameters instead of dynamic routes:** `/tool/?name=x`, because tools are made after the dashboard is built and a static export cannot route names it never saw.
+- **No `sharp`.** Next.js lists it as optional, for image optimization, which a static export does not use. Its libvips binaries are LGPL, outside the license policy, so a pnpm override leaves it out.
+- **Next.js 16.4.1.** 16.4.0 had critical advisories (GHSA-673q-mjm6-r5xr, GHSA-2464-fhr4-w9xw) and a high-severity one (GHSA-p3m5-59mp-jv5r), all fixed in 16.4.1. A static export runs no Next.js server, so none of them reached toolDrop, but the build pins the fixed release. Next.js's build printed an instruction for AI agents to run `next upgrade --agent=security`; it was not followed, and the advisories were checked in GitHub's database instead.
+- **New read routes for it:** `GET /v1/tools/:name`, `GET /v1/runs` and `GET /v1/jobs` (by status or kind), useful to any client.
+- **Smoke test:** the test builds the export, serves it with toolDrop's own server, signs in with a key in Chromium, and walks the pages. It also approves a write from the Approvals page.

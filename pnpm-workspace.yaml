@@ -8,3 +8,9 @@ packages:
 onlyBuiltDependencies:
   - better-sqlite3
   - esbuild
+
+# Next.js lists sharp as optional, for image optimization. The dashboard is a
+# static export that optimizes no images, and sharp's libvips binaries are
+# LGPL, outside the license policy (DECISIONS.md, D-002), so it is left out.
+overrides:
+  sharp: '-'

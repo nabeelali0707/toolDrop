@@ -39,8 +39,9 @@ export async function runBrowserRecipe(
         if (write && isCommit(step) && write.record.action === undefined) {
           await settle();
           write.record.url = page.url();
+          // In words a person reads, such as: click "Record payment".
           write.record.action =
-            step.op === 'click' ? `click ${describeTarget(step.target)}` : `${step.op} step ${index + 1}`;
+            step.op === 'click' ? `click "${fieldName(step.target)}"` : `${step.op} step ${index + 1}`;
           write.record.before = await page.screenshot({ fullPage: true });
           if (write.mode === 'preview') return undefined;
         }

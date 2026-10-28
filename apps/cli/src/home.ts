@@ -2,6 +2,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'n
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { findKeyStore, readSealed, Vault } from '@tooldrop/auth';
 import { openDatabase, runMigrations } from '@tooldrop/db';
 import { Engine } from '@tooldrop/engine';
@@ -38,6 +39,16 @@ export function writeConfig(config: Config): void {
 export function modelSettings(): LlmSettings {
   const configured = readConfig().llm;
   return configured ? llmSettingsSchema.parse(configured) : defaultSettings();
+}
+
+/**
+ * The dashboard's built pages: next to the bundle in the published package,
+ * or the Next.js export in the repository. Undefined when it was never built.
+ */
+export function dashboardDir(): string | undefined {
+  return ['../dashboard', '../../dashboard/out']
+    .map((path) => fileURLToPath(new URL(path, import.meta.url)))
+    .find((path) => existsSync(join(path, 'index.html')));
 }
 
 /** Where the model endpoint's API key is kept, sealed by the vault. */

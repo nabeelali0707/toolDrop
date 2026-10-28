@@ -220,6 +220,24 @@ export interface RunRecord {
   heal_job_id?: string | null;
 }
 
+export type RunRow = typeof runs.$inferSelect;
+
+/** Recent runs, newest first, with the name of the tool each ran; optionally one tool's only. */
+export function listRuns(
+  db: Queryable,
+  options: { tool?: string; limit?: number } = {},
+): (RunRow & { tool: string })[] {
+  return db
+    .select({ run: runs, tool: tools.name })
+    .from(runs)
+    .innerJoin(tools, eq(tools.id, runs.tool_id))
+    .where(options.tool ? eq(tools.name, options.tool) : undefined)
+    .orderBy(desc(runs.created_at))
+    .limit(options.limit ?? 50)
+    .all()
+    .map(({ run, tool }) => ({ ...run, tool }));
+}
+
 /** Logs how a call went. Results are never stored (SPEC, Performance rules). */
 export function recordRun(db: Queryable, run: RunRecord): string {
   const id = newId();

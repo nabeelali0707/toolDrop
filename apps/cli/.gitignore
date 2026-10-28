@@ -1,6 +1,7 @@
 # Build output and files copied in by the build
 dist/
 migrations/
+dashboard/
 README.md
 LICENSE
 *.tgz

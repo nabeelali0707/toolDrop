@@ -2,6 +2,7 @@
 // every @tooldrop/* workspace package, with third-party packages left as
 // regular npm dependencies. Node does not strip types inside node_modules,
 // so the package must ship plain JavaScript (DECISIONS.md, D-032).
+import { execFileSync } from 'node:child_process';
 import { cpSync, readFileSync, rmSync } from 'node:fs';
 import { builtinModules } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -50,8 +51,12 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-// Files the package needs next to the bundle.
+// Files the package needs next to the bundle: the migrations, and the
+// dashboard's static pages, which `tooldrop serve` serves (apps/dashboard).
 cpSync(here('../../packages/db/migrations'), here('./migrations'), { recursive: true });
+pnpm(['--filter', '@tooldrop/dashboard', 'build']);
+rmSync(here('./dashboard'), { recursive: true, force: true });
+cpSync(here('../dashboard/out'), here('./dashboard'), { recursive: true });
 cpSync(here('../../LICENSE'), here('./LICENSE'));
 cpSync(here('../../README.md'), here('./README.md'));
 
@@ -59,3 +64,13 @@ const size = (readFileSync(here('./dist/tooldrop.js')).length / 1024).toFixed(0)
 console.log(
   `Built dist/tooldrop.js (${size} KiB); external dependencies: ${[...imported].sort().join(', ')}`,
 );
+
+/** Runs pnpm: the one running this script when there is one, which avoids shell differences. */
+function pnpm(args: string[]): void {
+  const execPath = process.env.npm_execpath;
+  if (execPath && /\.[cm]?js$/.test(execPath)) {
+    execFileSync(process.execPath, [execPath, ...args], { stdio: 'inherit' });
+  } else {
+    execFileSync('pnpm', args, { stdio: 'inherit', shell: process.platform === 'win32' });
+  }
+}

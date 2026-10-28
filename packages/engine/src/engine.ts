@@ -1,6 +1,8 @@
 import {
   ToolDropError,
   type ApprovalView,
+  type JobKind,
+  type JobStatus,
   type LoginView,
   type PolicyView,
   type RecipeOrigin,
@@ -12,7 +14,9 @@ import {
   findTools,
   getTool,
   keyAllows,
+  listJobs,
   listLogins,
+  listRuns,
   listTools,
   listVersions,
   publishTool,
@@ -37,6 +41,20 @@ export const HEAL_HOLD_MS = 5 * 60_000;
 
 // What the interfaces (MCP, REST, CLI) call: tools, recordings, builds,
 // logins, heals and watches.
+
+/** A run as the run log shows it (SPEC, runs table). */
+export interface RunView {
+  id: string;
+  tool: string;
+  version: number;
+  strategy: string;
+  duration_ms: number;
+  ok: boolean;
+  error_code: string | null;
+  healed: boolean;
+  heal_job_id: string | null;
+  created_at: string;
+}
 
 /** Who is asking: the tools an API key may use. Local stdio clients get every tool. */
 export type Scopes = string[];
@@ -396,6 +414,42 @@ export class Engine {
 
   deletePolicy(id: string, scopes: Scopes = ALL): void {
     this.approvals.deletePolicy(id, scopes);
+  }
+
+  /** One published tool, when the key may use it. */
+  getTool(name: string, scopes: Scopes = ALL): PublishedTool {
+    const tool = getTool(this.db, name);
+    if (!tool || tool.status === 'disabled' || !keyAllows(scopes, name)) {
+      throw new ToolDropError('not_found', `no tool named ${name}`);
+    }
+    return tool;
+  }
+
+  /** The run log, newest first: how each call went, never its result. */
+  listRuns(scopes: Scopes = ALL, options: { tool?: string; limit?: number } = {}): RunView[] {
+    return listRuns(this.db, options)
+      .filter((run) => keyAllows(scopes, run.tool))
+      .map((run) => ({
+        id: run.id,
+        tool: run.tool,
+        version: run.recipe_version,
+        strategy: run.strategy_used,
+        duration_ms: run.duration_ms,
+        ok: run.ok,
+        error_code: run.error_code,
+        healed: run.healed,
+        heal_job_id: run.heal_job_id,
+        created_at: run.created_at.toISOString(),
+      }));
+  }
+
+  /** Recent jobs, newest first: builds and heals, e.g. those waiting for an answer. */
+  listJobs(
+    scopes: Scopes = ALL,
+    options: { status?: JobStatus; kind?: JobKind; limit?: number } = {},
+  ): JobView[] {
+    requireFullAccess(scopes);
+    return listJobs(this.db, options).map((job) => this.builds.view(job.id));
   }
 
   /** Calls `listener` whenever the published tools change, e.g. to send MCP's list_changed. */

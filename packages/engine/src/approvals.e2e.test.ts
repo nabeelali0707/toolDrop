@@ -72,7 +72,7 @@ describe('safe mode', () => {
     const { approval_id: id, preview } = await askToPay('INV-1057', 100);
     expect(preview).toEqual({
       url: `${fixture.url}/payments/new`,
-      action: 'click role=button[name="Record payment"] | css=button[type=submit]',
+      action: 'click "Record payment"',
       fields: [
         { field: 'Invoice number', value: 'INV-1057' },
         { field: 'Amount', value: '100' },

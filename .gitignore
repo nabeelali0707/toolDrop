@@ -18,3 +18,9 @@ coverage/
 # VitePress output
 docs/.vitepress/cache/
 docs/.vitepress/dist/
+
+# The dashboard's build (Next.js)
+.next/
+apps/dashboard/out/
+apps/dashboard/next-env.d.ts
+apps/cli/dashboard/

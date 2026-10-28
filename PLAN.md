@@ -163,10 +163,10 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
   Files: `packages/core/src/{approval,tool}.ts`, `packages/runtime/src/{write,runtime}.ts`, `packages/runtime/src/executors/{browser,http}.ts`, `packages/engine/src/approvals.ts`, `packages/db/migrations/0005_*`, `apps/server/src/app.ts`, `apps/mcp/src/server.ts`, `apps/cli/src/commands/{approvals,run}.ts`, `fixtures/html-app/src/payments.ts`, tests
 - [x] **4.7 Safe mode: policies and audit.** Policies on one input ("amount < 100") from REST or the CLI only, the dry-run flag, and the approvals table as the audit log with screenshots before and after.
   Files: `packages/core/src/approval.ts`, `packages/db/src/repos/approvals.ts`, `packages/engine/src/approvals.ts`, `apps/cli/src/commands/approvals.ts`, tests
-- [ ] **4.8 `dashboard`: tools and runs.** Next.js scaffold with an API client; tool pages with schema and a cURL example; run history.
-  Files: `apps/dashboard/package.json`, `apps/dashboard/app/{layout,page}.tsx`, `apps/dashboard/app/tools/*`, `apps/dashboard/app/runs/*`
-- [ ] **4.9 `dashboard`: logins, approvals, 2FA, heals.** Masked logins, approve or reject previews with the screenshot, answer human-in-the-loop 2FA prompts, heal log.
-  Files: `apps/dashboard/app/{logins,approvals,heals}/*`, tests
+- [x] **4.8 `dashboard`: tools and runs.** A Next.js static export served by `tooldrop serve` (D-047); sign-in with an API key; tool pages with schema, a cURL example, versions with rollback and recent runs; the run log.
+  Files: `apps/dashboard/{package.json,next.config.ts}`, `apps/dashboard/app/{layout,page}.tsx`, `apps/dashboard/app/{tool,runs}/page.tsx`, `apps/dashboard/components/*`, `apps/dashboard/lib/*`, `apps/server/src/app.ts` (static files, `/v1/tools/:name`, `/v1/runs`, `/v1/jobs`), `apps/cli/{build.ts,src/home.ts}`
+- [x] **4.9 `dashboard`: logins, approvals, 2FA, heals.** Masked logins and a form to save one; writes waiting for approval with their screenshot, and the audit log; questions such as 2FA codes with an answer box; the heal log and recent builds.
+  Files: `apps/dashboard/app/{logins,approvals,jobs}/page.tsx`, `apps/dashboard/test/dashboard.e2e.test.ts`
 - [ ] **4.10 `auth`: identity providers and captchas.** SPEC's sign-in rules that Phase 3's plan missed. When a sign-in leads to another origin (Okta, Microsoft), ask once to approve it and record it on the site; never type a login into an origin that is not approved. When a sign-in or a build meets a captcha, pause and ask a person to solve it (D-018).
   Files: `packages/compiler/src/login/build-login.ts`, `packages/engine/src/sessions.ts`, `packages/db/src/repos/tools.ts` (sites), a second-origin switch on `fixtures/login-totp`, tests
 - [ ] **4.11 Recording behind a sign-in.** `tooldrop record` starts from the site's saved session, so the recording holds only the task.
@@ -220,7 +220,7 @@ From your release plan (2026-10-26). It runs alongside the phases: each item nee
 - [x] **R4 MCP directory listings.** `server.json` (validated), `glama.json`, `smithery.yaml`, `listings/README.md`; not submitted.
 - [x] **R5 Install path A (npx), C (global CLI) and D (from source).** Tested from clean folders with the packed package.
 - [x] **R6 Release automation.** Changesets; a tag-triggered workflow with npm provenance, a multi-arch image on ghcr.io signed with cosign, and a GitHub release (D-033). Runs for the first time at your first tag.
-- [ ] **R7 Install path B (Docker Compose).** The image and `compose.yaml` (app, Ollama, model download) are built and checked in CI. Still needed: the dashboard on port 3000 (Phase 4), and Postgres and Valkey (Phase 5).
+- [ ] **R7 Install path B (Docker Compose).** The image and `compose.yaml` (app, Ollama, model download) are built and checked in CI, with the dashboard on port 3000. Still needed: Postgres and Valkey (Phase 5).
 - [x] **R8 Bring your own model.** `tooldrop init` sizes and pulls Ollama models, and accepts any OpenAI-compatible endpoint; a key is sealed in the vault.
 - [ ] **R9 Main use case: the Demo Shop.** Steps 1 to 4 pass end to end with a scripted model (`apps/server/src/demo-shop.e2e.test.ts`): save the login, build `list_orders` from the shop's own API behind sign-in and TOTP, and answer which orders have not arrived in under 2 seconds. The watch, the dashboard and the demo GIF need Phase 4.
 - [ ] **R10 Chrome extension release zip and store listing.** The extension, its icons and its privacy policy (`docs/privacy.md`) are done, and the release workflow zips it at your first tag. Still needed: store screenshots and the listing, which you submit.

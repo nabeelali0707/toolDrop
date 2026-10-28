@@ -52,11 +52,18 @@ describe('REST API', () => {
     expect(response.json()).toEqual({ ok: true, version: '1.2.3' });
   });
 
-  it('needs a valid API key everywhere else', async () => {
+  it('needs a valid API key for the API, but not for the pages', async () => {
     expect((await app.inject({ url: '/v1/tools' })).statusCode).toBe(401);
     const wrong = await app.inject({ url: '/v1/tools', headers: { authorization: 'Bearer td_wrong' } });
     expect(wrong.statusCode).toBe(401);
     expect(wrong.json()).toMatchObject({ error: { code: 'unauthorized' } });
+    // Without a built dashboard, the root says where the API is.
+    const root = await app.inject({ url: '/' });
+    expect(root.statusCode).toBe(200);
+    expect(root.body).toContain('the REST API is at /v1');
+    const unknown = await app.inject({ url: '/v1/nothing-here', headers: auth() });
+    expect(unknown.statusCode).toBe(404);
+    expect(unknown.json()).toMatchObject({ error: { code: 'not_found' } });
   });
 
   it('lists tools with their schemas', async () => {
