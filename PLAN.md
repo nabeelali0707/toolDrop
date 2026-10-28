@@ -155,10 +155,10 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
   Files: `apps/extension/src/content/recorder.ts`, `apps/extension/src/popup/mark-inputs.ts`, tests in Chromium with the unpacked extension
 - [ ] **4.3 `extension`: network capture and upload.** Network capture through `chrome.debugger` (needed for response bodies), export as recording v1, upload to `POST /v1/recordings`.
   Files: `apps/extension/src/background/{network,upload}.ts`, tests
-- [ ] **4.4 `watches`: scheduler and diff.** `node-cron` schedules (5-minute minimum), snapshot hashes, diff by key field into `created`, `updated` and `deleted`.
-  Files: `packages/watches/package.json`, `packages/watches/src/{scheduler,diff}.ts`, tests
-- [ ] **4.5 `watches`: delivery.** HMAC-SHA256 signatures with a timestamp, retries with backoff, MCP notifications, `create_watch` and `delete_watch`, `POST /v1/watches`.
-  Files: `packages/watches/src/deliver.ts`, `apps/server/src/routes/watches.ts`, `apps/mcp/src/tools/watches.ts`, tests
+- [x] **4.4 `watches`: scheduler and diff.** A 30-second timer with a lease per watch (D-044), a 5-minute minimum interval, row hashes, diff by key field into `created`, `updated` and `deleted`; an `/__fixture/invoices` control that adds a row.
+  Files: `packages/watches/src/diff.ts`, `packages/engine/src/watches.ts`, `packages/db/src/repos/watches.ts`, `packages/db/migrations/0004_*`, `fixtures/kit/src/switches.ts`, tests
+- [x] **4.5 `watches`: delivery.** HMAC-SHA256 signatures with a timestamp, retries with backoff, MCP log notifications, `create_watch`, `list_watches` and `delete_watch`, `POST`, `GET` and `DELETE /v1/watches`; the scheduler runs in `serve` and `mcp`.
+  Files: `packages/watches/src/deliver.ts`, `apps/server/src/app.ts`, `apps/mcp/src/server.ts`, `apps/cli/src/commands/{serve,mcp}.ts`, tests
 - [ ] **4.6 Safe mode: previews and approvals.** Preview (fields, target page, screenshot), approval tokens, `approve_action`, `POST /v1/approvals/:id`, plus a write form on the HTML fixture to test against.
   Files: `packages/runtime/src/safe-mode/{preview,approvals}.ts`, `apps/server/src/routes/approvals.ts`, `apps/mcp/src/tools/approvals.ts`, `fixtures/html-app/src/views.ts`, tests
 - [ ] **4.7 Safe mode: policies and audit.** Policies (e.g. "auto-approve under $100"), the dry-run flag, a write audit log with before and after evidence.

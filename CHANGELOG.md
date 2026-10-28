@@ -43,3 +43,4 @@ This file covers the project as a whole. From the first release on, the publishe
   - A daily health check in `tooldrop serve`, and `tooldrop tools check` to run it now.
   - Version history and rollback: `GET /v1/tools/:name/versions` and `POST /v1/tools/:name/rollback`, and `tooldrop tools versions` and `tooldrop tools rollback`.
   - API keys for OpenAI-compatible endpoints, sealed in the vault.
+- Watches (Phase 4): run a read tool every 5 minutes or more, and get each new, changed or removed row as a signed webhook and as an MCP log message. `create_watch`, `list_watches` and `delete_watch` over MCP, and `/v1/watches` over REST.

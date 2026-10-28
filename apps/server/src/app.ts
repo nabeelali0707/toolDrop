@@ -114,6 +114,20 @@ export function createServer({ engine, version = '0.0.0' }: ServerOptions): Fast
     return { logins: await engine.listLogins(request.scopes, site) };
   });
 
+  // Watches: a read tool's changes, sent to a webhook (SPEC, create_watch and delete_watch).
+  // The signing secret is in the answer to the POST, and never again.
+  app.post('/v1/watches', async (request, reply) =>
+    reply.code(201).send(await engine.createWatch(request.body ?? {}, request.scopes)),
+  );
+
+  app.get('/v1/watches', (request) => ({ watches: engine.listWatches(request.scopes) }));
+
+  app.delete('/v1/watches/:id', (request, reply) => {
+    const { id } = request.params as { id: string };
+    engine.deleteWatch(id, request.scopes);
+    return reply.code(204).send();
+  });
+
   // A recording may carry its network log as HAR, so it gets a larger body limit.
   app.post('/v1/recordings', { bodyLimit: 20 * 1024 * 1024 }, async (request, reply) => {
     const { id } = engine.saveRecording(request.body, request.scopes);

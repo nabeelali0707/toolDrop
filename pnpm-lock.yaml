@@ -396,6 +396,9 @@ importers:
       '@tooldrop/runtime':
         specifier: workspace:*
         version: link:../runtime
+      '@tooldrop/watches':
+        specifier: workspace:*
+        version: link:../watches
       playwright:
         specifier: ^1.64.1
         version: 1.64.1
@@ -488,6 +491,12 @@ importers:
       '@tooldrop/fixture-kit':
         specifier: workspace:*
         version: link:../../fixtures/kit
+
+  packages/watches:
+    dependencies:
+      '@tooldrop/core':
+        specifier: workspace:*
+        version: link:../core
 
 packages:
 

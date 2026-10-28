@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import type { Invoice } from './invoices.ts';
 
 // Switches change a fixture the way a real site changes under us (a renamed
 // button, a moved field, a new API path), so tests can trigger the cascade and
@@ -53,4 +54,28 @@ export function registerControls<T extends Record<string, boolean>>(
     onReset();
     return reply.code(204).send();
   });
+}
+
+/**
+ * POST /__fixture/invoices adds an invoice as the newest, the way a new one
+ * appears on a real site; watches test against it. Returns what the reset
+ * calls to remove added invoices again.
+ */
+export function registerInvoiceControls(app: FastifyInstance, invoices: Invoice[]): () => void {
+  const seeded = invoices.slice();
+  app.post('/__fixture/invoices', async (_request, reply) => {
+    const numbers = invoices.map((invoice) => Number(invoice.number.slice('INV-'.length)));
+    const newest = invoices[0]?.issued_on ?? '2026-01-05';
+    const invoice: Invoice = {
+      number: `INV-${Math.max(1000, ...numbers) + 1}`,
+      supplier: 'Acme Paper',
+      issued_on: new Date(Date.parse(newest) + 86_400_000).toISOString().slice(0, 10),
+      amount: 100,
+      currency: 'USD',
+      status: 'open',
+    };
+    invoices.unshift(invoice);
+    return reply.code(201).send(invoice);
+  });
+  return () => invoices.splice(0, invoices.length, ...seeded);
 }

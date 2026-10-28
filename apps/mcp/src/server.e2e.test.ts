@@ -1,7 +1,11 @@
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { ToolListChangedNotificationSchema, type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import {
+  LoggingMessageNotificationSchema,
+  ToolListChangedNotificationSchema,
+  type CallToolResult,
+} from '@modelcontextprotocol/sdk/types.js';
 import { memoryKeyStore } from '@tooldrop/auth';
 import { openDatabase, runMigrations, type DatabaseHandle } from '@tooldrop/db';
 import { Engine, readToolFile } from '@tooldrop/engine';
@@ -17,11 +21,17 @@ const searchInvoices = readToolFile(
 let handle: DatabaseHandle;
 let engine: Engine;
 let fixture: RunningFixture;
+let now: number;
 
 beforeEach(async () => {
   handle = openDatabase(':memory:');
   runMigrations(handle.db);
-  engine = new Engine({ db: handle.db, keyStore: () => Promise.resolve(memoryKeyStore()) });
+  now = Date.parse('2026-10-28T12:00:00Z');
+  engine = new Engine({
+    db: handle.db,
+    keyStore: () => Promise.resolve(memoryKeyStore()),
+    watches: { now: () => now, delivery: { backoffMs: [] } },
+  });
   fixture = await startHtmlAppFixture();
   engine.publish(searchInvoices, fixture.url);
 });
@@ -50,6 +60,9 @@ describe('MCP server', () => {
     expect(tools.map((tool) => tool.name)).toEqual([
       'find_tool',
       'run_tool',
+      'create_watch',
+      'list_watches',
+      'delete_watch',
       'build_tool',
       'get_job',
       'answer_question',
@@ -145,9 +158,44 @@ describe('MCP server', () => {
     expect(JSON.stringify([saved, listed])).not.toContain(password);
   });
 
+  it('watches a tool, and sends its changes as log notifications', async () => {
+    const { client, call } = await connect();
+    const events: unknown[] = [];
+    client.setNotificationHandler(LoggingMessageNotificationSchema, ({ params }) => {
+      if (params.logger === 'tooldrop.watches') events.push(params.data);
+    });
+    const created = await call('create_watch', {
+      tool: 'search_invoices',
+      interval_s: 300,
+      key_field: 'number',
+      webhook_url: 'http://127.0.0.1:9/hooks',
+    });
+    const { watch } = created.structuredContent as { watch: { id: string } };
+    expect((await call('list_watches')).structuredContent).toMatchObject({ watches: [{ id: watch.id }] });
+
+    await fetch(`${fixture.url}/__fixture/invoices`, { method: 'POST' });
+    now += 300_000;
+    await engine.watches.tick();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: 'created', key: 'INV-1058', watch_id: watch.id }),
+    );
+
+    expect((await call('delete_watch', { watch_id: watch.id })).structuredContent).toEqual({
+      deleted: watch.id,
+    });
+    expect((await call('list_watches')).structuredContent).toEqual({ watches: [] });
+  });
+
   it("shows only the tools an API key's scopes allow", async () => {
     const { client, call } = await connect({ scopes: ['list_orders'] });
-    expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual(['find_tool', 'run_tool']);
+    expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual([
+      'find_tool',
+      'run_tool',
+      'create_watch',
+      'list_watches',
+      'delete_watch',
+    ]);
     const response = await call('search_invoices', {});
     expect(JSON.parse((response.content[0] as { text: string }).text)).toMatchObject({
       error: { code: 'forbidden' },

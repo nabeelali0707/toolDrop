@@ -11,6 +11,7 @@ import {
   listen,
   pageOf,
   registerControls,
+  registerInvoiceControls,
   type Invoice,
   type InvoiceColumn,
   type InvoiceFilter,
@@ -40,7 +41,7 @@ export function createHtmlAppFixture(): FastifyInstance {
     dateFilterMoved: false,
     columnsReordered: false,
   });
-  registerControls(app, switches);
+  registerControls(app, switches, registerInvoiceControls(app, invoices));
 
   app.get('/', async (_request, reply) => reply.redirect('/invoices'));
 

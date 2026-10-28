@@ -249,7 +249,17 @@ export const watches = sqliteTable(
     webhook_url: text().notNull(),
     /** HMAC key for signing webhooks, encrypted like every secret. */
     secret: blob({ mode: 'buffer' }).notNull(),
+    /** Hash of the whole last result, to skip the diff when nothing changed. */
     last_snapshot_hash: text(),
+    /** Hash of each row of the last result, by key. The rows themselves are never kept. */
+    row_hashes: text({ mode: 'json' }).$type<Record<string, string>>(),
+    /** When the next run is due; null means now. */
+    next_run_at: integer({ mode: 'timestamp_ms' }),
+    /** Set while a process runs the watch, so another one sharing the database leaves it alone. */
+    lease_until: integer({ mode: 'timestamp_ms' }),
+    last_run_at: integer({ mode: 'timestamp_ms' }),
+    /** Why the last run or delivery failed, until one works. */
+    last_error: text(),
     ...timestamps,
   },
   (t) => [

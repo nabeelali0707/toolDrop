@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { escapeHtml, invoiceTable } from './html.ts';
 import { createInvoices, filterInvoices, pageOf } from './invoices.ts';
 import { cookie, listen, parseCookies, type RunningFixture } from './server.ts';
-import { createSwitches, registerControls } from './switches.ts';
+import { createSwitches, registerControls, registerInvoiceControls } from './switches.ts';
 
 describe('invoices', () => {
   const invoices = createInvoices();
@@ -97,5 +97,26 @@ describe('switches', () => {
     const { post } = await start();
     const response = await post('/__fixture/switches', { colorChanged: true });
     expect(response.status).toBe(400);
+  });
+});
+
+describe('invoice controls', () => {
+  let fixture: RunningFixture | undefined;
+  afterEach(() => fixture?.close());
+
+  it('add the newest invoice over HTTP, and the reset removes it', async () => {
+    const app = Fastify();
+    const invoices = createInvoices();
+    registerControls(app, createSwitches({}), registerInvoiceControls(app, invoices));
+    fixture = await listen(app);
+    const added = await fetch(`${fixture.url}/__fixture/invoices`, { method: 'POST' });
+    expect(added.status).toBe(201);
+    expect(await added.json()).toMatchObject({ number: 'INV-1058', issued_on: '2026-06-23', status: 'open' });
+    expect(invoices).toHaveLength(58);
+    expect(invoices[0]?.number).toBe('INV-1058');
+
+    await fetch(`${fixture.url}/__fixture/reset`, { method: 'POST' });
+    expect(invoices).toHaveLength(57);
+    expect(invoices[0]?.number).toBe('INV-1057');
   });
 });

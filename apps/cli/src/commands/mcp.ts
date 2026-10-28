@@ -7,6 +7,8 @@ export async function mcp(): Promise<number> {
   console.log = console.info = console.debug = console.error;
   const { engine, close } = openEngine();
   const server = await serveStdio(engine, { version: version() });
+  // Watches run while the client keeps toolDrop running, and report changes to it as well.
+  engine.watches.start();
   await new Promise<void>((resolve) => {
     const previous = server.onclose;
     server.onclose = () => {

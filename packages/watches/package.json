@@ -1,0 +1,17 @@
+{
+  "name": "@tooldrop/watches",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Watches: diffing a tool's result by its key field, and signed webhook delivery.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@tooldrop/core": "workspace:*"
+  }
+}

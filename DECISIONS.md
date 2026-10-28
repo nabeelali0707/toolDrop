@@ -446,3 +446,16 @@ SPEC's Security criterion: no API, log, error or model prompt ever holds a plain
 - **Placeholders stay visible.** A `{{template}}`, the same after an auth scheme (`Bearer {{vars.token}}`), and a JSONPath such as `$.token` say where a secret goes, not what it is. Masking them hid the recipe from the model reviewing it. The Demo Shop test found this.
 - **The test:** `apps/server/src/security.e2e.test.ts` signs in with TOTP, builds a tool and calls it, then expires the sessions and calls it again. It searches every prompt, every REST answer, the database with its WAL, and the capture files for the account's username, password and authenticator secret. It also checks that no prompt, answer or capture file holds the session cookie.
 - **An OpenAI-compatible endpoint's API key** is sealed in the vault, in `<home>/secrets/llm-api-key` (mode 600), and never written to `config.json`. `tooldrop init` asks for it without echoing it, or reads it from stdin with `--api-key-stdin`. It is sealed with the endpoint's URL and sent only there: after `init` switches to another endpoint, the old key stays unused. It is unsealed on the first model call, so commands that make none never open the vault.
+
+### D-044 How watches run
+
+*Proposed · 2026-10-28*
+
+- **A timer, not `node-cron`.** SPEC lists `node-cron` for local scheduling, but a watch has an interval in seconds, not a cron expression. The engine looks for due watches every 30 seconds with a plain timer, so no dependency is needed.
+- **Where they run:** in `tooldrop serve` and `tooldrop mcp`, the processes that keep running. A run takes its watch with a lease in the database, in one UPDATE statement, so processes that share the database never run a watch twice.
+- **The first run is the baseline,** made when the watch is created. It sends nothing, and it shows at once whether the tool works and whether the key field tells rows apart: a key that is missing or repeats fails the creation with the reason.
+- **Only hashes are kept:** a hash of each row by key, and one of the whole result. Tool results never stay on disk, so a deleted row is reported by its key alone.
+- **One webhook per change,** signed as D-029 promised, with retries after 1, 5 and 25 seconds for timeouts, 408, 429 and 5xx. Redirects are not followed, so a signed event only reaches its URL. A change that is not delivered stays out of the snapshot, and the next run sends it again: at least once.
+- **The secret** is 32 random bytes, sealed in the vault, and shown once, in the answer that creates the watch.
+- **Who may watch:** any API key that may run the tool. Runs after that need no key. Only read tools can be watched.
+- **MCP:** watch events go to stdio clients as log messages from the `tooldrop.watches` logger. Clients ignore unknown notification types, but they handle log messages. Remote clients over HTTP get none, as with `list_changed`: that transport keeps no sessions.

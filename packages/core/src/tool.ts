@@ -12,6 +12,7 @@ export const MANAGEMENT_TOOL_NAMES = [
   'approve_action',
   'create_watch',
   'delete_watch',
+  'list_watches',
   'list_logins',
   'add_login',
 ] as const;

@@ -9,7 +9,7 @@ import {
   type Tool,
 } from '@modelcontextprotocol/sdk/types.js';
 import { ToolDropError, type ToolDropErrorJson } from '@tooldrop/core';
-import type { PublishedTool } from '@tooldrop/db';
+import { keyAllows, type PublishedTool } from '@tooldrop/db';
 import type { Engine, Scopes } from '@tooldrop/engine';
 
 // toolDrop's MCP server (SPEC, MCP and REST interfaces): fixed management
@@ -22,7 +22,7 @@ export interface McpOptions {
   version?: string;
 }
 
-const INSTRUCTIONS = `toolDrop turns tasks on websites into tools. Every published tool is listed as its own tool: call it directly with its inputs. Results are plain data, returned in a second or two without a model. Use find_tool to search published tools by site or task, and run_tool to run one by name.
+const INSTRUCTIONS = `toolDrop turns tasks on websites into tools. Every published tool is listed as its own tool: call it directly with its inputs. Results are plain data, returned in a second or two without a model. Use find_tool to search published tools by site or task, and run_tool to run one by name. Use create_watch to be told when a read tool's result changes.
 To make a new tool, call build_tool with the site's URL and the task. A build takes one to a few minutes: poll get_job every 15 seconds until it succeeds or fails. When a job asks a question (status waiting_for_answer), ask the user if you cannot answer it yourself, then call answer_question. Always ask the user before building a tool with authority "write".`;
 
 const META_SCHEMA = {
@@ -67,6 +67,47 @@ const MANAGEMENT_TOOLS: Tool[] = [
       required: ['name'],
     },
     annotations: { readOnlyHint: false, openWorldHint: true },
+  },
+  {
+    name: 'create_watch',
+    title: 'Watch a tool for changes',
+    description:
+      'Run a read tool every interval (at least 300 seconds) and POST each new, changed or removed row to a webhook, signed with HMAC-SHA256. The first run is the baseline. Returns the watch and the signing secret, which is shown only once. Changes also arrive here as log notifications.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tool: { type: 'string', description: 'The read tool to run.' },
+        inputs: { type: 'object', description: "The tool's inputs, the same on every run." },
+        interval_s: { type: 'integer', minimum: 300, description: 'Seconds between runs.' },
+        key_field: {
+          type: 'string',
+          description: 'The output field that tells rows apart, such as an invoice number.',
+        },
+        webhook_url: { type: 'string', description: 'Where to POST each change (http or https).' },
+      },
+      required: ['tool', 'interval_s', 'key_field', 'webhook_url'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, openWorldHint: true },
+  },
+  {
+    name: 'list_watches',
+    title: 'List watches',
+    description: 'The watches on tools you can use, with when each last ran and its last error.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  {
+    name: 'delete_watch',
+    title: 'Delete a watch',
+    description: 'Stop a watch. Its webhook gets no more events.',
+    inputSchema: {
+      type: 'object',
+      properties: { watch_id: { type: 'string' } },
+      required: ['watch_id'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
   },
 ];
 
@@ -186,7 +227,7 @@ export function createMcpServer(engine: Engine, options: McpOptions = {}): Serve
   const scopes = options.scopes ?? ['*'];
   const server = new Server(
     { name: 'tooldrop', title: 'toolDrop', version: options.version ?? '0.0.0' },
-    { capabilities: { tools: { listChanged: true } }, instructions: INSTRUCTIONS },
+    { capabilities: { tools: { listChanged: true }, logging: {} }, instructions: INSTRUCTIONS },
   );
 
   const management = scopes.includes('*')
@@ -216,6 +257,13 @@ export function createMcpServer(engine: Engine, options: McpOptions = {}): Serve
         );
         return success({ job });
       }
+      if (params.name === 'create_watch') return success(await engine.createWatch(args, scopes));
+      if (params.name === 'list_watches') return success({ watches: engine.listWatches(scopes) });
+      if (params.name === 'delete_watch') {
+        const id = requiredString(args.watch_id, 'watch_id');
+        engine.deleteWatch(id, scopes);
+        return success({ deleted: id });
+      }
       if (params.name === 'find_tool') {
         const query = { site: optionalString(args.site, 'site'), task: optionalString(args.task, 'task') };
         return success({ tools: engine.findTools(query, scopes).map(describeTool) });
@@ -234,7 +282,17 @@ export function createMcpServer(engine: Engine, options: McpOptions = {}): Serve
   const unsubscribe = engine.onToolsChanged(() => {
     server.sendToolListChanged().catch(() => undefined);
   });
-  server.onclose = unsubscribe;
+  // Watch events as MCP log messages, which every client understands (SPEC, Watches).
+  const unwatch = engine.watches.onEvent((event) => {
+    if (!keyAllows(scopes, event.tool)) return;
+    server
+      .sendLoggingMessage({ level: 'info', logger: 'tooldrop.watches', data: event })
+      .catch(() => undefined);
+  });
+  server.onclose = () => {
+    unsubscribe();
+    unwatch();
+  };
   return server;
 }
 

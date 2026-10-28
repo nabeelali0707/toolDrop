@@ -109,6 +109,45 @@ describe('versions', () => {
   });
 });
 
+describe('watches', () => {
+  it('creates a watch, shows its secret once, lists and deletes it', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/watches',
+      headers: auth(),
+      payload: {
+        tool: 'search_invoices',
+        interval_s: 300,
+        key_field: 'number',
+        webhook_url: 'http://127.0.0.1:9/hooks',
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const { watch, secret } = created.json<{ watch: { id: string }; secret: string }>();
+    expect(watch).toMatchObject({ tool: 'search_invoices', key_field: 'number', last_error: null });
+
+    const listed = await app.inject({ url: '/v1/watches', headers: auth() });
+    expect(listed.json()).toEqual({ watches: [watch] });
+    expect(listed.body).not.toContain(secret);
+
+    const remove = () => app.inject({ method: 'DELETE', url: `/v1/watches/${watch.id}`, headers: auth() });
+    expect((await remove()).statusCode).toBe(204);
+    expect((await remove()).statusCode).toBe(404);
+    const tooOften = await app.inject({
+      method: 'POST',
+      url: '/v1/watches',
+      headers: auth(),
+      payload: {
+        tool: 'search_invoices',
+        interval_s: 60,
+        key_field: 'number',
+        webhook_url: 'http://127.0.0.1:9/',
+      },
+    });
+    expect(tooOften.statusCode).toBe(400);
+  });
+});
+
 describe('logins', () => {
   const password = 'fixture-password-not-real';
 

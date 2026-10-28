@@ -4,6 +4,7 @@ import {
   type RecipeOrigin,
   type Recording,
   type ToolFile,
+  type WatchView,
 } from '@tooldrop/core';
 import {
   findTools,
@@ -26,12 +27,13 @@ import { Builds, type BuildOptions, type JobView } from './builds.ts';
 import { readRecording, writeRecording } from './recordings.ts';
 import { Heals } from './heals.ts';
 import { Sessions, type SignInOptions } from './sessions.ts';
+import { Watches, type WatchOptions } from './watches.ts';
 
 /** How long a failed call waits for its repair (SPEC, Runtime execution cascade step 7). */
 export const HEAL_HOLD_MS = 5 * 60_000;
 
-// What the interfaces (MCP, REST, CLI) call: tools, recordings and builds.
-// Heals and watches join this class in later phases.
+// What the interfaces (MCP, REST, CLI) call: tools, recordings, builds,
+// logins, heals and watches.
 
 /** Who is asking: the tools an API key may use. Local stdio clients get every tool. */
 export type Scopes = string[];
@@ -57,6 +59,8 @@ export interface EngineOptions {
   backgroundHeals?: boolean;
   /** Where the vault's master key lives; the vault opens on first use (SPEC, Authentication). */
   keyStore?: () => Promise<KeyStore>;
+  /** The watch scheduler's clock and webhook delivery; tests set them. */
+  watches?: WatchOptions;
 }
 
 export class Engine {
@@ -65,6 +69,7 @@ export class Engine {
   readonly builds: Builds;
   readonly sessions: Sessions;
   readonly heals: Heals;
+  readonly watches: Watches;
   readonly #healHoldMs: number;
   readonly #backgroundHeals: boolean;
   readonly #dataDir: string | undefined;
@@ -80,6 +85,7 @@ export class Engine {
     this.builds = new Builds(this, options.builds);
     this.sessions = new Sessions(this, options.builds?.browser ? { browser: options.builds.browser } : {});
     this.heals = new Heals(this);
+    this.watches = new Watches(this, options.watches);
     this.#healHoldMs = options.healHoldMs ?? HEAL_HOLD_MS;
     this.#backgroundHeals = options.backgroundHeals ?? true;
   }
@@ -328,6 +334,19 @@ export class Engine {
     return results;
   }
 
+  /** Watches a read tool and sends its changes to a webhook (SPEC, create_watch and POST /v1/watches). */
+  createWatch(input: unknown, scopes: Scopes = ALL): Promise<{ watch: WatchView; secret: string }> {
+    return this.watches.create(input, scopes);
+  }
+
+  listWatches(scopes: Scopes = ALL): WatchView[] {
+    return this.watches.list(scopes);
+  }
+
+  deleteWatch(id: string, scopes: Scopes = ALL): void {
+    this.watches.delete(id, scopes);
+  }
+
   /** Calls `listener` whenever the published tools change, e.g. to send MCP's list_changed. */
   onToolsChanged(listener: () => void): () => void {
     this.#listeners.add(listener);
@@ -335,6 +354,7 @@ export class Engine {
   }
 
   async close(): Promise<void> {
+    await this.watches.stop();
     await this.runtime.close();
   }
 }

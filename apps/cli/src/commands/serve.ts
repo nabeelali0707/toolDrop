@@ -37,6 +37,8 @@ export async function serve(args: string[]): Promise<number> {
     engine.healthCheck().catch(() => undefined);
   }, HEALTH_CHECK_MS);
   healthCheck.unref();
+  // Watches run while the server runs (SPEC, Watches); engine.close stops them.
+  engine.watches.start();
 
   await new Promise<void>((resolve) => {
     process.once('SIGINT', resolve);

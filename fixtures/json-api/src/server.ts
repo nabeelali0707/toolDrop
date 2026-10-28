@@ -14,6 +14,7 @@ import {
   pageOf,
   parseCookies,
   registerControls,
+  registerInvoiceControls,
   type Invoice,
   type InvoiceFilter,
   type RunningFixture,
@@ -45,7 +46,11 @@ export function createJsonApiFixture(): FastifyInstance {
   });
   /** Session cookie -> CSRF token. */
   const csrfTokens = new Map<string, string>();
-  registerControls(app, switches, () => csrfTokens.clear());
+  const resetInvoices = registerInvoiceControls(app, invoices);
+  registerControls(app, switches, () => {
+    csrfTokens.clear();
+    resetInvoices();
+  });
 
   app.get('/', async (request, reply) => {
     let sid = parseCookies(request.headers.cookie).sid;

@@ -19,6 +19,7 @@
     "@tooldrop/healer": "workspace:*",
     "@tooldrop/llm": "workspace:*",
     "@tooldrop/runtime": "workspace:*",
+    "@tooldrop/watches": "workspace:*",
     "playwright": "^1.64.1"
   },
   "devDependencies": {
