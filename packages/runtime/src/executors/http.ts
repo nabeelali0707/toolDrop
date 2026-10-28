@@ -7,6 +7,7 @@ import { queryOne } from '../jsonpath.ts';
 import type { SiteLimiter } from '../limits.ts';
 import { atStep, columnIndexes, describeTarget, mapPages, samePage } from '../steps.ts';
 import { render, renderText, stringify, type TemplateContext } from '../templates.ts';
+import { isCommit, type WriteMode } from '../write.ts';
 
 // Runs the strategies that need no browser: official_api, http_replay and
 // html_fetch. Requests go through got-scraping, which sends browser-like
@@ -20,6 +21,8 @@ export interface HttpDeps {
   timeoutMs?: number;
   /** The sign-in page of a signed-in site: landing there means the session expired. */
   loginUrl?: string;
+  /** Safe mode: describe the first commit request and stop, or send it. */
+  write?: WriteMode;
 }
 
 interface State {
@@ -35,8 +38,13 @@ export async function runHttpRecipe(
   deps: HttpDeps,
 ): Promise<unknown> {
   const state: State = { pages: [], result: undefined, produced: false };
+  const write = deps.write;
 
   for (const [index, step] of steps.entries()) {
+    if (write && step.op === 'http' && step.commit && write.record.action === undefined) {
+      describeRequest(step, context, write);
+      if (write.mode === 'preview') return undefined;
+    }
     await atStep(index, step, async () => {
       switch (step.op) {
         case 'http':
@@ -63,6 +71,7 @@ export async function runHttpRecipe(
           throw new ToolDropError('internal', `"${step.op}" needs a browser`);
       }
     });
+    if (write && isCommit(step)) write.record.committed = true;
   }
 
   // A recipe without a data step returns what its last request returned.
@@ -149,6 +158,27 @@ async function send(step: HttpStep, context: TemplateContext, deps: HttpDeps): P
 }
 
 /** Header, query and form values go over the wire as strings. */
+/**
+ * A write request as its preview shows it, without sending it. Values the
+ * recipe took from the site, such as a CSRF token, show as "[from the site]".
+ */
+function describeRequest(step: HttpStep, context: TemplateContext, write: WriteMode): void {
+  const hidden = (values: Record<string, unknown>) =>
+    Object.fromEntries(Object.keys(values).map((key) => [key, '[from the site]']));
+  const shown: TemplateContext = { ...context, vars: hidden(context.vars), session: hidden(context.session) };
+  const url = new URL(renderText(step.url, shown));
+  for (const [name, value] of Object.entries(asStrings(render(step.query ?? {}, shown)))) {
+    url.searchParams.set(name, value);
+  }
+  const body = step.body === undefined ? {} : render(step.body, shown);
+  write.record.url = url.toString();
+  write.record.action = `${step.method} ${url.toString()}`;
+  write.record.fields =
+    body !== null && typeof body === 'object' && !Array.isArray(body)
+      ? Object.entries(body).map(([field, value]) => ({ field, value: stringify(value) }))
+      : [{ field: 'body', value: stringify(body) }];
+}
+
 function asStrings(value: unknown): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [key, item] of Object.entries((value ?? {}) as Record<string, unknown>)) {

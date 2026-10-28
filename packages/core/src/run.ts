@@ -7,6 +7,10 @@ export const runMetaSchema = z.strictObject({
   duration_ms: z.number().int().nonnegative(),
   recipe_version: z.number().int().positive(),
   healed: z.boolean(),
+  /** The approval a write ran on (SPEC, Safe mode). */
+  approval_id: z.string().optional(),
+  /** A write tool's dry run: the result is its preview, and nothing changed. */
+  dry_run: z.boolean().optional(),
 });
 export type RunMeta = z.infer<typeof runMetaSchema>;
 

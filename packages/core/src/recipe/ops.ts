@@ -45,6 +45,12 @@ export const httpOpSchema = z.strictObject({
   paginate: paginateSchema.optional(),
   /** Values to keep from the response, e.g. `{ "accountId": "$.account.id" }`. */
   save: savedValues.optional(),
+  /**
+   * Safe mode: this step changes the site, such as the submit button of a
+   * form. A write tool's preview stops before its first commit step, which
+   * runs only after an approval.
+   */
+  commit: z.literal(true).optional(),
 });
 
 export const mapOpSchema = z.strictObject({
@@ -66,6 +72,12 @@ export const clickOpSchema = z.strictObject({
    * there is nothing more to load, not a failure.
    */
   repeat: z.strictObject({ max: z.number().int().positive().max(100) }).optional(),
+  /**
+   * Safe mode: this step changes the site, such as the submit button of a
+   * form. A write tool's preview stops before its first commit step, which
+   * runs only after an approval.
+   */
+  commit: z.literal(true).optional(),
 });
 
 export const fillOpSchema = z.strictObject({

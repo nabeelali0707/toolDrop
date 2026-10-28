@@ -1,4 +1,5 @@
 import { isToolDropError } from '@tooldrop/core';
+import { approvals, policies } from './commands/approvals.ts';
 import { build } from './commands/build.ts';
 import { init } from './commands/init.ts';
 import { keys } from './commands/keys.ts';
@@ -29,6 +30,10 @@ Usage: tooldrop <command> [options]
   logins add <site>      Save a login, sealed in the vault (--username, --totp, --human, --password-stdin)
   logins list            List saved logins, masked
   logins verify <site>   Sign in now and keep the session, asking for a code when needed
+  approvals              Writes waiting for approval (--all for every past one)
+  approvals approve <id> Approve a write and make it (or: reject, show)
+  policies add <tool>    Approve a write tool by itself when --when "amount < 100" holds
+  policies list          List policies (remove <id> to delete one)
   build <url> --task     Build a tool for a task (--recording <id or file>, --hint)
   record <url>           Do a task once in a browser, for the most reliable builds (--task, --out)
 
@@ -45,6 +50,8 @@ const COMMANDS: Record<string, (args: string[]) => Promise<number>> = {
   build,
   record,
   logins,
+  approvals,
+  policies,
 };
 
 async function main(argv: string[]): Promise<number> {

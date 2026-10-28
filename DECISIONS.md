@@ -265,7 +265,7 @@ SPEC gives the recipe envelope, an example and the op names. `packages/core` fil
 - **An empty result is cross-checked.** SPEC says empty output counts as a failure, but a filter with no matches is a real answer. When the primary strategy returns nothing, the fallback runs too. If it finds data, the primary had silently broken and the fallback's data wins. If it is also empty, the primary's empty answer stands.
 - **JSONPath never evaluates code.** `jsonpath-plus` runs with `eval: false`, which disables filter expressions. Its filters have had remote-code-execution bugs, and community recipes are untrusted.
 - **Browser steps wait for the page's own requests.** After a navigation, click or select, the executor waits until the page has no requests in flight and has been quiet for 300 ms, at most 10 s. Playwright's "networkidle" state cannot be used after the first load: once reached, it never waits again.
-- **Write tools are refused** with `approval_required` until safe mode exists (Phase 4).
+- **Write tools are refused** with `approval_required` until safe mode exists (Phase 4). D-045 replaced this.
 
 ### D-031 The engine package, and how MCP and REST expose tools
 
@@ -459,3 +459,17 @@ SPEC's Security criterion: no API, log, error or model prompt ever holds a plain
 - **The secret** is 32 random bytes, sealed in the vault, and shown once, in the answer that creates the watch.
 - **Who may watch:** any API key that may run the tool. Runs after that need no key. Only read tools can be watched.
 - **MCP:** watch events go to stdio clients as log messages from the `tooldrop.watches` logger. Clients ignore unknown notification types, but they handle log messages. Remote clients over HTTP get none, as with `list_changed`: that transport keeps no sessions.
+
+### D-045 How safe mode works
+
+*Proposed · 2026-10-28*
+
+- **A commit step marks the write.** A write recipe marks the step that changes the site with `"commit": true`: a click or an http step. The preview runs every step before the first one; only an approved write runs it. A write tool needs a commit step, and a read tool may have none.
+- **One plan, no repairs.** A write tool has no browser fallback, and toolDrop does not heal it by itself: both would replay a submit that may already have happened. The health check leaves write tools out too.
+- **A call answers with the preview,** as `approval_required` (409). The preview shows the page, the action, each filled field with its value, and a screenshot of the filled form. For http writes it shows the request, with values taken from the site, such as tokens, hidden.
+- **Approving makes the write,** in the same call, on the version that was previewed. SPEC's "approval token" is the approval's ID: it is used once, expires after 24 hours, and is refused once the tool has a newer version. Deciding is one UPDATE on a pending row, so two decisions at once cannot both win. `dry_run: true` returns the preview and creates no approval.
+- **After the submit, nothing is retried.** If a later step fails, the error says the write was submitted, and the record keeps the page it led to, because only the site knows whether it took the write. A session that expired before the submit is renewed, and the write tried once more.
+- **Policies** approve a tool's writes when one input meets a condition, such as `amount < 100`. Only a full-access REST key or the CLI can create one, never MCP, so an agent cannot approve its own writes.
+- **The audit log is the approvals table:** inputs, preview, who decided (`mcp`, `cli`, `api-key:<label>`, `policy:<id>`) and when, screenshots from before and after, and the outcome. The result of a write is kept when it is under 10 KB. Screenshots are files in `<home>/approvals`.
+- **MCP:** write tools list `dry_run` among their inputs, carry `destructiveHint`, and send the screenshot of the filled form as an image with the preview. `approve_action` tells agents to call it only with the user's decision.
+- **Not yet:** building write tools. A build replays what it captures, and replaying a write would submit it, so compiling a recorded form into a write recipe needs captures that stop at the submit. Task 4.12.

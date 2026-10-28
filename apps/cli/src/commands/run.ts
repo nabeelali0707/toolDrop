@@ -1,6 +1,7 @@
 import { parseArgs } from 'node:util';
 import { ToolDropError } from '@tooldrop/core';
 import { openEngine } from '../home.ts';
+import { describeApproval } from './approvals.ts';
 
 /** `tooldrop run <tool> --input '{...}'`: runs a published tool and prints its result. */
 export async function run(args: string[]): Promise<number> {
@@ -25,6 +26,16 @@ export async function run(args: string[]): Promise<number> {
     const { result, meta } = await engine.runTool(name, input);
     console.log(JSON.stringify({ result, meta }, null, 2));
     return 0;
+  } catch (error) {
+    // A write waits for approval (SPEC, Safe mode): say what it would do and how to decide.
+    if (!(error instanceof ToolDropError) || error.code !== 'approval_required') throw error;
+    const id = (error.details as { approval_id?: string } | undefined)?.approval_id ?? '';
+    console.log(`${name} changes the site, so it waits for your approval.\n`);
+    console.log(describeApproval(engine.getApproval(id)));
+    console.log(
+      `\nApprove it:  tooldrop approvals approve ${id}\nReject it:   tooldrop approvals reject ${id}`,
+    );
+    return 2;
   } finally {
     await close();
   }

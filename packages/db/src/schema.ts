@@ -6,16 +6,19 @@ import {
   LLM_PROVIDERS,
   LLM_ROLES,
   LOGIN_STATUSES,
+  POLICY_OPERATORS,
   RECIPE_ORIGINS,
   STRATEGIES,
   TOOL_STATUSES,
   TWOFA_METHODS,
+  type ApprovalView,
   type JobAnswer,
   type JobQuestion,
   type JsonSchema,
   type LoginRecipe,
   type Step,
   type TwofaConfig,
+  type WritePreview,
 } from '@tooldrop/core';
 import { sql } from 'drizzle-orm';
 import {
@@ -269,20 +272,58 @@ export const watches = sqliteTable(
   ],
 );
 
+/**
+ * A write waiting for a decision, and once decided, its record: the write
+ * audit log (SPEC, Safe mode). Screenshots are files in the data directory.
+ */
 export const approvals = sqliteTable(
   'approvals',
   {
     id: text().primaryKey(),
-    run_id: text()
+    tool_id: text()
       .notNull()
-      .references(() => runs.id, { onDelete: 'cascade' }),
-    preview: text({ mode: 'json' }).$type<unknown>().notNull(),
+      .references(() => tools.id, { onDelete: 'cascade' }),
+    /** The previewed version; only it may run the write. */
+    version: integer().notNull(),
+    inputs: text({ mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+    preview: text({ mode: 'json' }).$type<WritePreview>().notNull(),
+    /** The filled form, before the write. */
     screenshot_path: text(),
     status: text({ enum: APPROVAL_STATUSES }).notNull().default('pending'),
     decided_by: text(),
+    decided_at: integer({ mode: 'timestamp_ms' }),
+    expires_at: integer({ mode: 'timestamp_ms' }).notNull(),
+    /** The run that made the write, once approved. */
+    run_id: text().references(() => runs.id, { onDelete: 'set null' }),
+    /** The page after the write. */
+    after_screenshot_path: text(),
+    outcome: text({ mode: 'json' }).$type<ApprovalView['outcome']>(),
     ...timestamps,
   },
-  (t) => [index('approvals_run_id').on(t.run_id), oneOf('approvals_status', t.status, APPROVAL_STATUSES)],
+  (t) => [
+    index('approvals_tool_id').on(t.tool_id),
+    index('approvals_status').on(t.status),
+    oneOf('approvals_status_values', t.status, APPROVAL_STATUSES),
+  ],
+);
+
+/** Rules that approve a tool's writes by themselves, e.g. amount < 100 (SPEC, Safe mode). */
+export const approval_policies = sqliteTable(
+  'approval_policies',
+  {
+    id: text().primaryKey(),
+    tool_id: text()
+      .notNull()
+      .references(() => tools.id, { onDelete: 'cascade' }),
+    field: text().notNull(),
+    op: text({ enum: POLICY_OPERATORS }).notNull(),
+    value: text({ mode: 'json' }).$type<number | string>().notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    index('approval_policies_tool_id').on(t.tool_id),
+    oneOf('approval_policies_op', t.op, POLICY_OPERATORS),
+  ],
 );
 
 /**

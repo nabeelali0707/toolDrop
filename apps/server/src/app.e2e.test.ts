@@ -109,6 +109,72 @@ describe('versions', () => {
   });
 });
 
+describe('safe mode', () => {
+  beforeEach(() => {
+    engine.publish(
+      readToolFile(
+        fileURLToPath(new URL('../../../fixtures/recipes/html-app.record_payment.json', import.meta.url)),
+      ),
+      fixture.url,
+    );
+  });
+
+  it('answers a write with 409 and a preview, and records who rejected it', async () => {
+    const called = await app.inject({
+      method: 'POST',
+      url: '/v1/tools/record_payment/run',
+      headers: auth(),
+      payload: { invoice: 'INV-1057', amount: 100 },
+    });
+    expect(called.statusCode).toBe(409);
+    const { error } = called.json<{ error: { code: string; details: { approval_id: string } } }>();
+    expect(error.code).toBe('approval_required');
+    const id = error.details.approval_id;
+
+    const pending = await app.inject({ url: '/v1/approvals?status=pending', headers: auth() });
+    expect(pending.json()).toMatchObject({ approvals: [{ id, tool: 'record_payment', status: 'pending' }] });
+    const screenshot = await app.inject({ url: `/v1/approvals/${id}/screenshot`, headers: auth() });
+    expect(screenshot.headers['content-type']).toBe('image/png');
+
+    const decide = (decision: string) =>
+      app.inject({ method: 'POST', url: `/v1/approvals/${id}`, headers: auth(), payload: { decision } });
+    expect((await decide('maybe')).statusCode).toBe(400);
+    expect((await decide('reject')).json()).toMatchObject({
+      approval: { status: 'rejected', decided_by: 'api-key:test' },
+    });
+    expect((await decide('approve')).statusCode).toBe(409);
+    const payments = (await fetch(`${fixture.url}/__fixture/payments`).then((r) => r.json())) as unknown[];
+    expect(payments).toEqual([]);
+  }, 60_000);
+
+  it('manages policies with a full-access key only', async () => {
+    const policy = { tool: 'record_payment', field: 'amount', op: '<', value: 100 };
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/policies',
+      headers: auth(),
+      payload: policy,
+    });
+    expect(created.statusCode).toBe(201);
+    const { id } = created.json<{ policy: { id: string } }>().policy;
+    expect((await app.inject({ url: '/v1/policies', headers: auth() })).json()).toMatchObject({
+      policies: [{ id, ...policy }],
+    });
+
+    const scoped = createApiKey(handle.db, { label: 'scoped', scopes: ['record_payment'] }).key;
+    const refused = await app.inject({
+      method: 'POST',
+      url: '/v1/policies',
+      headers: { authorization: `Bearer ${scoped}` },
+      payload: policy,
+    });
+    expect(refused.statusCode).toBe(403);
+    expect(
+      (await app.inject({ method: 'DELETE', url: `/v1/policies/${id}`, headers: auth() })).statusCode,
+    ).toBe(204);
+  });
+});
+
 describe('watches', () => {
   it('creates a watch, shows its secret once, lists and deletes it', async () => {
     const created = await app.inject({

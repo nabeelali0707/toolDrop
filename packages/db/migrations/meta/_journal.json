@@ -36,6 +36,13 @@
       "when": 1793178411843,
       "tag": "0004_watch_runs",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1793179861651,
+      "tag": "0005_safe_mode",
+      "breakpoints": true
     }
   ]
 }

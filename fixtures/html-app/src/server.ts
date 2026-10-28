@@ -18,6 +18,9 @@ import {
   type RunningFixture,
 } from '@tooldrop/fixture-kit';
 import Fastify, { type FastifyInstance } from 'fastify';
+import { registerPayments } from './payments.ts';
+
+export type { Payment } from './payments.ts';
 
 // A server-rendered invoice list: filters are query parameters and pages are
 // links, with no script at all. The case `html_fetch` is built for.
@@ -41,7 +44,12 @@ export function createHtmlAppFixture(): FastifyInstance {
     dateFilterMoved: false,
     columnsReordered: false,
   });
-  registerControls(app, switches, registerInvoiceControls(app, invoices));
+  const resetInvoices = registerInvoiceControls(app, invoices);
+  const resetPayments = registerPayments(app, invoices);
+  registerControls(app, switches, () => {
+    resetInvoices();
+    resetPayments();
+  });
 
   app.get('/', async (_request, reply) => reply.redirect('/invoices'));
 

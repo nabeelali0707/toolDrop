@@ -10,7 +10,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { ToolDropError, type ToolDropErrorJson } from '@tooldrop/core';
 import { keyAllows, type PublishedTool } from '@tooldrop/db';
-import type { Engine, Scopes } from '@tooldrop/engine';
+import { callInputSchema, type Engine, type Scopes } from '@tooldrop/engine';
 
 // toolDrop's MCP server (SPEC, MCP and REST interfaces): fixed management
 // tools, plus one tool per published recipe, refreshed with list_changed.
@@ -20,9 +20,12 @@ export interface McpOptions {
   scopes?: Scopes;
   /** toolDrop's version, reported to clients. */
   version?: string;
+  /** Who the client is, for the write audit log (default "mcp"). */
+  by?: string;
 }
 
 const INSTRUCTIONS = `toolDrop turns tasks on websites into tools. Every published tool is listed as its own tool: call it directly with its inputs. Results are plain data, returned in a second or two without a model. Use find_tool to search published tools by site or task, and run_tool to run one by name. Use create_watch to be told when a read tool's result changes.
+A tool with authority "write" changes the site, so it never acts at once: a call returns a preview (the fields it will fill, the page, a screenshot) and an approval_id. Show the preview to the user and call approve_action only with their decision. Pass dry_run: true to see a preview without asking for approval.
 To make a new tool, call build_tool with the site's URL and the task. A build takes one to a few minutes: poll get_job every 15 seconds until it succeeds or fails. When a job asks a question (status waiting_for_answer), ask the user if you cannot answer it yourself, then call answer_question. Always ask the user before building a tool with authority "write".`;
 
 const META_SCHEMA = {
@@ -67,6 +70,22 @@ const MANAGEMENT_TOOLS: Tool[] = [
       required: ['name'],
     },
     annotations: { readOnlyHint: false, openWorldHint: true },
+  },
+  {
+    name: 'approve_action',
+    title: 'Approve or reject a write',
+    description:
+      "Decide on a write tool's preview. Approving makes the write at once and returns its result; rejecting changes nothing. Only call this with the user's own decision, after showing them the preview.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        approval_id: { type: 'string', description: "The approval_id from the write tool's preview." },
+        decision: { type: 'string', enum: ['approve', 'reject'] },
+      },
+      required: ['approval_id', 'decision'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
   },
   {
     name: 'create_watch',
@@ -225,6 +244,7 @@ const LOGIN_TOOLS: Tool[] = [
 
 export function createMcpServer(engine: Engine, options: McpOptions = {}): Server {
   const scopes = options.scopes ?? ['*'];
+  const by = options.by ?? 'mcp';
   const server = new Server(
     { name: 'tooldrop', title: 'toolDrop', version: options.version ?? '0.0.0' },
     { capabilities: { tools: { listChanged: true }, logging: {} }, instructions: INSTRUCTIONS },
@@ -257,6 +277,10 @@ export function createMcpServer(engine: Engine, options: McpOptions = {}): Serve
         );
         return success({ job });
       }
+      if (params.name === 'approve_action') {
+        const id = requiredString(args.approval_id, 'approval_id');
+        return success(await engine.decideApproval(id, args.decision, scopes, by));
+      }
       if (params.name === 'create_watch') return success(await engine.createWatch(args, scopes));
       if (params.name === 'list_watches') return success({ watches: engine.listWatches(scopes) });
       if (params.name === 'delete_watch') {
@@ -271,11 +295,11 @@ export function createMcpServer(engine: Engine, options: McpOptions = {}): Serve
       if (params.name === 'run_tool') {
         if (typeof args.name !== 'string')
           throw new ToolDropError('invalid_input', 'run_tool needs a "name"');
-        return success(await run(engine, args.name, args.input ?? {}, scopes));
+        return await run(engine, args.name, args.input ?? {}, scopes);
       }
-      return success(await run(engine, params.name, args, scopes));
+      return await run(engine, params.name, args, scopes);
     } catch (error) {
-      return failure(error);
+      return failure(error, previewImage(engine, error, scopes));
     }
   });
 
@@ -325,22 +349,40 @@ export async function handleMcpHttp(
   await transport.handleRequest(request, response, body);
 }
 
-async function run(engine: Engine, name: string, input: unknown, scopes: Scopes) {
-  const { result, meta } = await engine.runTool(name, input, scopes);
-  return { result, meta };
+/** Runs a tool. A write tool's dry run comes with a picture of the filled form. */
+async function run(engine: Engine, name: string, input: unknown, scopes: Scopes): Promise<CallToolResult> {
+  const { result, meta, screenshot } = await engine.runTool(name, input, scopes);
+  return success({ result, meta }, screenshot);
+}
+
+/** The filled form of a write waiting for approval, so the user sees what they approve. */
+function previewImage(engine: Engine, error: unknown, scopes: Scopes): Buffer | undefined {
+  if (!(error instanceof ToolDropError) || error.code !== 'approval_required') return undefined;
+  const id = (error.details as { approval_id?: unknown } | undefined)?.approval_id;
+  try {
+    return typeof id === 'string' ? engine.approvalScreenshot(id, 'before', scopes) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function toMcpTool(tool: PublishedTool): Tool {
+  const read = tool.authority === 'read';
   return {
     name: tool.name,
-    description: tool.description,
-    inputSchema: tool.input_schema as Tool['inputSchema'],
-    outputSchema: {
-      type: 'object',
-      properties: { result: tool.output_schema, meta: META_SCHEMA },
-      required: ['result', 'meta'],
-    },
-    annotations: { readOnlyHint: tool.authority === 'read', openWorldHint: true },
+    description: read
+      ? tool.description
+      : `${tool.description} Changes the site: a call returns a preview and an approval_id, and acts only once approved with approve_action.`,
+    inputSchema: callInputSchema(tool) as Tool['inputSchema'],
+    // A write answers with a preview, a dry run or its result, so it declares no one output shape.
+    ...(read && {
+      outputSchema: {
+        type: 'object',
+        properties: { result: tool.output_schema, meta: META_SCHEMA },
+        required: ['result', 'meta'],
+      },
+    }),
+    annotations: { readOnlyHint: read, destructiveHint: !read, openWorldHint: true },
   };
 }
 
@@ -354,16 +396,26 @@ function describeTool(tool: PublishedTool) {
   };
 }
 
-function success(value: Record<string, unknown>): CallToolResult {
-  return { content: [{ type: 'text', text: JSON.stringify(value, null, 2) }], structuredContent: value };
+function success(value: Record<string, unknown>, image?: Buffer): CallToolResult {
+  return {
+    content: [{ type: 'text', text: JSON.stringify(value, null, 2) }, ...imageContent(image)],
+    structuredContent: value,
+  };
 }
 
-function failure(error: unknown): CallToolResult {
+function imageContent(image: Buffer | undefined): CallToolResult['content'] {
+  return image ? [{ type: 'image', data: image.toString('base64'), mimeType: 'image/png' }] : [];
+}
+
+function failure(error: unknown, image?: Buffer): CallToolResult {
   const json: ToolDropErrorJson =
     error instanceof ToolDropError
       ? error.toJSON()
       : { code: 'internal', message: error instanceof Error ? error.message : String(error) };
-  return { isError: true, content: [{ type: 'text', text: JSON.stringify({ error: json }) }] };
+  return {
+    isError: true,
+    content: [{ type: 'text', text: JSON.stringify({ error: json }) }, ...imageContent(image)],
+  };
 }
 
 function requiredString(value: unknown, name: string): string {

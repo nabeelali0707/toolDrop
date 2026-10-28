@@ -8,6 +8,7 @@ import {
   type Step,
   type Strategy,
   type ToolDropErrorJson,
+  type WritePreview,
 } from '@tooldrop/core';
 import { BrowserPool, type StorageState } from './browser/pool.ts';
 import { runBrowserRecipe, toLocator, trackRequests } from './executors/browser.ts';
@@ -17,6 +18,7 @@ import { SessionPool } from './sessions.ts';
 import { samePage } from './steps.ts';
 import { renderText, type TemplateContext } from './templates.ts';
 import { SchemaValidator } from './validate.ts';
+import type { WriteMode, WriteRecord } from './write.ts';
 
 /** Everything the runtime needs to call one published tool. */
 export interface RunnableTool {
@@ -55,6 +57,8 @@ export interface RunOutcome {
   meta: RunMeta;
   /** Every strategy tried, in order, for the run log. */
   attempts: Attempt[];
+  /** A write tool's dry run: the filled form (SPEC, Safe mode). */
+  screenshot?: Buffer;
   /** Browser steps of the answering plan that found their element only with a later selector. */
   drift?: { strategy: Strategy; steps: { step: number; selector: number }[] };
 }
@@ -85,21 +89,11 @@ export class Runtime {
 
   async run(tool: RunnableTool, input: unknown = {}): Promise<RunOutcome> {
     const started = performance.now();
-    const args = structuredClone(input) as Record<string, unknown>;
-    const checked = this.#validator.input(tool.input_schema, args);
-    if (!checked.ok) {
-      throw new ToolDropError(
-        'invalid_input',
-        `input does not match ${tool.name}'s schema: ${checked.errors.join('; ')}`,
-        {
-          details: { errors: checked.errors },
-        },
-      );
-    }
+    const args = this.#checkedInput(tool, input);
     if (tool.authority === 'write') {
       throw new ToolDropError(
         'approval_required',
-        `${tool.name} changes data; write tools need safe mode (PLAN, Phase 4)`,
+        `${tool.name} changes data: it runs through safe mode, as a preview and then an approved commit`,
       );
     }
 
@@ -155,6 +149,63 @@ export class Runtime {
       `every strategy failed for ${tool.name}: ${attempts.map((a) => `${a.strategy}: ${a.error?.message}`).join(' | ')}`,
       { details: { attempts } },
     );
+  }
+
+  /**
+   * Safe mode: runs a write tool's recipe up to its first commit step and
+   * shows what the write would do. Nothing on the site changes (SPEC, Safe
+   * mode). A write runs one plan only, the primary.
+   */
+  async preview(
+    tool: RunnableTool,
+    input: unknown = {},
+  ): Promise<{ preview: WritePreview; screenshot?: Buffer }> {
+    const args = this.#checkedInput(tool, input);
+    const record: WriteRecord = { fields: [] };
+    await this.#execute(tool.recipe, tool, args, [], { mode: 'preview', record });
+    if (record.action === undefined) {
+      throw new ToolDropError('internal', `${tool.name} has no commit step, so it cannot show a preview`);
+    }
+    return {
+      preview: { url: record.url ?? tool.site, action: record.action, fields: record.fields },
+      ...(record.before && { screenshot: record.before }),
+    };
+  }
+
+  /**
+   * Safe mode: makes an approved write, with evidence from before and after
+   * its commit step. Only the engine calls this, once an approval allows it.
+   * It never throws: `evidence.committed` says whether the site changed even
+   * when a later step failed, so the caller knows not to try again blindly.
+   */
+  async commit(
+    tool: RunnableTool,
+    input: unknown = {},
+  ): Promise<{ outcome?: RunOutcome; error?: ToolDropErrorJson; evidence: WriteRecord }> {
+    const started = performance.now();
+    const record: WriteRecord = { fields: [] };
+    try {
+      const args = this.#checkedInput(tool, input);
+      const result = await this.#execute(tool.recipe, tool, args, [], { mode: 'commit', record });
+      // The write is made: a result in another shape is returned as it is, never as a failure to retry.
+      this.#validator.output(tool.output_schema, result);
+      const duration = elapsed(started);
+      return {
+        outcome: {
+          result,
+          meta: {
+            strategy: tool.recipe.strategy,
+            duration_ms: duration,
+            recipe_version: tool.version,
+            healed: false,
+          },
+          attempts: [{ strategy: tool.recipe.strategy, ok: true, duration_ms: duration }],
+        },
+        evidence: record,
+      };
+    } catch (error) {
+      return { error: toJson(error), evidence: record };
+    }
   }
 
   /**
@@ -237,11 +288,27 @@ export class Runtime {
     return outcome;
   }
 
+  #checkedInput(tool: RunnableTool, input: unknown): Record<string, unknown> {
+    const args = structuredClone(input) as Record<string, unknown>;
+    const checked = this.#validator.input(tool.input_schema, args);
+    if (!checked.ok) {
+      throw new ToolDropError(
+        'invalid_input',
+        `input does not match ${tool.name}'s schema: ${checked.errors.join('; ')}`,
+        {
+          details: { errors: checked.errors },
+        },
+      );
+    }
+    return args;
+  }
+
   #execute(
     plan: { strategy: Strategy; steps: Step[] },
     tool: RunnableTool,
     input: Record<string, unknown>,
     drift: { step: number; selector: number }[] = [],
+    write?: WriteMode,
   ) {
     const context: TemplateContext = { site: tool.site, input, session: {}, vars: {}, loop: {} };
     const limiter = this.#limiter(tool.site, tool.rate_limit);
@@ -252,6 +319,7 @@ export class Runtime {
         ...(tool.login && { loginUrl: tool.login.url }),
         onDrift: (step, selector) => drift.push({ step, selector }),
         ...(this.#options.browserWaitMs !== undefined && { waitMs: this.#options.browserWaitMs }),
+        ...(write && { write }),
       });
     }
     return runHttpRecipe(plan.steps, context, {
@@ -259,6 +327,7 @@ export class Runtime {
       limiter,
       ...(tool.login && { loginUrl: tool.login.url }),
       ...(this.#options.httpTimeoutMs !== undefined && { timeoutMs: this.#options.httpTimeoutMs }),
+      ...(write && { write }),
     });
   }
 

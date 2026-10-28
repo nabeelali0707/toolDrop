@@ -415,6 +415,9 @@ importers:
       '@tooldrop/fixture-login-totp':
         specifier: workspace:*
         version: link:../../fixtures/login-totp
+      drizzle-orm:
+        specifier: ^0.45.4
+        version: 0.45.4(@types/better-sqlite3@9.6.0)(better-sqlite3@12.11.1)
       otplib:
         specifier: ^13.5.0
         version: 13.5.0

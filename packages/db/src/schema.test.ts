@@ -121,7 +121,15 @@ function seed(db: Db) {
     .get();
   const approval = db
     .insert(t.approvals)
-    .values({ id: newId(), run_id: run.id, preview: { fields: { amount: 90 } } })
+    .values({
+      id: newId(),
+      tool_id: tool.id,
+      version: 1,
+      inputs: { amount: 90 },
+      preview: { url: 'https://supplier.example.com/pay', action: 'click Pay', fields: [] },
+      expires_at: new Date(Date.now() + 86_400_000),
+      run_id: run.id,
+    })
     .returning()
     .get();
   const capture = db

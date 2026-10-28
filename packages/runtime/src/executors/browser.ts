@@ -3,6 +3,7 @@ import type { BrowserContext, Locator, Page } from 'playwright';
 import type { SiteLimiter } from '../limits.ts';
 import { atStep, columnIndexes, describeTarget, mapPages, samePage } from '../steps.ts';
 import { render, renderText, type TemplateContext } from '../templates.ts';
+import { fieldName, isCommit, type WriteMode } from '../write.ts';
 
 // Runs browser_script recipes in a warm Playwright context for the site.
 
@@ -16,6 +17,8 @@ export interface BrowserDeps {
   loginUrl?: string;
   /** Hears of each step that found its element only with a later selector. */
   onDrift?: (step: number, selector: number) => void;
+  /** Safe mode: stop before the first commit step, or run it with screenshots around it. */
+  write?: WriteMode;
 }
 
 type Role = Parameters<Page['getByRole']>[0];
@@ -31,13 +34,26 @@ export async function runBrowserRecipe(
     const settle = trackRequests(page);
     try {
       let result: unknown;
+      const write = deps.write;
       for (const [index, step] of steps.entries()) {
+        if (write && isCommit(step) && write.record.action === undefined) {
+          await settle();
+          write.record.url = page.url();
+          write.record.action =
+            step.op === 'click' ? `click ${describeTarget(step.target)}` : `${step.op} step ${index + 1}`;
+          write.record.before = await page.screenshot({ fullPage: true });
+          if (write.mode === 'preview') return undefined;
+        }
         const drift = (selector: number) => deps.onDrift?.(index, selector);
         const value = await atStep(index, step, () =>
           step.op === 'map'
             ? Promise.resolve(mapPages([result], step))
             : runStep(page, step, context, deps.waitMs ?? 10_000, settle, drift),
         );
+        if (write && isCommit(step)) write.record.committed = true;
+        if (write && (step.op === 'fill' || step.op === 'select')) {
+          write.record.fields.push({ field: fieldName(step.target), value: renderText(step.value, context) });
+        }
         if (deps.loginUrl && samePage(page.url(), deps.loginUrl)) {
           throw new ToolDropError(
             'session_expired',
@@ -49,11 +65,21 @@ export async function runBrowserRecipe(
           if ('save' in step && typeof step.save === 'string') context.vars[step.save] = value;
         }
       }
+      if (write?.mode === 'commit') await recordAfter(page, write);
       return result;
+    } catch (error) {
+      // After the submit, the page it led to is the evidence of what happened, failure or not.
+      if (deps.write?.record.committed) await recordAfter(page, deps.write).catch(() => undefined);
+      throw error;
     } finally {
       await page.close();
     }
   });
+}
+
+async function recordAfter(page: Page, write: WriteMode): Promise<void> {
+  write.record.url_after = page.url();
+  write.record.after = await page.screenshot({ fullPage: true });
 }
 
 /** Runs one step; data steps return what they produced, others undefined. */

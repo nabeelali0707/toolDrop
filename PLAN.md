@@ -159,10 +159,10 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
   Files: `packages/watches/src/diff.ts`, `packages/engine/src/watches.ts`, `packages/db/src/repos/watches.ts`, `packages/db/migrations/0004_*`, `fixtures/kit/src/switches.ts`, tests
 - [x] **4.5 `watches`: delivery.** HMAC-SHA256 signatures with a timestamp, retries with backoff, MCP log notifications, `create_watch`, `list_watches` and `delete_watch`, `POST`, `GET` and `DELETE /v1/watches`; the scheduler runs in `serve` and `mcp`.
   Files: `packages/watches/src/deliver.ts`, `apps/server/src/app.ts`, `apps/mcp/src/server.ts`, `apps/cli/src/commands/{serve,mcp}.ts`, tests
-- [ ] **4.6 Safe mode: previews and approvals.** Preview (fields, target page, screenshot), approval tokens, `approve_action`, `POST /v1/approvals/:id`, plus a write form on the HTML fixture to test against.
-  Files: `packages/runtime/src/safe-mode/{preview,approvals}.ts`, `apps/server/src/routes/approvals.ts`, `apps/mcp/src/tools/approvals.ts`, `fixtures/html-app/src/views.ts`, tests
-- [ ] **4.7 Safe mode: policies and audit.** Policies (e.g. "auto-approve under $100"), the dry-run flag, a write audit log with before and after evidence.
-  Files: `packages/runtime/src/safe-mode/{policies,audit}.ts`, tests
+- [x] **4.6 Safe mode: previews and approvals.** Commit steps in recipes; previews (fields, page, screenshot) that stop before the commit; approvals used once (D-045); `approve_action`, `/v1/approvals` and `tooldrop approvals`; a payment form on the HTML fixture and a `record_payment` tool file.
+  Files: `packages/core/src/{approval,tool}.ts`, `packages/runtime/src/{write,runtime}.ts`, `packages/runtime/src/executors/{browser,http}.ts`, `packages/engine/src/approvals.ts`, `packages/db/migrations/0005_*`, `apps/server/src/app.ts`, `apps/mcp/src/server.ts`, `apps/cli/src/commands/{approvals,run}.ts`, `fixtures/html-app/src/payments.ts`, tests
+- [x] **4.7 Safe mode: policies and audit.** Policies on one input ("amount < 100") from REST or the CLI only, the dry-run flag, and the approvals table as the audit log with screenshots before and after.
+  Files: `packages/core/src/approval.ts`, `packages/db/src/repos/approvals.ts`, `packages/engine/src/approvals.ts`, `apps/cli/src/commands/approvals.ts`, tests
 - [ ] **4.8 `dashboard`: tools and runs.** Next.js scaffold with an API client; tool pages with schema and a cURL example; run history.
   Files: `apps/dashboard/package.json`, `apps/dashboard/app/{layout,page}.tsx`, `apps/dashboard/app/tools/*`, `apps/dashboard/app/runs/*`
 - [ ] **4.9 `dashboard`: logins, approvals, 2FA, heals.** Masked logins, approve or reject previews with the screenshot, answer human-in-the-loop 2FA prompts, heal log.
@@ -171,6 +171,8 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
   Files: `packages/compiler/src/login/build-login.ts`, `packages/engine/src/sessions.ts`, `packages/db/src/repos/tools.ts` (sites), a second-origin switch on `fixtures/login-totp`, tests
 - [ ] **4.11 Recording behind a sign-in.** `tooldrop record` starts from the site's saved session, so the recording holds only the task.
   Files: `apps/cli/src/commands/record.ts`, `packages/compiler/src/recording/recorder.ts`, tests
+- [ ] **4.12 Write builds from recordings.** Compile a recorded form submission into a write recipe whose submit is the commit step. Captures, validation and heals must stop before the submit, since replaying it would make the write.
+  Files: `packages/compiler/src/{build,capture/capture}.ts`, `packages/compiler/src/recording/replay.ts`, `packages/compiler/src/generate/draft.ts`, tests
 
 **Gate:** *Watches*, *Safe mode* and *Recording* (through the extension) criteria; a dashboard smoke test.
 

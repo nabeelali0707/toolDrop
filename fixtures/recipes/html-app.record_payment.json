@@ -1,0 +1,50 @@
+{
+  "name": "record_payment",
+  "description": "Record a payment for a supplier invoice, which marks the invoice as paid. Returns the confirmation.",
+  "authority": "write",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "invoice": {
+        "type": "string",
+        "pattern": "^INV-[0-9]+$",
+        "description": "The invoice number, e.g. INV-1057."
+      },
+      "amount": { "type": "number", "exclusiveMinimum": 0, "description": "The amount paid, in USD." }
+    },
+    "required": ["invoice", "amount"],
+    "additionalProperties": false
+  },
+  "output_schema": { "type": "string" },
+  "recipe": {
+    "strategy": "browser_script",
+    "steps": [
+      { "op": "goto", "url": "{{site}}/payments/new" },
+      {
+        "op": "fill",
+        "target": [
+          { "kind": "role", "role": "textbox", "name": "Invoice number" },
+          { "kind": "css", "value": "#invoice" }
+        ],
+        "value": "{{input.invoice}}"
+      },
+      {
+        "op": "fill",
+        "target": [
+          { "kind": "role", "role": "spinbutton", "name": "Amount" },
+          { "kind": "css", "value": "#amount" }
+        ],
+        "value": "{{input.amount}}"
+      },
+      {
+        "op": "click",
+        "target": [
+          { "kind": "role", "role": "button", "name": "Record payment" },
+          { "kind": "css", "value": "button[type=submit]" }
+        ],
+        "commit": true
+      },
+      { "op": "extract_text", "target": [{ "kind": "css", "value": "#confirmation" }] }
+    ]
+  }
+}

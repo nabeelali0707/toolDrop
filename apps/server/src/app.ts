@@ -1,6 +1,12 @@
-import { ToolDropError, type ErrorCode, type ToolDropErrorJson } from '@tooldrop/core';
+import {
+  APPROVAL_STATUSES,
+  ToolDropError,
+  type ApprovalStatus,
+  type ErrorCode,
+  type ToolDropErrorJson,
+} from '@tooldrop/core';
 import { verifyApiKey, type PublishedTool } from '@tooldrop/db';
-import type { Engine, Scopes } from '@tooldrop/engine';
+import { callInputSchema, type Engine, type Scopes } from '@tooldrop/engine';
 import { handleMcpHttp } from '@tooldrop/mcp';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 
@@ -19,6 +25,7 @@ const STATUS: Record<ErrorCode, number> = {
   forbidden: 403,
   not_found: 404,
   approval_required: 409,
+  conflict: 409,
   rate_limited: 429,
   internal: 500,
   invalid_output: 502,
@@ -35,17 +42,22 @@ declare module 'fastify' {
   interface FastifyRequest {
     /** The tools the caller's API key may use. */
     scopes: Scopes;
+    /** Who is calling, for the write audit log: "api-key:<label>". */
+    by: string;
   }
 }
 
 export function createServer({ engine, version = '0.0.0' }: ServerOptions): FastifyInstance {
   const app = Fastify({ logger: false });
   app.decorateRequest('scopes', null as unknown as Scopes);
+  app.decorateRequest('by', '');
 
   app.addHook('onRequest', (request, _reply, done) => {
     if (request.url === '/health') return done();
     try {
-      request.scopes = authenticate(engine, request);
+      const key = authenticate(engine, request);
+      request.scopes = key.scopes;
+      request.by = `api-key:${key.label}`;
       done();
     } catch (error) {
       done(error as Error);
@@ -128,6 +140,50 @@ export function createServer({ engine, version = '0.0.0' }: ServerOptions): Fast
     return reply.code(204).send();
   });
 
+  // Safe mode: writes waiting for approval, and the record of every decision (SPEC, approve_action).
+  app.get('/v1/approvals', (request) => {
+    const { status } = request.query as { status?: string };
+    if (status !== undefined && !(APPROVAL_STATUSES as readonly string[]).includes(status)) {
+      throw new ToolDropError('invalid_input', `status is one of ${APPROVAL_STATUSES.join(', ')}`);
+    }
+    return { approvals: engine.listApprovals(request.scopes, status as ApprovalStatus | undefined) };
+  });
+
+  app.get('/v1/approvals/:id', (request) => {
+    const { id } = request.params as { id: string };
+    return { approval: engine.getApproval(id, request.scopes) };
+  });
+
+  app.get('/v1/approvals/:id/screenshot', (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { which = 'before' } = request.query as { which?: string };
+    if (which !== 'before' && which !== 'after') {
+      throw new ToolDropError('invalid_input', 'which is "before" or "after"');
+    }
+    const png = engine.approvalScreenshot(id, which, request.scopes);
+    if (!png) throw new ToolDropError('not_found', `approval ${id} has no ${which} screenshot`);
+    return reply.type('image/png').send(png);
+  });
+
+  app.post('/v1/approvals/:id', async (request) => {
+    const { id } = request.params as { id: string };
+    const { decision } = (request.body ?? {}) as { decision?: unknown };
+    return engine.decideApproval(id, decision, request.scopes, request.by);
+  });
+
+  // Policies approve a write tool's calls by themselves, so only full-access keys manage them.
+  app.post('/v1/policies', (request, reply) =>
+    reply.code(201).send({ policy: engine.createPolicy(request.body ?? {}, request.scopes) }),
+  );
+
+  app.get('/v1/policies', (request) => ({ policies: engine.listPolicies(request.scopes) }));
+
+  app.delete('/v1/policies/:id', (request, reply) => {
+    const { id } = request.params as { id: string };
+    engine.deletePolicy(id, request.scopes);
+    return reply.code(204).send();
+  });
+
   // A recording may carry its network log as HAR, so it gets a larger body limit.
   app.post('/v1/recordings', { bodyLimit: 20 * 1024 * 1024 }, async (request, reply) => {
     const { id } = engine.saveRecording(request.body, request.scopes);
@@ -136,7 +192,11 @@ export function createServer({ engine, version = '0.0.0' }: ServerOptions): Fast
 
   app.post('/mcp', async (request, reply) => {
     reply.hijack();
-    await handleMcpHttp(engine, request.raw, reply.raw, request.body, { scopes: request.scopes, version });
+    await handleMcpHttp(engine, request.raw, reply.raw, request.body, {
+      scopes: request.scopes,
+      by: request.by,
+      version,
+    });
   });
 
   // Stateless Streamable HTTP has no server-to-client stream or sessions to end.
@@ -154,7 +214,7 @@ export function createServer({ engine, version = '0.0.0' }: ServerOptions): Fast
   return app;
 }
 
-function authenticate(engine: Engine, request: FastifyRequest): Scopes {
+function authenticate(engine: Engine, request: FastifyRequest): { scopes: Scopes; label: string } {
   const key = /^Bearer\s+(\S+)$/i.exec(request.headers.authorization ?? '')?.[1];
   const record = key ? verifyApiKey(engine.db, key) : undefined;
   if (!record) {
@@ -163,7 +223,7 @@ function authenticate(engine: Engine, request: FastifyRequest): Scopes {
       'send an API key as "Authorization: Bearer <key>"; create one with `tooldrop keys create`',
     );
   }
-  return record.scopes;
+  return record;
 }
 
 function describeTool(tool: PublishedTool) {
@@ -174,7 +234,7 @@ function describeTool(tool: PublishedTool) {
     site: tool.site.origin,
     version: tool.version,
     status: tool.status,
-    input_schema: tool.input_schema,
+    input_schema: callInputSchema(tool),
     output_schema: tool.output_schema,
   };
 }

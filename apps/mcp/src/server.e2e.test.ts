@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
@@ -22,13 +25,16 @@ let handle: DatabaseHandle;
 let engine: Engine;
 let fixture: RunningFixture;
 let now: number;
+let dataDir: string;
 
 beforeEach(async () => {
   handle = openDatabase(':memory:');
   runMigrations(handle.db);
   now = Date.parse('2026-10-28T12:00:00Z');
+  dataDir = mkdtempSync(join(tmpdir(), 'tooldrop-mcp-'));
   engine = new Engine({
     db: handle.db,
+    dataDir,
     keyStore: () => Promise.resolve(memoryKeyStore()),
     watches: { now: () => now, delivery: { backoffMs: [] } },
   });
@@ -40,6 +46,7 @@ afterEach(async () => {
   await engine.close();
   await fixture.close();
   handle.close();
+  rmSync(dataDir, { recursive: true, force: true, maxRetries: 3 });
 });
 
 /** An MCP client connected to toolDrop's server, as Claude Desktop would be. */
@@ -60,6 +67,7 @@ describe('MCP server', () => {
     expect(tools.map((tool) => tool.name)).toEqual([
       'find_tool',
       'run_tool',
+      'approve_action',
       'create_watch',
       'list_watches',
       'delete_watch',
@@ -187,11 +195,43 @@ describe('MCP server', () => {
     expect((await call('list_watches')).structuredContent).toEqual({ watches: [] });
   });
 
+  it('shows a write as a preview with a screenshot, and makes it once approved', async () => {
+    engine.publish(
+      readToolFile(
+        fileURLToPath(new URL('../../../fixtures/recipes/html-app.record_payment.json', import.meta.url)),
+      ),
+      fixture.url,
+    );
+    const { client, call } = await connect();
+    const listed = (await client.listTools()).tools.find((tool) => tool.name === 'record_payment');
+    expect(listed?.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true });
+    expect(listed?.inputSchema.properties).toHaveProperty('dry_run');
+
+    const asked = await call('record_payment', { invoice: 'INV-1057', amount: 100 });
+    expect(asked.isError).toBe(true);
+    const text = asked.content.find((item) => item.type === 'text');
+    const { error } = JSON.parse(text?.type === 'text' ? text.text : '{}') as {
+      error: { code: string; details: { approval_id: string } };
+    };
+    expect(error.code).toBe('approval_required');
+    expect(asked.content.find((item) => item.type === 'image')).toMatchObject({ mimeType: 'image/png' });
+
+    const approved = await call('approve_action', {
+      approval_id: error.details.approval_id,
+      decision: 'approve',
+    });
+    expect(approved.structuredContent).toMatchObject({
+      approval: { status: 'approved', decided_by: 'mcp' },
+      result: 'Payment PAY-0001 recorded: INV-1057 is paid, 100.00 USD.',
+    });
+  }, 60_000);
+
   it("shows only the tools an API key's scopes allow", async () => {
     const { client, call } = await connect({ scopes: ['list_orders'] });
     expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual([
       'find_tool',
       'run_tool',
+      'approve_action',
       'create_watch',
       'list_watches',
       'delete_watch',

@@ -1,6 +1,8 @@
 import {
   ToolDropError,
+  type ApprovalView,
   type LoginView,
+  type PolicyView,
   type RecipeOrigin,
   type Recording,
   type ToolFile,
@@ -23,6 +25,7 @@ import {
 } from '@tooldrop/db';
 import { addLogin as saveLogin, Vault, viewLogins, type KeyStore } from '@tooldrop/auth';
 import { Runtime, type RunnableTool, type RunOutcome } from '@tooldrop/runtime';
+import { Approvals } from './approvals.ts';
 import { Builds, type BuildOptions, type JobView } from './builds.ts';
 import { readRecording, writeRecording } from './recordings.ts';
 import { Heals } from './heals.ts';
@@ -70,6 +73,7 @@ export class Engine {
   readonly sessions: Sessions;
   readonly heals: Heals;
   readonly watches: Watches;
+  readonly approvals: Approvals;
   readonly #healHoldMs: number;
   readonly #backgroundHeals: boolean;
   readonly #dataDir: string | undefined;
@@ -86,6 +90,7 @@ export class Engine {
     this.sessions = new Sessions(this, options.builds?.browser ? { browser: options.builds.browser } : {});
     this.heals = new Heals(this);
     this.watches = new Watches(this, options.watches);
+    this.approvals = new Approvals(this);
     this.#healHoldMs = options.healHoldMs ?? HEAL_HOLD_MS;
     this.#backgroundHeals = options.backgroundHeals ?? true;
   }
@@ -211,6 +216,8 @@ export class Engine {
     const tool = getTool(this.db, name);
     if (!tool || tool.status === 'disabled') throw new ToolDropError('not_found', `no tool named ${name}`);
     if (!keyAllows(scopes, name)) throw new ToolDropError('forbidden', `this API key may not run ${name}`);
+    // A write previews and waits for an approval; it is never healed, since a repair replays it (SPEC, Safe mode).
+    if (tool.authority === 'write') return this.approvals.call(tool, input);
 
     let outcome: RunOutcome;
     try {
@@ -282,10 +289,10 @@ export class Engine {
     return outcome;
   }
 
-  /** Runs a tool's current version, signed in when its site has a login. */
-  async #run(tool: PublishedTool, input: unknown): Promise<RunOutcome> {
-    const signedIn = await this.sessions.ensure(tool.site.origin);
-    const runnable: RunnableTool = {
+  /** A tool as the runtime runs it, signed in when its site has a login; `renew` signs in again. */
+  async prepare(tool: PublishedTool, options: { renew?: boolean } = {}): Promise<RunnableTool> {
+    const signedIn = await this.sessions.ensure(tool.site.origin, options.renew ? { force: true } : {});
+    return {
       name: tool.name,
       authority: tool.authority,
       input_schema: tool.input_schema,
@@ -296,13 +303,18 @@ export class Engine {
       rate_limit: tool.site.rate_limit,
       ...(signedIn && { login: { url: signedIn.loginUrl } }),
     };
+  }
+
+  /** Runs a tool's current version, signed in when its site has a login. */
+  async #run(tool: PublishedTool, input: unknown): Promise<RunOutcome> {
+    const runnable = await this.prepare(tool);
     try {
       return await this.runtime.run(runnable, input);
     } catch (error) {
       // An expired session signs in again, then the call runs once more (SPEC, Sessions).
-      if (!signedIn || !(error instanceof ToolDropError && error.code === 'session_expired')) throw error;
-      await this.sessions.ensure(tool.site.origin, { force: true });
-      return this.runtime.run(runnable, input);
+      if (!runnable.login || !(error instanceof ToolDropError && error.code === 'session_expired'))
+        throw error;
+      return this.runtime.run(await this.prepare(tool, { renew: true }), input);
     }
   }
 
@@ -315,7 +327,8 @@ export class Engine {
   ): Promise<{ tool: string; ok: boolean; healed: boolean; error?: string }[]> {
     requireFullAccess(scopes);
     const results: { tool: string; ok: boolean; healed: boolean; error?: string }[] = [];
-    for (const tool of this.listTools()) {
+    // Write tools are left out: running one, even as a test, asks for an approval.
+    for (const tool of this.listTools().filter((candidate) => candidate.authority === 'read')) {
       const inputs = testInputs(this.db, tool.id, tool.version);
       if (inputs.length === 0) continue;
       let healed = false;
@@ -345,6 +358,44 @@ export class Engine {
 
   deleteWatch(id: string, scopes: Scopes = ALL): void {
     this.watches.delete(id, scopes);
+  }
+
+  /**
+   * Approves or rejects a pending write (SPEC, approve_action and POST
+   * /v1/approvals/:id). `by` names who decided, for the audit log.
+   */
+  decideApproval(
+    id: string,
+    decision: unknown,
+    scopes: Scopes = ALL,
+    by = 'local',
+  ): Promise<{ approval: ApprovalView; result?: unknown; meta?: RunOutcome['meta'] }> {
+    return this.approvals.decide(id, decision, scopes, by);
+  }
+
+  getApproval(id: string, scopes: Scopes = ALL): ApprovalView {
+    return this.approvals.get(id, scopes);
+  }
+
+  /** The write audit log, newest first. */
+  listApprovals(scopes: Scopes = ALL, status?: ApprovalView['status']): ApprovalView[] {
+    return this.approvals.list(scopes, status ? { status } : {});
+  }
+
+  approvalScreenshot(id: string, which: 'before' | 'after', scopes: Scopes = ALL): Buffer | undefined {
+    return this.approvals.screenshot(id, which, scopes);
+  }
+
+  createPolicy(input: unknown, scopes: Scopes = ALL): PolicyView {
+    return this.approvals.createPolicy(input, scopes);
+  }
+
+  listPolicies(scopes: Scopes = ALL): PolicyView[] {
+    return this.approvals.listPolicies(scopes);
+  }
+
+  deletePolicy(id: string, scopes: Scopes = ALL): void {
+    this.approvals.deletePolicy(id, scopes);
   }
 
   /** Calls `listener` whenever the published tools change, e.g. to send MCP's list_changed. */

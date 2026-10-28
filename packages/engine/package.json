@@ -27,6 +27,7 @@
     "@tooldrop/fixture-json-api": "workspace:*",
     "@tooldrop/fixture-kit": "workspace:*",
     "@tooldrop/fixture-login-totp": "workspace:*",
+    "drizzle-orm": "^0.45.4",
     "otplib": "^13.5.0"
   }
 }

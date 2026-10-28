@@ -134,6 +134,26 @@ describe('tooldrop CLI', { timeout: 120_000 }, () => {
     expect((await cli('run', 'nope')).stderr).toContain('no tool named nope');
   });
 
+  it('asks for approval before a write, and makes it once approved', async () => {
+    await cli('tools', 'add', repo('fixtures/recipes/html-app.record_payment.json'), '--site', fixture.url);
+    const asked = await cli('run', 'record_payment', '--input', '{"invoice":"INV-1057","amount":100}');
+    expect(asked.status).toBe(2);
+    expect(asked.stdout).toContain('record_payment changes the site, so it waits for your approval.');
+    expect(asked.stdout).toContain('Invoice number: INV-1057');
+    const id = /tooldrop approvals approve (\S+)/.exec(asked.stdout)?.[1] ?? '';
+    expect((await cli('approvals')).stdout).toContain(`${id}  record_payment  pending`);
+
+    const approved = await cli('approvals', 'approve', id);
+    expect(approved.stdout).toContain('Payment PAY-0001 recorded: INV-1057 is paid');
+    expect((await cli('approvals', '--all')).stdout).toContain(`${id}  record_payment  approved by cli`);
+
+    const added = await cli('policies', 'add', 'record_payment', '--when', 'amount < 100');
+    expect(added.stdout).toContain('record_payment now runs without asking when amount < 100');
+    const small = await cli('run', 'record_payment', '--input', '{"invoice":"INV-1053","amount":40}');
+    expect(small.status).toBe(0);
+    expect(small.stdout).toContain('INV-1053 is paid');
+  });
+
   it('creates, lists and revokes API keys', async () => {
     const created = await cli('keys', 'create', '--label', 'laptop');
     expect(created.stdout).toMatch(/shown only this once:\s+td_[\w-]+/);
