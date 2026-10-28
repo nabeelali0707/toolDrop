@@ -1,5 +1,5 @@
 import { loginRecipeSchema, ToolDropError, type LoginRecipe, type Step } from '@tooldrop/core';
-import type { StorageState } from '@tooldrop/runtime';
+import { guardSignIn, type StorageState } from '@tooldrop/runtime';
 import { CaptureSession, type CaptureOptions } from '../capture/capture.ts';
 import type { AxNode, PageSnapshot } from '../capture/page-helpers.ts';
 import { siteUrl } from '../generate/draft.ts';
@@ -22,10 +22,15 @@ const CODE = /code|otp|one-?time|verification|2fa|two-?factor|passcode/i;
 
 const isPassword = (node: AxNode) => node.secret === true;
 
+export interface LoginBuildOptions extends CaptureOptions {
+  /** Origins besides the site's own where the login may be typed: identity providers the person allowed. */
+  approvedOrigins?: readonly string[];
+}
+
 export async function buildLoginRecipe(
   url: string,
   values: LoginValuesSource,
-  options: CaptureOptions = {},
+  options: LoginBuildOptions = {},
 ): Promise<{ recipe: LoginRecipe; state: StorageState }> {
   const site = new URL(url).origin;
   const session = await CaptureSession.start(url, options);
@@ -45,6 +50,8 @@ export async function buildLoginRecipe(
     const username = before.reverse().find((n) => n.role === 'textbox' && !n.secret);
     const submit = nextButton(page, password);
     if (!username || !submit) throw noForm(url);
+    // Typed only on the site or an allowed identity provider, and never past a captcha.
+    await guardSignIn(session.page, site, options.approvedOrigins ?? []);
 
     // Which recorded actions carry which saved value.
     const fills = new Map<number, string>();
@@ -61,6 +68,7 @@ export async function buildLoginRecipe(
     if (code && !page.nodes.some(isPassword)) {
       const verify = nextButton(page, code);
       if (!verify) throw noForm(url);
+      await guardSignIn(session.page, site, options.approvedOrigins ?? []);
       await session.fill(code.ref, await values.otp());
       fills.set(session.actions.length - 1, '{{input.otp}}');
       await session.click(verify.ref);

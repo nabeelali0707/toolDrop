@@ -1,8 +1,15 @@
 import { memoryKeyStore, type KeyStore } from '@tooldrop/auth';
 import { toolFileSchema } from '@tooldrop/core';
-import { latestSession, listLogins, openDatabase, runMigrations, type DatabaseHandle } from '@tooldrop/db';
+import {
+  approvedAuthOrigins,
+  latestSession,
+  listLogins,
+  openDatabase,
+  runMigrations,
+  type DatabaseHandle,
+} from '@tooldrop/db';
 import type { RunningFixture } from '@tooldrop/fixture-kit';
-import { FIXTURE_ACCOUNT, startLoginTotpFixture } from '@tooldrop/fixture-login-totp';
+import { CAPTCHA_SOLVED, FIXTURE_ACCOUNT, startLoginTotpFixture } from '@tooldrop/fixture-login-totp';
 import { Runtime } from '@tooldrop/runtime';
 import { generate } from 'otplib';
 import { chromium, type Browser } from 'playwright';
@@ -65,7 +72,15 @@ beforeEach(() => {
 afterEach(async () => {
   for (const engine of engines.splice(0)) await engine.close();
   handle.close();
+  await fetch(`${fixture.url}/__fixture/reset`, { method: 'POST' });
 });
+
+const flip = (switches: Record<string, boolean>) =>
+  fetch(`${fixture.url}/__fixture/switches`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(switches),
+  });
 
 describe('signed-in sites', () => {
   it('signs in unattended with TOTP, and refreshes an expired session within the call', async () => {
@@ -136,6 +151,77 @@ describe('signed-in sites', () => {
     await expect(engine.runTool('protected_invoices', {})).rejects.toMatchObject({ code: 'session_expired' });
     expect(listLogins(handle.db)[0]?.login.status).toBe('needs_attention');
   }, 60_000);
+
+  it('asks once before typing the login on an identity provider, and remembers the answer', async () => {
+    await flip({ ssoLogin: true });
+    const engine = start();
+    await engine.addLogin({
+      site: fixture.url,
+      username: FIXTURE_ACCOUNT.username,
+      password: FIXTURE_ACCOUNT.password,
+    });
+    const provider = `http://localhost:${new URL(fixture.url).port}`;
+    await expect(engine.signIn(fixture.url)).rejects.toMatchObject({
+      code: 'human_needed',
+      details: { approve_origin: provider },
+    });
+
+    const questions: string[] = [];
+    const ask = ({ text }: { text: string }) => {
+      questions.push(text);
+      return Promise.resolve('allow');
+    };
+    expect(await engine.signIn(fixture.url, { ask })).toBe(true);
+    expect(questions).toEqual([
+      `Signing in to ${fixture.url} goes through ${provider}, another site. Should toolDrop type the saved login there from now on?`,
+    ]);
+    expect(approvedAuthOrigins(handle.db, fixture.url)).toEqual([provider]);
+
+    // Allowed once: the next sign-in asks nothing.
+    expect(await engine.signIn(fixture.url)).toBe(true);
+    engine.publish(protectedInvoices, fixture.url);
+    expect(((await engine.runTool('protected_invoices', {})).result as unknown[]).length).toBe(10);
+  }, 120_000);
+
+  it('keeps a session a person signed in to by hand, past a captcha', async () => {
+    await flip({ captcha: true });
+    const engine = start();
+    await engine.addLogin({
+      site: fixture.url,
+      username: FIXTURE_ACCOUNT.username,
+      password: FIXTURE_ACCOUNT.password,
+    });
+    engine.publish(protectedInvoices, fixture.url);
+    await expect(engine.runTool('protected_invoices', {})).rejects.toMatchObject({
+      code: 'human_needed',
+      details: { by_hand: true },
+    });
+
+    // The person: signs in and solves the captcha, as `tooldrop logins verify --by-hand` lets them.
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await page.goto(`${fixture.url}/login`);
+    await page.getByLabel('Username').fill(FIXTURE_ACCOUNT.username);
+    await page.getByLabel('Password').fill(FIXTURE_ACCOUNT.password);
+    await page.locator('input[name="g-recaptcha-response"]').evaluate((input, answer) => {
+      (input as HTMLInputElement).value = answer;
+    }, CAPTCHA_SOLVED);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await page.getByLabel('Code').fill(await generate({ secret: FIXTURE_ACCOUNT.totpSecret }));
+    await page.getByRole('button', { name: 'Verify' }).click();
+    await page.waitForURL('**/invoices');
+    await engine.sessions.saveByHand(fixture.url, {
+      state: await context.storageState(),
+      signInUrl: `${fixture.url}/login`,
+      landingUrl: page.url(),
+    });
+    await context.close();
+
+    expect(((await engine.runTool('protected_invoices', {})).result as unknown[]).length).toBe(10);
+    // When that session ends, toolDrop asks for a person again instead of trying the captcha.
+    await fetch(`${fixture.url}/__fixture/expire-sessions`, { method: 'POST' });
+    await expect(engine.runTool('protected_invoices', {})).rejects.toThrow('is done by a person');
+  }, 120_000);
 
   it('gives prompts every value to mask, except a username that is a plain word', async () => {
     const engine = start();

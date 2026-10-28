@@ -42,6 +42,28 @@ export function getLoginRecipe(db: Queryable, site: string): LoginRecipe | undef
     .get()?.recipe;
 }
 
+/** Identity providers a person allowed a site's login to be typed on (SPEC, sites.approved_auth_origins). */
+export function approvedAuthOrigins(db: Queryable, site: string): string[] {
+  return (
+    db
+      .select({ origins: sites.approved_auth_origins })
+      .from(sites)
+      .where(eq(sites.origin, new URL(site).origin))
+      .get()?.origins ?? []
+  );
+}
+
+/** Allows a site's login to be typed on another origin from now on. */
+export function approveAuthOrigin(db: Queryable, site: string, origin: string): void {
+  const row = ensureSite(db, site);
+  const allowed = new URL(origin).origin;
+  if (row.approved_auth_origins.includes(allowed)) return;
+  db.update(sites)
+    .set({ approved_auth_origins: [...row.approved_auth_origins, allowed] })
+    .where(eq(sites.id, row.id))
+    .run();
+}
+
 /** The login a site signs in with: a verified one first, then the newest. */
 export function siteLogin(db: Queryable, site: string): LoginWithSite | undefined {
   const rows = db

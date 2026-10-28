@@ -7,3 +7,4 @@ export * from './validate.ts';
 export { BrowserPool, type StorageState } from './browser/pool.ts';
 export { toLocator, trackRequests } from './executors/browser.ts';
 export * from './write.ts';
+export * from './sign-in-guard.ts';

@@ -1,8 +1,10 @@
 import { startHtmlAppFixture } from '@tooldrop/fixture-html-app';
 import type { RunningFixture } from '@tooldrop/fixture-kit';
 import { FIXTURE_ACCOUNT, startLoginTotpFixture } from '@tooldrop/fixture-login-totp';
+import { generate } from 'otplib';
 import { chromium, type Browser } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { buildLoginRecipe } from '../login/build-login.ts';
 import { Recorder } from './recorder.ts';
 import { replayRecording } from './replay.ts';
 
@@ -75,5 +77,26 @@ describe('the recorder', () => {
       secret: true,
     });
     expect(JSON.stringify(recording)).not.toContain(FIXTURE_ACCOUNT.password);
+  }, 60_000);
+
+  it('opens signed in with a saved session, so the recording holds only the task', async () => {
+    const { state } = await buildLoginRecipe(
+      login.url,
+      {
+        username: FIXTURE_ACCOUNT.username,
+        password: FIXTURE_ACCOUNT.password,
+        otp: () => Promise.resolve(generate({ secret: FIXTURE_ACCOUNT.totpSecret })),
+      },
+      { browser },
+    );
+    const recorder = await Recorder.start(`${login.url}/invoices`, {
+      browser,
+      headless: true,
+      storageState: state,
+    });
+    expect(new URL(recorder.page.url()).pathname).toBe('/invoices');
+    await recorder.page.getByRole('table').waitFor();
+    const recording = await recorder.stop([]);
+    expect(recording.actions).toEqual([{ kind: 'goto', url: `${login.url}/invoices` }]);
   }, 60_000);
 });

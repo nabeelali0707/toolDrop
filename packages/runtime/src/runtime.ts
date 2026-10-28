@@ -213,7 +213,12 @@ export class Runtime {
    * session (SPEC, Authentication). Fails with `session_expired` when the
    * signed-in check does not pass, e.g. after a wrong password or code.
    */
-  async signIn(recipe: LoginRecipe, site: string, values: LoginValues): Promise<StorageState> {
+  async signIn(
+    recipe: LoginRecipe,
+    site: string,
+    values: LoginValues,
+    options: { approvedOrigins?: readonly string[] } = {},
+  ): Promise<StorageState> {
     const context = await this.#browsers.fresh();
     try {
       const templates: TemplateContext = { site, input: { ...values }, session: {}, vars: {}, loop: {} };
@@ -222,6 +227,8 @@ export class Runtime {
         context: () => Promise.resolve(context),
         limiter: this.#limiter(site),
         waitMs,
+        // The login is typed only on the site or an allowed identity provider, and never past a captcha.
+        signIn: { site, approved: options.approvedOrigins ?? [] },
       });
       const login = renderText(recipe.url, templates);
       const page = await context.newPage();

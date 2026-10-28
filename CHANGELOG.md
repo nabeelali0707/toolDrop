@@ -43,6 +43,7 @@ This file covers the project as a whole. From the first release on, the publishe
   - A daily health check in `tooldrop serve`, and `tooldrop tools check` to run it now.
   - Version history and rollback: `GET /v1/tools/:name/versions` and `POST /v1/tools/:name/rollback`, and `tooldrop tools versions` and `tooldrop tools rollback`.
   - API keys for OpenAI-compatible endpoints, sealed in the vault.
+- Sign-in safeguards (Phase 4): toolDrop types a login only on the site or an identity provider you allowed once, and a captcha stops it: `tooldrop logins verify --by-hand` lets you sign in yourself and keeps the session. `tooldrop record` opens signed in on sites with a saved login.
 - The dashboard (Phase 4), served by `tooldrop serve` on the same port as the API: tools with their schema, a cURL example, versions and rollback; runs; writes waiting for approval with screenshots, and the audit log; questions such as 2FA codes; repairs; and saved logins. New read routes: `GET /v1/tools/:name`, `GET /v1/runs` and `GET /v1/jobs`.
 - The toolDrop Recorder Chrome extension (Phase 4): record a task once in your own Chrome, pick the inputs on a review page, and upload it to your toolDrop server or start the build from there. Installs unpacked.
 - Safe mode (Phase 4): a write tool shows a preview with a screenshot of the filled form, and submits only once approved with `approve_action`, `POST /v1/approvals/:id` or `tooldrop approvals approve`. `dry_run`, policies such as "amount < 100", and an audit log of every write with screenshots from before and after.

@@ -5,6 +5,7 @@ import {
   type RecordedAction,
   type Recording,
 } from '@tooldrop/core';
+import type { StorageState } from '@tooldrop/runtime';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { installPageHelpers } from '../capture/page-helpers.ts';
 import { addRecorderEvent, valueActions } from './assemble.ts';
@@ -19,6 +20,8 @@ export interface RecorderOptions {
   /** Tests record headless and drive the page themselves. */
   headless?: boolean;
   browser?: Browser;
+  /** A signed-in session for the site, so the window opens signed in (SPEC, Authentication). */
+  storageState?: StorageState;
 }
 
 export class Recorder {
@@ -62,7 +65,10 @@ export class Recorder {
       : await chromium.launch({ headless: options.headless ?? false });
     const browser = options.browser ?? owned;
     if (!browser) throw new ToolDropError('internal', 'no browser to record with');
-    const context = await browser.newContext({ viewport: null });
+    const context = await browser.newContext({
+      viewport: null,
+      ...(options.storageState && { storageState: options.storageState }),
+    });
     await context.addInitScript(installPageHelpers);
     await context.addInitScript(installRecorder);
     const page = await context.newPage();

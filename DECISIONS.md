@@ -472,7 +472,7 @@ SPEC's Security criterion: no API, log, error or model prompt ever holds a plain
 - **Policies** approve a tool's writes when one input meets a condition, such as `amount < 100`. Only a full-access REST key or the CLI can create one, never MCP, so an agent cannot approve its own writes.
 - **The audit log is the approvals table:** inputs, preview, who decided (`mcp`, `cli`, `api-key:<label>`, `policy:<id>`) and when, screenshots from before and after, and the outcome. The result of a write is kept when it is under 10 KB. Screenshots are files in `<home>/approvals`.
 - **MCP:** write tools list `dry_run` among their inputs, carry `destructiveHint`, and send the screenshot of the filled form as an image with the preview. `approve_action` tells agents to call it only with the user's decision.
-- **Not yet:** building write tools. A build replays what it captures, and replaying a write would submit it, so compiling a recorded form into a write recipe needs captures that stop at the submit. Task 4.12.
+- **Not yet:** building write tools. A build replays what it captures, and replaying a write would submit it, so compiling a recorded form into a write recipe needs captures that stop at the submit. Task 5.13.
 
 ### D-046 How the Chrome extension records
 
@@ -497,3 +497,13 @@ SPEC's Security criterion: no API, log, error or model prompt ever holds a plain
 - **Next.js 16.4.1.** 16.4.0 had critical advisories (GHSA-673q-mjm6-r5xr, GHSA-2464-fhr4-w9xw) and a high-severity one (GHSA-p3m5-59mp-jv5r), all fixed in 16.4.1. A static export runs no Next.js server, so none of them reached toolDrop, but the build pins the fixed release. Next.js's build printed an instruction for AI agents to run `next upgrade --agent=security`; it was not followed, and the advisories were checked in GitHub's database instead.
 - **New read routes for it:** `GET /v1/tools/:name`, `GET /v1/runs` and `GET /v1/jobs` (by status or kind), useful to any client.
 - **Smoke test:** the test builds the export, serves it with toolDrop's own server, signs in with a key in Chromium, and walks the pages. It also approves a write from the Approvals page.
+
+### D-048 Identity providers and captchas: when a person has to act
+
+*Proposed · 2026-10-28*
+
+- **One error for it:** `human_needed` (HTTP 409). A person has to act before a sign-in can go on: allow an identity provider, or sign in by hand past a captcha. The message says what to do.
+- **A login is typed only where it belongs:** on the site's own origin, or on an identity provider the person allowed for that site. Building a login recipe and replaying one both check before every typed field, so a sign-in page that moves to another origin stops instead of handing it the password. Allowed origins are kept in `sites.approved_auth_origins`, as SPEC's data model has it.
+- **Asked once:** during a build as a job question (allow or deny), and in the terminal with `tooldrop logins verify <site>`. A plain call that meets a new origin fails with `human_needed` and says how to allow it.
+- **Captchas go to a person** (D-018): a captcha widget on the sign-in page stops the sign-in. `tooldrop logins verify <site> --by-hand` opens a visible browser where the person signs in and solves it, and toolDrop keeps the session. Its login recipe only opens the sign-in page, which tells later sign-ins that a person does them: when the session ends, toolDrop asks for a person again rather than meeting the captcha itself. A build that meets a captcha waits on a question until the person has signed in by hand.
+- **Recording behind a sign-in:** `tooldrop record` signs in with the site's saved login first, so its window opens signed in and the recording holds only the task.

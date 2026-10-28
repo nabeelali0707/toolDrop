@@ -11,6 +11,7 @@ export const ERROR_CODES = [
   'session_expired', // the session expired and signing in again failed
   'approval_required', // safe mode: a write is waiting for approval
   'conflict', // the request no longer fits: an approval already decided or expired, or a tool changed since
+  'human_needed', // a person must act first: allow a sign-in origin, or sign in by hand past a captcha
   'heal_timeout', // the call waited 5 minutes and the heal did not publish
   'llm_invalid_output', // the model's reply failed its schema after every retry
   'llm_unavailable', // Ollama, or the configured endpoint, cannot be reached

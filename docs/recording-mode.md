@@ -1,7 +1,7 @@
 # Recording mode
 
 ::: info Status
-`tooldrop record` and the Chrome extension work today. `tooldrop record` opens a fresh browser, so for now it suits sites that need no sign-in (task 4.11). The extension records in your own Chrome, signed in.
+`tooldrop record` and the Chrome extension work today. On a site with a saved login, `tooldrop record` opens its browser already signed in; the extension records in your own Chrome, with your sign-ins.
 :::
 
 Instead of letting a model explore a site, do the task once yourself while toolDrop records it. The build then compiles exactly what you did. It is faster, cheaper and far more reliable with local models, so toolDrop prefers recordings whenever they exist.

@@ -2,7 +2,7 @@
 
 The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of under a day, with the files each task touches. Choices and open questions are in [DECISIONS.md](DECISIONS.md).
 
-**Status:** Phases 0 to 3 done (2026-10-28). Phase 1 waits on a manual MCP check in Claude Desktop or Claude Code, and Phase 2 on full builds with real models on a machine with a GPU. The open-source release track is partly done (below). Phase 4 is next.
+**Status:** Phases 0 to 4 done (2026-10-28). Phase 1 waits on a manual MCP check in Claude Desktop or Claude Code, and Phase 2 on full builds with real models on a machine with a GPU. The open-source release track is partly done (below). Phase 5 is next.
 
 **How this file works**
 
@@ -167,12 +167,10 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
   Files: `apps/dashboard/{package.json,next.config.ts}`, `apps/dashboard/app/{layout,page}.tsx`, `apps/dashboard/app/{tool,runs}/page.tsx`, `apps/dashboard/components/*`, `apps/dashboard/lib/*`, `apps/server/src/app.ts` (static files, `/v1/tools/:name`, `/v1/runs`, `/v1/jobs`), `apps/cli/{build.ts,src/home.ts}`
 - [x] **4.9 `dashboard`: logins, approvals, 2FA, heals.** Masked logins and a form to save one; writes waiting for approval with their screenshot, and the audit log; questions such as 2FA codes with an answer box; the heal log and recent builds.
   Files: `apps/dashboard/app/{logins,approvals,jobs}/page.tsx`, `apps/dashboard/test/dashboard.e2e.test.ts`
-- [ ] **4.10 `auth`: identity providers and captchas.** SPEC's sign-in rules that Phase 3's plan missed. When a sign-in leads to another origin (Okta, Microsoft), ask once to approve it and record it on the site; never type a login into an origin that is not approved. When a sign-in or a build meets a captcha, pause and ask a person to solve it (D-018).
-  Files: `packages/compiler/src/login/build-login.ts`, `packages/engine/src/sessions.ts`, `packages/db/src/repos/tools.ts` (sites), a second-origin switch on `fixtures/login-totp`, tests
-- [ ] **4.11 Recording behind a sign-in.** `tooldrop record` starts from the site's saved session, so the recording holds only the task.
+- [x] **4.10 `auth`: identity providers and captchas.** A login is typed only on the site or an identity provider the person allowed once (`human_needed`, D-048); a captcha stops the sign-in, and `tooldrop logins verify --by-hand` lets the person sign in in a visible browser. The login fixture gets `ssoLogin` and `captcha` switches.
+  Files: `packages/runtime/src/{sign-in-guard,runtime}.ts`, `packages/runtime/src/executors/browser.ts`, `packages/compiler/src/login/build-login.ts`, `packages/engine/src/sessions.ts`, `packages/db/src/repos/sessions.ts`, `apps/cli/src/commands/logins.ts`, `fixtures/login-totp/src/server.ts`, tests
+- [x] **4.11 Recording behind a sign-in.** `tooldrop record` signs in with the saved login first, so its window opens signed in.
   Files: `apps/cli/src/commands/record.ts`, `packages/compiler/src/recording/recorder.ts`, tests
-- [ ] **4.12 Write builds from recordings.** Compile a recorded form submission into a write recipe whose submit is the commit step. Captures, validation and heals must stop before the submit, since replaying it would make the write.
-  Files: `packages/compiler/src/{build,capture/capture}.ts`, `packages/compiler/src/recording/replay.ts`, `packages/compiler/src/generate/draft.ts`, tests
 
 **Gate:** *Watches*, *Safe mode* and *Recording* (through the extension) criteria; a dashboard smoke test.
 
@@ -207,6 +205,8 @@ Items marked "split first" are broken into day-sized tasks before work starts.
 - [ ] **5.10 URL-first discovery**
 - [ ] **5.11 Multi-site workflows**
 - [ ] **5.12 Code export**
+- [ ] **5.13 Write builds from recordings** (split first; moved from Phase 4, whose gate does not need it). Compile a recorded form submission into a write recipe whose submit is the commit step. Captures, validation and heals must stop before the submit, since replaying it would make the write.
+  Files: `packages/compiler/src/{build,capture/capture}.ts`, `packages/compiler/src/recording/replay.ts`, `packages/compiler/src/generate/draft.ts`, tests
 
 **Gate:** *SMS 2FA* and *Zero cost* criteria, plus each feature's own tests.
 
@@ -294,3 +294,20 @@ Filled in at the end of each phase: what shipped, test results and the commit.
     - A sealed endpoint key would have been sent to the next endpoint `init` set up.
 - **Commits:** `4354fe1` (vault), `a80d1ed` (logins), `8691f81` (login recipes, 2FA, sessions), `e41c8d4` (versions and rollback), `1470785` (self-healing), plus the security sweep and the endpoint key.
 - **Still open:** approving identity providers and pausing for captchas, which this phase's plan missed, are now task 4.10. Recording behind a sign-in is task 4.11.
+
+### Phase 4: MVP differentiators, done 2026-10-28
+
+- **Shipped:**
+  - Watches: a read tool runs on an interval and its changes go out as signed webhooks and MCP log messages, with retries. A lease keeps processes that share a database from running a watch twice.
+  - Safe mode: recipes mark their submit as the commit step. A write shows a preview with a screenshot and submits once, only after an approval. Dry runs, policies (REST and CLI only), and the approvals table as the write audit log.
+  - The toolDrop Recorder Chrome extension: the same recordings as `tooldrop record`, a review page, and upload or build from there.
+  - The dashboard: a Next.js static export served by `tooldrop serve`, with tools, runs, approvals, questions and repairs, and logins.
+  - Sign-in safeguards: a login is typed only on the site or an identity provider allowed once, a captcha goes to a person (`tooldrop logins verify --by-hand`), and `tooldrop record` opens signed in.
+- **Results:**
+  - The gate passes with a scripted model: *Watches* (exactly one signed `created` webhook within one interval), *Safe mode* (no submit without an approval, and a rejected preview changes nothing), *Recording* through the extension (a working tool with no exploration calls), and the dashboard smoke test.
+  - 342 tests pass in 47 files. Format, lint and typecheck are clean. The license check passes for 564 packages.
+  - Found on the way:
+    - Next.js 16.4.0 had critical advisories, so the dashboard pins 16.4.1. Its build also printed instructions addressed to AI agents, which were not followed (D-047).
+    - A write the site refused after the submit was reported as made. It now says the write was submitted and to check the site.
+- **Commits:** `6b2fe14` (watches), `b68bdb4` (safe mode), `debe52e` (extension), `1cd005e` (dashboard), plus the sign-in safeguards.
+- **Still open:** write builds from recordings (5.13); network capture in the extension, until builds can use it (D-046); and the store listing (R10).

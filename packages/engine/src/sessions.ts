@@ -1,7 +1,9 @@
 import { loginSecret, totpCode } from '@tooldrop/auth';
 import { buildLoginRecipe } from '@tooldrop/compiler';
-import { needsCode, ToolDropError, type LoginRecipe } from '@tooldrop/core';
+import { loginRecipeSchema, needsCode, ToolDropError, type LoginRecipe } from '@tooldrop/core';
 import {
+  approveAuthOrigin,
+  approvedAuthOrigins,
   getLoginRecipe,
   latestSession,
   saveLoginRecipe,
@@ -10,7 +12,7 @@ import {
   siteLogin,
   type LoginWithSite,
 } from '@tooldrop/db';
-import type { StorageState } from '@tooldrop/runtime';
+import { signInByHand, type StorageState } from '@tooldrop/runtime';
 import type { Browser } from 'playwright';
 import type { Engine } from './engine.ts';
 
@@ -21,8 +23,11 @@ import type { Engine } from './engine.ts';
 export interface SignInOptions {
   /** Sign in even when a saved session exists, e.g. after it expired. */
   force?: boolean;
-  /** Asks a person for a code, for logins whose codes arrive another way (SPEC, 2FA: human in the loop). */
-  ask?: (question: { text: string }) => Promise<string>;
+  /**
+   * Asks a person: for a code, for logins whose codes arrive another way (SPEC, 2FA: human
+   * in the loop); to allow an identity provider; or to sign in by hand past a captcha.
+   */
+  ask?: (question: { text: string; options?: string[] }) => Promise<string>;
 }
 
 /** What calls to a signed-in site need. */
@@ -92,25 +97,36 @@ export class Sessions {
     let used: LoginRecipe;
     let state: StorageState;
     try {
-      if (recipe) {
-        used = recipe;
-        state = await this.#engine.runtime.signIn(recipe, origin, {
-          username: secret.username,
-          password: secret.password,
-          ...(needsCode(recipe) && { otp: await otp() }),
-        });
-      } else {
+      ({ recipe: used, state } = await this.#signIn(origin, saved, options, async (approved) => {
+        if (recipe && byHand(recipe)) {
+          throw signInByHand(origin, 'is done by a person, and the last session from it has ended');
+        }
+        if (recipe) {
+          const values = { username: secret.username, password: secret.password };
+          const code = needsCode(recipe) ? { otp: await otp() } : {};
+          return {
+            recipe,
+            state: await this.#engine.runtime.signIn(
+              recipe,
+              origin,
+              { ...values, ...code },
+              { approvedOrigins: approved },
+            ),
+          };
+        }
         const built = await buildLoginRecipe(
           origin,
           { username: secret.username, password: secret.password, otp },
-          this.#browser ? { browser: this.#browser } : {},
+          { ...(this.#browser && { browser: this.#browser }), approvedOrigins: approved },
         );
         saveLoginRecipe(db, origin, built.recipe, 'build');
-        used = built.recipe;
-        state = built.state;
-      }
+        return built;
+      }));
     } catch (error) {
-      setLoginStatus(db, saved.login.id, 'needs_attention');
+      // A person has to act; the login itself may be fine.
+      if (!(error instanceof ToolDropError && error.code === 'human_needed')) {
+        setLoginStatus(db, saved.login.id, 'needs_attention');
+      }
       throw error;
     }
     saveSession(db, {
@@ -137,11 +153,100 @@ export class Sessions {
     return /[^a-z]/i.test(secret.username) ? [secret.username, ...values] : values;
   }
 
+  /**
+   * Keeps a session a person made by signing in themselves, such as past a
+   * captcha (SPEC: captchas go to a human). Its login recipe only opens the
+   * sign-in page, which tells later sign-ins that a person does them.
+   */
+  async saveByHand(
+    site: string,
+    signedIn: { state: StorageState; signInUrl: string; landingUrl: string },
+  ): Promise<void> {
+    const origin = new URL(site).origin;
+    const db = this.#engine.db;
+    const saved = siteLogin(db, origin);
+    if (!saved) {
+      throw new ToolDropError(
+        'not_found',
+        `there is no saved login for ${origin}; add one first with \`tooldrop logins add ${origin}\``,
+      );
+    }
+    const recipe = loginRecipeSchema.parse({
+      url: signedIn.signInUrl,
+      steps: [{ op: 'goto', url: signedIn.signInUrl }],
+      check: { kind: 'page', url: signedIn.landingUrl },
+    });
+    saveLoginRecipe(db, origin, recipe, 'user');
+    saveSession(db, {
+      login_id: saved.login.id,
+      storage_state: (await this.#engine.vault()).sealJson(signedIn.state),
+      expires_at: expiry(signedIn.state),
+    });
+    setLoginStatus(db, saved.login.id, 'verified');
+    await this.#use(origin, saved, { loginUrl: signedIn.signInUrl, state: signedIn.state });
+  }
+
+  /**
+   * Signs in, asking a person when the site needs one (SPEC, Authentication):
+   * to allow an identity provider on another origin, once, or to sign in by
+   * hand past a captcha while a build waits. Without anyone to ask, the error
+   * says what to do.
+   */
+  async #signIn(
+    origin: string,
+    saved: LoginWithSite,
+    options: SignInOptions,
+    attempt: (approved: string[]) => Promise<{ recipe: LoginRecipe; state: StorageState }>,
+  ): Promise<{ recipe: LoginRecipe; state: StorageState }> {
+    const db = this.#engine.db;
+    const approved = approvedAuthOrigins(db, origin);
+    for (let round = 1; ; round++) {
+      try {
+        return await attempt(approved);
+      } catch (error) {
+        if (!(error instanceof ToolDropError) || error.code !== 'human_needed' || !options.ask || round > 3) {
+          throw error;
+        }
+        const { approve_origin: other } = (error.details ?? {}) as { approve_origin?: string };
+        if (other) {
+          const answer = await options.ask({
+            text: `Signing in to ${origin} goes through ${other}, another site. Should toolDrop type the saved login there from now on?`,
+            options: ['allow', 'deny'],
+          });
+          if (answer.trim().toLowerCase() !== 'allow') {
+            throw new ToolDropError(
+              'human_needed',
+              `toolDrop will not type the login for ${origin} on ${other}: it was not allowed`,
+              {
+                details: { approve_origin: other, denied: true },
+              },
+            );
+          }
+          approveAuthOrigin(db, origin, other);
+          approved.push(other);
+          continue;
+        }
+        // A person signs in by hand; the build waits until they say it is done.
+        const asked = Date.now();
+        await options.ask({ text: `${error.message} Answer "done" once you have.`, options: ['done'] });
+        const session = latestSession(db, saved.login.id);
+        const recipe = getLoginRecipe(db, origin);
+        if (!session || !recipe || session.created_at.getTime() < asked) throw error;
+        return { recipe, state: (await this.#engine.vault()).openJson<StorageState>(session.storage_state) };
+      }
+    }
+  }
+
   async #use(origin: string, saved: LoginWithSite, signedIn: SignedIn): Promise<SignedIn> {
     await this.#engine.runtime.useSession(origin, signedIn.state);
     this.#loaded.set(origin, { loginId: saved.login.id, signedIn });
     return signedIn;
   }
+}
+
+/** A login recipe that only opens pages: a person signs in, as after a captcha. */
+function byHand(recipe: LoginRecipe): boolean {
+  return recipe.steps.every((step) => step.op === 'goto');
 }
 
 function resolve(url: string, origin: string): string {

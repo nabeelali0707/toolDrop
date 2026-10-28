@@ -5,7 +5,7 @@ import { FIXTURE_ACCOUNT, startLoginTotpFixture } from '@tooldrop/fixture-login-
 import { Runtime } from '@tooldrop/runtime';
 import { generate } from 'otplib';
 import { chromium, type Browser } from 'playwright';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { buildLoginRecipe } from './build-login.ts';
 
 // Signing in to the login fixtures with their test accounts (DECISIONS.md,
@@ -115,5 +115,41 @@ describe('login recipes', () => {
     await expect(
       buildLoginRecipe(login.url, { ...account, password: 'wrong-password-not-real' }, { browser }),
     ).rejects.toMatchObject({ code: 'session_expired' });
+  }, 60_000);
+});
+
+describe('what a sign-in may not do alone', () => {
+  const flip = (switches: Record<string, boolean>) =>
+    fetch(`${login.url}/__fixture/switches`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(switches),
+    });
+  afterEach(() => fetch(`${login.url}/__fixture/reset`, { method: 'POST' }));
+
+  it('types the login on an identity provider only once it is allowed', async () => {
+    await flip({ ssoLogin: true });
+    const provider = `http://localhost:${new URL(login.url).port}`;
+    await expect(buildLoginRecipe(login.url, account, { browser })).rejects.toMatchObject({
+      code: 'human_needed',
+      details: { approve_origin: provider },
+    });
+
+    const { recipe } = await buildLoginRecipe(login.url, account, { browser, approvedOrigins: [provider] });
+    expect(recipe.url).toBe(`${provider}/sso/login`);
+    const values = { username: FIXTURE_ACCOUNT.username, password: FIXTURE_ACCOUNT.password };
+    await expect(runtime.signIn(recipe, login.url, values)).rejects.toMatchObject({
+      code: 'human_needed',
+      details: { approve_origin: provider },
+    });
+    const state = await runtime.signIn(recipe, login.url, values, { approvedOrigins: [provider] });
+    expect(state.cookies.map((cookie) => cookie.name)).toContain('session');
+  }, 60_000);
+
+  it('stops at a captcha and asks for a person', async () => {
+    await flip({ captcha: true });
+    const stopped = buildLoginRecipe(login.url, account, { browser });
+    await expect(stopped).rejects.toMatchObject({ code: 'human_needed', details: { by_hand: true } });
+    await expect(stopped).rejects.toThrow(`tooldrop logins verify ${login.url} --by-hand`);
   }, 60_000);
 });

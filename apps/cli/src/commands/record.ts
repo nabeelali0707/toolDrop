@@ -27,13 +27,18 @@ export async function record(args: string[]): Promise<number> {
     );
   }
 
-  console.log(`Opening a browser at ${url}.
-1. Do the task once: search, filter, open pages. Sign-in arrives with a later release.
+  const terminal = createInterface({ input: process.stdin, output: process.stdout });
+  const { engine, close } = openEngine({ backgroundHeals: false });
+  try {
+    // A site with a saved login opens signed in, so the recording holds only the task.
+    const signedIn = await engine.sessions.ensure(url, {
+      ask: async ({ text }) => (await terminal.question(`${text}\nCode: `)).trim(),
+    });
+    console.log(`Opening a browser at ${url}${signedIn ? ', signed in with your saved login' : ''}.
+1. Do the task once: search, filter, open pages.
 2. Click "Mark data" in the toolDrop bar, then click the table or list you want.
 3. Click "Finish".`);
-  const recorder = await Recorder.start(url);
-  const terminal = createInterface({ input: process.stdin, output: process.stdout });
-  try {
+    const recorder = await Recorder.start(url, { ...(signedIn && { storageState: signedIn.state }) });
     for (;;) {
       await recorder.nextFinish();
       if (recorder.target || recorder.closed) break;
@@ -68,17 +73,13 @@ export async function record(args: string[]): Promise<number> {
     }
 
     const recording = await recorder.stop(inputs, values.task);
-    const { engine, close } = openEngine();
-    try {
-      const { id } = engine.saveRecording(recording);
-      if (values.out) writeFileSync(values.out, `${JSON.stringify(recording, null, 2)}\n`);
-      console.log(`\nSaved the recording as ${id}${values.out ? ` and in ${values.out}` : ''}. Build the tool with:
+    const { id } = engine.saveRecording(recording);
+    if (values.out) writeFileSync(values.out, `${JSON.stringify(recording, null, 2)}\n`);
+    console.log(`\nSaved the recording as ${id}${values.out ? ` and in ${values.out}` : ''}. Build the tool with:
   tooldrop build ${url} --task "${values.task ?? 'what the tool does'}" --recording ${id}`);
-      return 0;
-    } finally {
-      await close();
-    }
+    return 0;
   } finally {
     terminal.close();
+    await close();
   }
 }

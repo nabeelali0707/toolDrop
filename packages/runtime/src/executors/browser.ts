@@ -3,6 +3,7 @@ import type { BrowserContext, Locator, Page } from 'playwright';
 import type { SiteLimiter } from '../limits.ts';
 import { atStep, columnIndexes, describeTarget, mapPages, samePage } from '../steps.ts';
 import { render, renderText, type TemplateContext } from '../templates.ts';
+import { guardSignIn } from '../sign-in-guard.ts';
 import { fieldName, isCommit, type WriteMode } from '../write.ts';
 
 // Runs browser_script recipes in a warm Playwright context for the site.
@@ -19,6 +20,8 @@ export interface BrowserDeps {
   onDrift?: (step: number, selector: number) => void;
   /** Safe mode: stop before the first commit step, or run it with screenshots around it. */
   write?: WriteMode;
+  /** Signing in: every fill must be on the site or an allowed origin, with no captcha (SPEC, Authentication). */
+  signIn?: { site: string; approved: readonly string[] };
 }
 
 type Role = Parameters<Page['getByRole']>[0];
@@ -44,6 +47,10 @@ export async function runBrowserRecipe(
             step.op === 'click' ? `click "${fieldName(step.target)}"` : `${step.op} step ${index + 1}`;
           write.record.before = await page.screenshot({ fullPage: true });
           if (write.mode === 'preview') return undefined;
+        }
+        if (deps.signIn && step.op === 'fill') {
+          await settle();
+          await guardSignIn(page, deps.signIn.site, deps.signIn.approved);
         }
         const drift = (selector: number) => deps.onDrift?.(index, selector);
         const value = await atStep(index, step, () =>

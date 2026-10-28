@@ -33,6 +33,7 @@ const STATUS: Record<ErrorCode, number> = {
   not_found: 404,
   approval_required: 409,
   conflict: 409,
+  human_needed: 409,
   rate_limited: 429,
   internal: 500,
   invalid_output: 502,

@@ -1,7 +1,7 @@
 # Auth and 2FA
 
 ::: info Status
-Since Phase 3: the vault, saved logins, login recipes, session refresh, TOTP codes and codes typed by a person. Approving an identity provider and pausing for captchas come with Phase 4. Email and SMS codes come with Phase 5.
+Since Phase 3: the vault, saved logins, login recipes, session refresh, TOTP codes and codes typed by a person. Since Phase 4: approving an identity provider, and signing in by hand past a captcha. Email and SMS codes come with Phase 5.
 :::
 
 Credentials are optional. An agent can pass them with a single call, or you can save them in the vault so toolDrop signs in by itself.
@@ -30,7 +30,7 @@ toolDrop asks for the password, and with `--totp` for the authenticator secret, 
 
 Each site has a **login recipe**, built like any tool, that ends with a check that you really are signed in (for example, "the account menu is visible"). Sessions are saved and reused, and when one expires, toolDrop signs in again quietly instead of failing your call.
 
-If a login redirects to an identity provider such as Okta or Microsoft, toolDrop asks you once to approve that origin for the site.
+toolDrop types a login only on the site itself. If signing in leads to an identity provider on another address, such as Okta or Microsoft, it stops and asks you once: during a build as a job question, or in the terminal with `tooldrop logins verify <site>`. Once you allow it, that origin is remembered for the site and never asked about again.
 
 ## Second factors
 
@@ -52,4 +52,10 @@ The message text is never logged or stored. toolDrop keeps only the extracted co
 
 ## Captchas
 
-toolDrop never solves captchas automatically. It pauses and asks you to solve it.
+toolDrop never solves a captcha, and uses no solver service. When a sign-in page shows one, toolDrop stops and asks you to sign in yourself:
+
+```sh
+tooldrop logins verify https://shop.example --by-hand
+```
+
+A browser window opens; sign in, solve the captcha, then press Enter in the terminal. toolDrop keeps that session for its calls. When the session ends, it asks you to sign in by hand again rather than trying the captcha itself. During a build, the build waits on a question until you have done so.
