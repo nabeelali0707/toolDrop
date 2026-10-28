@@ -9,6 +9,7 @@ import {
   type FieldNote,
 } from '../prompt/har-summary.ts';
 import { tryJson } from '../prompt/json-shape.ts';
+import { identifier } from '../names.ts';
 import { leaves, pathStep, type Primitive } from './values.ts';
 
 // What each part of the data request is (SPEC, Build pipeline step 5):
@@ -254,17 +255,6 @@ function variableName(field: ClassifiedField, from: ValueSource): string {
           .filter(Boolean)
           .at(-1) ?? field.name);
   return identifier(raw.replace(/^x-/i, ''));
-}
-
-/** A name usable in templates: letters, digits and _. */
-export function identifier(text: string): string {
-  const name = text
-    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-  if (name === '') return 'value';
-  return /^\d/.test(name) ? `f_${name}` : name;
 }
 
 function unique(name: string, taken: Set<string>): string {

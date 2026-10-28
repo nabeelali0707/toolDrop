@@ -2,7 +2,8 @@ import type { Selector, Step, Strategy } from '@tooldrop/core';
 import type { Capture } from '../capture/capture.ts';
 import type { Exchange } from '../capture/har.ts';
 import { parseBody } from '../prompt/har-summary.ts';
-import { identifier, type ClassifiedField, type RequestAnalysis } from '../analyze/classify.ts';
+import { type ClassifiedField, type RequestAnalysis } from '../analyze/classify.ts';
+import { identifier } from '../names.ts';
 import { targetRows, type HtmlCandidate, type JsonCandidate } from '../analyze/rank.ts';
 
 // Draft recipes built from the evidence alone: requests, templates, paging

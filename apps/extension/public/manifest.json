@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "toolDrop Recorder",
+  "version": "0.1.0",
+  "description": "Do a task once on a website, and toolDrop turns it into a tool your AI agent can call.",
+  "homepage_url": "https://nabeelali0707.github.io/toolDrop/recording-mode",
+  "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" },
+  "action": {
+    "default_title": "toolDrop Recorder",
+    "default_popup": "popup.html",
+    "default_icon": { "16": "icons/16.png", "32": "icons/32.png" }
+  },
+  "background": { "service_worker": "background.js", "type": "module" },
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"]
+}

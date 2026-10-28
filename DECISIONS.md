@@ -473,3 +473,15 @@ SPEC's Security criterion: no API, log, error or model prompt ever holds a plain
 - **The audit log is the approvals table:** inputs, preview, who decided (`mcp`, `cli`, `api-key:<label>`, `policy:<id>`) and when, screenshots from before and after, and the outcome. The result of a write is kept when it is under 10 KB. Screenshots are files in `<home>/approvals`.
 - **MCP:** write tools list `dry_run` among their inputs, carry `destructiveHint`, and send the screenshot of the filled form as an image with the preview. `approve_action` tells agents to call it only with the user's decision.
 - **Not yet:** building write tools. A build replays what it captures, and replaying a write would submit it, so compiling a recorded form into a write recipe needs captures that stop at the submit. Task 4.12.
+
+### D-046 How the Chrome extension records
+
+*Proposed · 2026-10-28*
+
+- **The same recordings as `tooldrop record`.** The extension injects the page scripts the CLI recorder uses (`@tooldrop/compiler/page`: the page helpers and the recorder bar), and both add events to a recording through one function. Input names are suggested the same way.
+- **No network capture.** PLAN's task 4.3 planned to read the network through `chrome.debugger`. Builds replay a recording and record the network themselves (D-037), so nothing would use it yet. The debugger permission also brings a warning bar and a stricter store review. It waits until a build can use a recording's HAR without replaying, for sites that block automated browsers.
+- **Permissions:** `activeTab` and `scripting` put the recorder into the tab you start on, once you click the icon. After each page load in that tab, the recorder is injected again. `storage` keeps the recording, and host access to `127.0.0.1` and `localhost` reaches a local toolDrop server. A server elsewhere is an optional host permission, asked for when you upload.
+- **Storage:** the recording in progress lives in `chrome.storage.session`, because Chrome may stop the service worker between events. Session storage is also gone when Chrome closes. The server's address is in local storage; the API key only in session storage.
+- **Review, then upload:** after Finish, a review page picks the inputs, takes the task, and uploads to `POST /v1/recordings`. It can start the build (`POST /v1/builds`) or download the file. Finish needs marked data first, as in the CLI.
+- **The build is not minified,** so the injected functions run as written and anyone can read what runs.
+- **Tests** build the extension with Vite, load it unpacked in Chromium's new headless mode, record on the HTML fixture, and build from the upload with a scripted model.

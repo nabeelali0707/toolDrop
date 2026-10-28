@@ -7,6 +7,7 @@ import {
 } from '@tooldrop/core';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { installPageHelpers } from '../capture/page-helpers.ts';
+import { addRecorderEvent, valueActions } from './assemble.ts';
 import { installRecorder, RECORDER_BINDING, type RecorderEvent } from './recorder-page.ts';
 
 // `tooldrop record` (DECISIONS.md, D-016): a browser window where a person
@@ -73,12 +74,8 @@ export class Recorder {
   }
 
   /** The values typed or picked, which the person may turn into inputs. */
-  valueActions(): { index: number; action: Extract<RecordedAction, { kind: 'fill' | 'select' }> }[] {
-    return this.actions.flatMap((action, index) =>
-      (action.kind === 'fill' && action.value !== null) || action.kind === 'select'
-        ? [{ index, action }]
-        : [],
-    );
+  valueActions(): ReturnType<typeof valueActions> {
+    return valueActions(this.actions);
   }
 
   /** Closes the window and returns the recording. */
@@ -97,31 +94,7 @@ export class Recorder {
   }
 
   #record(event: RecorderEvent): void {
-    if (event.kind === 'finish') {
-      this.#finish();
-      return;
-    }
-    const { info } = event;
-    const label = info.name ? `${info.role || info.tag} "${info.name}"` : info.role || info.tag;
-    if (info.candidates.length === 0) return;
-    const target = info.candidates.slice(0, 8);
-    if (event.kind === 'target') {
-      this.target = { selector: target, label };
-      return;
-    }
-    if (event.kind === 'click') {
-      this.actions.push({ kind: 'click', target, label });
-      return;
-    }
-    // A field edited twice in a row keeps its last value.
-    const last = this.actions.at(-1);
-    const sameField =
-      last && last.kind === event.kind && JSON.stringify(last.target) === JSON.stringify(target);
-    const action: RecordedAction =
-      event.kind === 'select'
-        ? { kind: 'select', target, label, value: event.value, options: info.options ?? [] }
-        : { kind: 'fill', target, label, value: event.value, ...(event.value === null && { secret: true }) };
-    if (sameField) this.actions[this.actions.length - 1] = action;
-    else this.actions.push(action);
+    if (event.kind === 'finish') this.#finish();
+    else addRecorderEvent(this, event);
   }
 }

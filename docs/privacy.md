@@ -1,34 +1,39 @@
 # toolDrop Recorder privacy policy
 
 ::: info Status
-This policy covers the toolDrop Recorder Chrome extension, planned for Phase 4. It describes how the extension is designed to handle data.
+This policy covers the toolDrop Recorder Chrome extension, available since Phase 4.
 :::
 
 The toolDrop Recorder lets you record a task in your browser once, so toolDrop can turn it into a tool.
 
 ## What the extension collects
 
-Only while you are recording, and only in the tab you are recording:
+Only while you are recording, and only in the tab you started recording in:
 
-- the clicks and typing you do on the page, and which elements they touch;
-- the network requests the page makes, with their responses;
-- snapshots of the page's structure (its accessibility tree).
+- the clicks you make, the values you type or pick, and the page you start on;
+- for each element you touch, how to find it again: its role and name, test id, text and CSS selector;
+- the table, list or text you mark as the data.
 
-Nothing is collected when you are not recording.
+What you type into a password field is never kept. Nothing is collected when you are not recording, and the extension does not record network traffic.
 
 ## Where the data goes
 
-Recordings are sent only to **your own toolDrop server**, by default `http://127.0.0.1:3000` on your computer, or to the server address you set. They are never sent to the toolDrop project or anyone else.
+The recording stays in your browser's session storage until you upload or download it, and is gone when Chrome closes. When you upload it, it goes only to **your own toolDrop server**: by default `http://127.0.0.1:3000` on your computer, or the address you set. It is never sent to the toolDrop project or anyone else.
+
+The extension remembers your server's address. The API key you enter stays in session storage only, until Chrome closes.
 
 ## What the extension does not do
 
 - No analytics, no tracking and no advertising.
 - No selling or sharing data with third parties.
-- Passwords you type while recording are not kept in the recording. Mark them as sign-in fields, and toolDrop stores them encrypted in its vault instead.
+- It does not keep passwords. To let toolDrop sign in for you, save the login with `tooldrop logins add`, which keeps it encrypted in toolDrop's vault.
 
 ## Permissions
 
-The extension asks only for the permissions recording needs: access to the tab you record, and the debugger interface to read that tab's network traffic while recording.
+- **activeTab** and **scripting:** to put the recorder into the tab you record, after you click the toolDrop icon.
+- **storage:** to keep the recording until you upload it, and your server's address.
+- **Access to `127.0.0.1` and `localhost`:** to reach a toolDrop server on your computer.
+- **Access to another site** only if you set a toolDrop server there, asked for when you upload.
 
 ## Changes and contact
 

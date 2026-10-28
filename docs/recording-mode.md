@@ -1,7 +1,7 @@
 # Recording mode
 
 ::: info Status
-`tooldrop record` works today on sites that need no sign-in. Recording behind a sign-in, starting from the saved session, and the Chrome extension arrive with Phase 4.
+`tooldrop record` and the Chrome extension work today. `tooldrop record` opens a fresh browser, so for now it suits sites that need no sign-in (task 4.11). The extension records in your own Chrome, signed in.
 :::
 
 Instead of letting a model explore a site, do the task once yourself while toolDrop records it. The build then compiles exactly what you did. It is faster, cheaper and far more reliable with local models, so toolDrop prefers recordings whenever they exist.
@@ -32,13 +32,15 @@ The recording is saved under `~/.tooldrop/recordings`, and the terminal prints t
 
 ## Record with the Chrome extension
 
-The extension records in your everyday Chrome, with the sign-ins you already have.
+The extension records in your everyday Chrome, with the sign-ins you already have. It makes the same recordings as `tooldrop record`.
 
-1. Download `tooldrop-recorder.zip` from the latest [release](https://github.com/nabeelali0707/toolDrop/releases) and unzip it.
-2. Open `chrome://extensions`, turn on **Developer mode**, and choose **Load unpacked**. Select the unzipped folder.
-3. Click the toolDrop icon, press **Record**, do the task, then press **Stop** and mark the inputs.
+1. Get the extension: download `tooldrop-recorder.zip` from the latest [release](https://github.com/nabeelali0707/toolDrop/releases) and unzip it, or build it from source with `pnpm --filter @tooldrop/extension build` (it lands in `apps/extension/dist`).
+2. Open `chrome://extensions`, turn on **Developer mode**, and choose **Load unpacked**. Select the unzipped or `dist` folder.
+3. On the site, click the toolDrop icon and press **Start recording**. Do the task, navigating by clicking.
+4. In the toolDrop bar on the page, click **Mark data**, then the table or list, then **Finish**.
+5. A review page opens. Tick the values the tool should ask for on every call, say what the tool does, and upload. Uploading needs your server's address and an API key from `tooldrop keys create`. **Build the tool now** starts the build; **Download the recording** saves a file for `tooldrop build --recording`.
 
-The recording goes to your own toolDrop server (by default `http://127.0.0.1:3000`) and nowhere else. Installing from the Chrome Web Store is optional; "load unpacked" is free and always works. See the [Recorder privacy policy](./privacy).
+The recording goes to your own toolDrop server (by default `http://127.0.0.1:3000`) and nowhere else. The build replays it in toolDrop's own browser, so on a site that needs a sign-in, save the login first with `tooldrop logins add`. Installing from the Chrome Web Store is optional; "load unpacked" is free and always works. See the [Recorder privacy policy](./privacy).
 
 ## Then build from it
 

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Review the recording · toolDrop</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body class="review">
+    <main>
+      <h1>Review the recording</h1>
+      <p id="site" class="hint"></p>
+
+      <section>
+        <h2>What you did</h2>
+        <ol id="steps"></ol>
+        <p id="data"></p>
+      </section>
+
+      <section id="inputs-section">
+        <h2>Inputs</h2>
+        <p>Which values should the tool ask for on every call? The others stay as you recorded them.</p>
+        <div id="inputs"></div>
+      </section>
+
+      <section>
+        <h2>The task</h2>
+        <label for="task">What does the tool do?</label>
+        <textarea id="task" rows="2" placeholder="List my invoices, filtered by status"></textarea>
+      </section>
+
+      <section>
+        <h2>Your toolDrop server</h2>
+        <label for="server">Address</label>
+        <input id="server" type="url" spellcheck="false" />
+        <label for="key">API key</label>
+        <input id="key" type="password" autocomplete="off" spellcheck="false" />
+        <p class="hint">
+          Create a key with <code>tooldrop keys create</code>. It stays in this browser only until Chrome
+          closes.
+        </p>
+      </section>
+
+      <div class="actions">
+        <button id="upload" type="button">Upload to toolDrop</button>
+        <button id="build" type="button" hidden>Build the tool now</button>
+        <button id="download" type="button" class="secondary">Download the recording</button>
+      </div>
+      <p id="result" role="status"></p>
+      <p id="error" role="alert" hidden></p>
+    </main>
+    <script type="module" src="/src/review.ts"></script>
+  </body>
+</html>

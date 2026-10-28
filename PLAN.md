@@ -149,12 +149,12 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
 
 ## Phase 4: MVP differentiators
 
-- [ ] **4.1 `extension`: scaffold.** Manifest V3 with Vite, a popup to start and stop recording, installed unpacked (D-017).
-  Files: `apps/extension/{package.json,manifest.json,vite.config.ts}`, `apps/extension/src/{background,popup}/*`
-- [ ] **4.2 `extension`: action recorder.** A content script that records clicks and inputs with ranked selectors and lets the user mark inputs.
-  Files: `apps/extension/src/content/recorder.ts`, `apps/extension/src/popup/mark-inputs.ts`, tests in Chromium with the unpacked extension
-- [ ] **4.3 `extension`: network capture and upload.** Network capture through `chrome.debugger` (needed for response bodies), export as recording v1, upload to `POST /v1/recordings`.
-  Files: `apps/extension/src/background/{network,upload}.ts`, tests
+- [x] **4.1 `extension`: scaffold.** Manifest V3 built with Vite, unminified; a popup to start and finish recording; installed unpacked (D-017, D-046).
+  Files: `apps/extension/{package.json,vite.config.ts,popup.html}`, `apps/extension/public/manifest.json`, `apps/extension/src/{background,popup,shared}.ts`, icons from `apps/extension/scripts/icons.ts`
+- [x] **4.2 `extension`: action recorder.** The CLI recorder's page scripts, injected into the recorded tab after every page load; a review page to mark inputs; one shared way to build recordings (`@tooldrop/compiler/page`).
+  Files: `apps/extension/src/{background,review}.ts`, `apps/extension/review.html`, `packages/compiler/src/recording/{assemble,page}.ts`, `packages/compiler/src/names.ts`, tests in Chromium with the unpacked extension
+- [x] **4.3 `extension`: upload.** Recording v1 uploaded to `POST /v1/recordings`, a build started from the review page, or the file downloaded. Network capture through `chrome.debugger` waits until builds can use a HAR without replaying (D-046).
+  Files: `apps/extension/src/{review,shared}.ts`, `apps/extension/src/extension.e2e.test.ts`
 - [x] **4.4 `watches`: scheduler and diff.** A 30-second timer with a lease per watch (D-044), a 5-minute minimum interval, row hashes, diff by key field into `created`, `updated` and `deleted`; an `/__fixture/invoices` control that adds a row.
   Files: `packages/watches/src/diff.ts`, `packages/engine/src/watches.ts`, `packages/db/src/repos/watches.ts`, `packages/db/migrations/0004_*`, `fixtures/kit/src/switches.ts`, tests
 - [x] **4.5 `watches`: delivery.** HMAC-SHA256 signatures with a timestamp, retries with backoff, MCP log notifications, `create_watch`, `list_watches` and `delete_watch`, `POST`, `GET` and `DELETE /v1/watches`; the scheduler runs in `serve` and `mcp`.
@@ -223,7 +223,7 @@ From your release plan (2026-10-26). It runs alongside the phases: each item nee
 - [ ] **R7 Install path B (Docker Compose).** The image and `compose.yaml` (app, Ollama, model download) are built and checked in CI. Still needed: the dashboard on port 3000 (Phase 4), and Postgres and Valkey (Phase 5).
 - [x] **R8 Bring your own model.** `tooldrop init` sizes and pulls Ollama models, and accepts any OpenAI-compatible endpoint; a key is sealed in the vault.
 - [ ] **R9 Main use case: the Demo Shop.** Steps 1 to 4 pass end to end with a scripted model (`apps/server/src/demo-shop.e2e.test.ts`): save the login, build `list_orders` from the shop's own API behind sign-in and TOTP, and answer which orders have not arrived in under 2 seconds. The watch, the dashboard and the demo GIF need Phase 4.
-- [ ] **R10 Chrome extension release zip and store listing.** The privacy policy page is written (`docs/privacy.md`); the extension, icons and screenshots come with Phase 4.
+- [ ] **R10 Chrome extension release zip and store listing.** The extension, its icons and its privacy policy (`docs/privacy.md`) are done, and the release workflow zips it at your first tag. Still needed: store screenshots and the listing, which you submit.
 - [ ] **R11 Chrome QA.** Dashboard and extension checks come with Phase 4. Done so far: the fixture pages and the docs site, checked in Chrome.
 
 ## Done log

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>toolDrop Recorder</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body class="popup">
+    <h1>toolDrop Recorder</h1>
+    <p id="where" class="hint"></p>
+    <div id="idle" hidden>
+      <p>
+        Do the task once on this page: click and type as you normally would, navigating by clicking. Then mark
+        the data and click Finish in the toolDrop bar.
+      </p>
+      <button id="start" type="button">Start recording</button>
+    </div>
+    <div id="recording" hidden>
+      <p>Recording this tab. Use the toolDrop bar on the page to mark the data, then click Finish.</p>
+      <button id="stop" type="button">Finish and review</button>
+    </div>
+    <p id="error" role="alert" hidden></p>
+    <script type="module" src="/src/popup.ts"></script>
+  </body>
+</html>

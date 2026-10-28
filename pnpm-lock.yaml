@@ -145,6 +145,48 @@ importers:
         specifier: ^0.28.2
         version: 0.28.2
 
+  apps/extension:
+    devDependencies:
+      '@tooldrop/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@tooldrop/compiler':
+        specifier: workspace:*
+        version: link:../../packages/compiler
+      '@tooldrop/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@tooldrop/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@tooldrop/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
+      '@tooldrop/fixture-html-app':
+        specifier: workspace:*
+        version: link:../../fixtures/html-app
+      '@tooldrop/fixture-kit':
+        specifier: workspace:*
+        version: link:../../fixtures/kit
+      '@tooldrop/llm':
+        specifier: workspace:*
+        version: link:../../packages/llm
+      '@tooldrop/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
+      '@tooldrop/server':
+        specifier: workspace:*
+        version: link:../server
+      '@types/chrome':
+        specifier: 0.3.5
+        version: 0.3.5
+      playwright:
+        specifier: ^1.64.1
+        version: 1.64.1
+      vite:
+        specifier: ^8.3.5
+        version: 8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1)
+
   apps/mcp:
     dependencies:
       '@modelcontextprotocol/sdk':
@@ -1870,6 +1912,9 @@ packages:
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
 
+  '@types/chrome@0.3.5':
+    resolution: {integrity: sha512-7HYsK7xalNxzLwGrP9lkCQPAA6V56VtPpOmv2CQnBnMzX5/Hpr+Iv5fqaIOIY/H/Q6ZBksLmurWh7zXPcZ4B7Q==}
+
   '@types/deep-eql@4.0.2':
     resolution: {integrity: sha512-c9h9dVVMigMPc4bwTvC5dxqtqJZwQPePsWjPlpSOnojbor6pGqdk541lfA7AqFQr5pB1BRdq0juY9db81BwyFw==}
 
@@ -1878,6 +1923,15 @@ packages:
 
   '@types/estree@1.0.9':
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
+
+  '@types/filesystem@0.0.36':
+    resolution: {integrity: sha512-vPDXOZuannb9FZdxgHnqSwAG/jvdGM8Wq+6N4D/d80z+D4HWH+bItqsZaVRQykAn6WEVeEkLm2oQigyHtgb0RA==}
+
+  '@types/filewriter@0.0.33':
+    resolution: {integrity: sha512-xFU8ZXTw4gd358lb2jw25nxY9QAgqn2+bKKjKOYfNCzN4DKCFetK7sPtrlpg66Ywe3vWY9FNxprZawAh9wfJ3g==}
+
+  '@types/har-format@1.2.16':
+    resolution: {integrity: sha512-fluxdy7ryD3MV6h8pTfTYpy/xQzCFC7m89nOH9y94cNqJ1mDIDPut7MnRHI3F6qRmh/cT2fUjG1MLdCNb4hE9A==}
 
   '@types/hast@3.0.5':
     resolution: {integrity: sha512-rp/ezSWaD1m44dPKICGhiskI13nVr7qTloFwDa/IYkhhf5nzwP+zIQcIJh3WIFSBOy/H1PzB40jPjMDksN4F+g==}
@@ -4848,11 +4902,24 @@ snapshots:
       '@types/deep-eql': 4.0.2
       assertion-error: 2.0.1
 
+  '@types/chrome@0.3.5':
+    dependencies:
+      '@types/filesystem': 0.0.36
+      '@types/har-format': 1.2.16
+
   '@types/deep-eql@4.0.2': {}
 
   '@types/esrecurse@4.3.1': {}
 
   '@types/estree@1.0.9': {}
+
+  '@types/filesystem@0.0.36':
+    dependencies:
+      '@types/filewriter': 0.0.33
+
+  '@types/filewriter@0.0.33': {}
+
+  '@types/har-format@1.2.16': {}
 
   '@types/hast@3.0.5':
     dependencies:

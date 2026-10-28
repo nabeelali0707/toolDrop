@@ -2,7 +2,7 @@ import { writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
 import { parseArgs } from 'node:util';
 import { ToolDropError, type MarkedInput } from '@tooldrop/core';
-import { identifier, Recorder } from '@tooldrop/compiler';
+import { identifier, Recorder, suggestedInputName } from '@tooldrop/compiler';
 import { openEngine } from '../home.ts';
 
 /**
@@ -60,7 +60,7 @@ export async function record(args: string[]): Promise<number> {
         .filter((n) => Number.isInteger(n) && n >= 1 && n <= typed.length);
       for (const n of [...new Set(picked)]) {
         const { index, action } = typed[n - 1]!;
-        const suggested = identifier(/"([^"]+)"/.exec(action.label)?.[1] ?? action.label);
+        const suggested = suggestedInputName(action.label);
         const answer = (await terminal.question(`Name for ${action.label} [${suggested}]: `)).trim();
         const name = answer ? identifier(answer) : suggested;
         inputs.push({ name, action: index, example: action.value ?? '' });
