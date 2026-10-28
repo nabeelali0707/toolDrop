@@ -11,6 +11,37 @@ export interface RecordingDraft {
   target?: Recording['target'];
 }
 
+/**
+ * Parts of a page that only hold others: a click there lands on empty space
+ * or text, does nothing, and is no step.
+ */
+const STRUCTURE_ROLES = new Set([
+  'document',
+  'main',
+  'navigation',
+  'banner',
+  'contentinfo',
+  'region',
+  'complementary',
+  'article',
+  'form',
+  'group',
+  'list',
+  'listitem',
+  'table',
+  'rowgroup',
+  'row',
+  'cell',
+  'columnheader',
+  'rowheader',
+  'heading',
+  'paragraph',
+  'img',
+  'presentation',
+  'none',
+]);
+const STRUCTURE_TAGS = new Set(['html', 'body']);
+
 /** Adds one thing the person did. Elements toolDrop could not describe are left out. */
 export function addRecorderEvent(
   draft: RecordingDraft,
@@ -25,6 +56,7 @@ export function addRecorderEvent(
     return;
   }
   if (event.kind === 'click') {
+    if (STRUCTURE_ROLES.has(info.role) || (!info.role && STRUCTURE_TAGS.has(info.tag))) return;
     draft.actions.push({ kind: 'click', target, label });
     return;
   }
@@ -40,11 +72,14 @@ export function addRecorderEvent(
   else draft.actions.push(action);
 }
 
-/** The values typed or picked, which the person may turn into inputs. */
+/**
+ * The values typed or picked, which the person may turn into inputs. An
+ * empty one, such as an "All" choice or a cleared field, is no input.
+ */
 export function valueActions(
   actions: readonly RecordedAction[],
 ): { index: number; action: Extract<RecordedAction, { kind: 'fill' | 'select' }> }[] {
   return actions.flatMap((action, index) =>
-    (action.kind === 'fill' && action.value !== null) || action.kind === 'select' ? [{ index, action }] : [],
+    (action.kind === 'fill' || action.kind === 'select') && action.value ? [{ index, action }] : [],
   );
 }
