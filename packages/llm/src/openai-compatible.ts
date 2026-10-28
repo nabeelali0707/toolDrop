@@ -7,9 +7,12 @@ import type { ChatReply, ChatRequest, LlmProvider } from './provider.ts';
 // hosted API. Optional, and nothing may require it (SPEC, Providers). Plain
 // fetch, no SDK (DECISIONS.md, D-003).
 
+/** An API key, or a function that reads it from the vault the first time a call needs it. */
+export type ApiKey = string | (() => Promise<string | undefined>);
+
 export interface OpenAiCompatibleOptions {
-  /** Kept in memory only; the vault stores it from Phase 3 (task 3.12). */
-  apiKey?: string;
+  /** Sealed in the vault on disk (task 3.12); only ever in memory once read. */
+  apiKey?: ApiKey;
   timeoutMs?: number;
   fetch?: typeof fetch;
 }
@@ -31,6 +34,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
   readonly endpoint: string;
   readonly #options: OpenAiCompatibleOptions;
   #mode: FormatMode = 'json_schema';
+  #key: Promise<string | undefined> | undefined;
 
   /** `baseUrl` includes the version path, e.g. `http://127.0.0.1:8080/v1`. */
   constructor(baseUrl: string, options: OpenAiCompatibleOptions = {}) {
@@ -66,7 +70,8 @@ export class OpenAiCompatibleProvider implements LlmProvider {
 
   async #post(request: ChatRequest): Promise<Response> {
     const headers: Record<string, string> = { 'content-type': 'application/json' };
-    if (this.#options.apiKey) headers.authorization = `Bearer ${this.#options.apiKey}`;
+    const key = await this.#apiKey();
+    if (key) headers.authorization = `Bearer ${key}`;
     try {
       return await (this.#options.fetch ?? patientFetch)(`${this.endpoint}/chat/completions`, {
         method: 'POST',
@@ -102,6 +107,13 @@ export class OpenAiCompatibleProvider implements LlmProvider {
         json_schema: { name: request.purpose.replace(/[^A-Za-z0-9_-]/g, '_'), schema: request.format },
       },
     };
+  }
+
+  /** The key, read once: a function reads it from the vault on the first call that needs it. */
+  #apiKey(): Promise<string | undefined> {
+    const option = this.#options.apiKey;
+    this.#key ??= typeof option === 'function' ? option() : Promise.resolve(option);
+    return this.#key;
   }
 
   #failed(detail: string): ToolDropError {

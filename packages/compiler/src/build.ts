@@ -53,6 +53,8 @@ export interface BuildDeps {
   waitMs?: number;
   /** A signed-in session for the site (SPEC, Build pipeline step 2), and its sign-in page. */
   signedIn?: { loginUrl: string; state: StorageState };
+  /** Values every prompt masks, such as the saved login's username and password. */
+  secrets?: string[];
   /** Most explore actions (default 30). */
   actionBudget?: number;
 }
@@ -99,6 +101,7 @@ export async function buildTool(
   }
   const site = new URL(request.url).origin;
   const masker = new Masker();
+  for (const secret of deps.secrets ?? []) masker.add(secret);
   const access: ModelAccess = {
     llm: deps.llm,
     masker,

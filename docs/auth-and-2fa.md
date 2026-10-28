@@ -1,7 +1,7 @@
 # Auth and 2FA
 
 ::: info Status
-The vault, login recipes, TOTP and human-in-the-loop codes are planned for Phase 3. Email and SMS codes come later.
+Since Phase 3: the vault, saved logins, login recipes, session refresh, TOTP codes and codes typed by a person. Approving an identity provider and pausing for captchas come with Phase 4. Email and SMS codes come with Phase 5.
 :::
 
 Credentials are optional. An agent can pass them with a single call, or you can save them in the vault so toolDrop signs in by itself.
@@ -11,6 +11,20 @@ Credentials are optional. An agent can pass them with a single call, or you can 
 - Credentials are encrypted at rest with libsodium.
 - The master key lives in your OS keychain. When self-hosted, it is a key file mounted at runtime. It is never stored in an image, an environment variable, a log or the database.
 - No API ever returns a saved secret. You see only that it exists, such as `password: ••••••••`, never any of its characters.
+
+## Saving a login
+
+Save it from a terminal, so the password never passes through a chat:
+
+```bash
+tooldrop logins add https://shop.example --username ana --totp
+```
+
+toolDrop asks for the password, and with `--totp` for the authenticator secret, without showing what you type. Use `--human` instead to type each code yourself when it is needed. Use `--password-stdin` to pipe the password in, for example from a password manager's CLI.
+
+- An agent can save a login with the `add_login` tool, and a REST client with `POST /v1/logins`.
+- `tooldrop logins list`, `list_logins` and `GET /v1/logins` show saved logins, masked.
+- `tooldrop logins verify <site>` signs in once and saves the session, asking for the code when the login needs one.
 
 ## Signing in
 
@@ -25,7 +39,7 @@ toolDrop tries these in order:
 1. **TOTP.** Save the authenticator secret, and toolDrop generates codes itself.
 2. **Email codes.** toolDrop reads the code from a connected inbox over IMAP, matched by sender and time.
 3. **SMS codes,** from your own Android phone (see below). No paid SMS service.
-4. **Ask a human.** The job pauses and asks you for the code through your agent or the dashboard.
+4. **Ask a human.** The job pauses and asks you for the code through your agent or the REST API, and from Phase 4 the dashboard. Outside a job, `tooldrop logins verify` asks in the terminal.
 
 ### SMS codes from your phone
 

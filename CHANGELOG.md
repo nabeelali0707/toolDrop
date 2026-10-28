@@ -31,3 +31,15 @@ This file covers the project as a whole. From the first release on, the publishe
   - `packages/compiler`: capture of the network, the page and the steps; traffic analysis; recipe drafts that the local model reviews; inferred input and output schemas; validation of every recipe against the browser on 2 to 3 input sets; and an explore agent for builds without a recording.
   - Build jobs with clarifying questions: `build_tool`, `get_job` and `answer_question` over MCP; `POST /v1/builds`, `GET /v1/jobs/:id`, `POST /v1/jobs/:id/answers` and `POST /v1/recordings` over REST.
   - `tooldrop record` to do a task once in a browser, and `tooldrop build` to build in the terminal.
+- Signing in and self-healing (Phase 3):
+  - An encrypted vault (libsodium) for credentials, with its master key in the OS keychain or a key file.
+  - Saved logins: `add_login` and `list_logins` over MCP, `POST /v1/logins` and `GET /v1/logins` over REST, and `tooldrop logins add`, `list` and `verify`. Saved values are never returned, only masked previews.
+  - Login recipes built by signing in once, TOTP codes, codes typed by a person through job questions, and sessions that are renewed when they expire, without failing the call.
+  - Self-healing:
+    - Selectors that drifted are refreshed without a model.
+    - A broken API or HTML recipe is rebuilt in the background while the browser answers.
+    - A broken step is repaired while the call waits up to 5 minutes.
+    - Every repair is tested, then published as a new version with its reason.
+  - A daily health check in `tooldrop serve`, and `tooldrop tools check` to run it now.
+  - Version history and rollback: `GET /v1/tools/:name/versions` and `POST /v1/tools/:name/rollback`, and `tooldrop tools versions` and `tooldrop tools rollback`.
+  - API keys for OpenAI-compatible endpoints, sealed in the vault.

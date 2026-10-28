@@ -7,7 +7,7 @@
 [![npm](https://img.shields.io/npm/v/tooldrop.svg)](https://www.npmjs.com/package/tooldrop)
 [![Docs](https://img.shields.io/badge/docs-online-informational.svg)](https://nabeelali0707.github.io/toolDrop/)
 
-> **Status: early development, not on npm yet.** toolDrop builds tools from a task description or a recording, with local models, and runs them for your agent over MCP, REST and the CLI, with an automatic browser fallback. Signing in, self-healing, the dashboard and the Chrome extension come next. [PLAN.md](PLAN.md) shows what is done and what is next.
+> **Status: early development, not on npm yet.** toolDrop builds tools from a task description or a recording, with local models, and runs them for your agent over MCP, REST and the CLI, with an automatic browser fallback. It signs in with saved logins and TOTP, and repairs a tool when its site changes. Watches, safe mode, the dashboard and the Chrome extension come next. [PLAN.md](PLAN.md) shows what is done and what is next.
 
 <!-- Demo GIF: docs/public/demo.gif, recorded for the first release (build a tool, ask a question, watch it heal). -->
 

@@ -1,7 +1,7 @@
 # Recording mode
 
 ::: info Status
-`tooldrop record` works today, for sites that need no sign-in (signing in arrives with Phase 3). The Chrome extension arrives with Phase 4.
+`tooldrop record` works today on sites that need no sign-in. Recording behind a sign-in, starting from the saved session, and the Chrome extension arrive with Phase 4.
 :::
 
 Instead of letting a model explore a site, do the task once yourself while toolDrop records it. The build then compiles exactly what you did. It is faster, cheaper and far more reliable with local models, so toolDrop prefers recordings whenever they exist.

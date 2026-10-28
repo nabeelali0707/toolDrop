@@ -19,7 +19,8 @@ None at the moment.
 SPEC named `keytar`, which was archived with the Atom organization and gets no more fixes, security fixes included. toolDrop uses [`@napi-rs/keyring`](https://www.npmjs.com/package/@napi-rs/keyring) (MIT, actively maintained) instead. It covers the same stores: macOS Keychain, Windows Credential Manager and the Linux Secret Service. It ships prebuilt binaries for Windows, macOS and Linux on x64 and ARM, so installing toolDrop needs no compiler. SPEC's tech stack is changed to match.
 
 - **Vault encryption:** `libsodium-wrappers` (ISC), libsodium compiled to WebAssembly, so it also installs without a compiler. A sealed value is a format byte, a random 24-byte nonce and the secretbox (XSalsa20-Poly1305).
-- **First use:** the vault creates the master key the first time it is needed, in the OS keychain, or in `<home>/master.key` (mode 600) where there is no keychain. A key file the operator mounts (`TOOLDROP_KEY_FILE` or the Compose secret) is never created by toolDrop, except by `tooldrop init`, and a key file is never overwritten.
+- **First use:** the vault creates the master key the first time it is needed, in the OS keychain, or in `<home>/master.key` (mode 600) where there is no keychain.
+- **On Linux, only the Secret Service counts as a keychain.** Without one, as on most servers and in WSL, the library would fall back to the kernel keyring. That keyring is held in memory, so the key and every login sealed with it would be lost at the next reboot. toolDrop requires the Secret Service and uses the key file when there is none. A key file the operator mounts (`TOOLDROP_KEY_FILE` or the Compose secret) is never created by toolDrop, except by `tooldrop init`, and a key file is never overwritten.
 - **Tests** never touch the machine's real keychain: they use an in-memory store, or point `TOOLDROP_KEY_FILE` at a temporary file.
 
 ### D-001 Project name
@@ -368,9 +369,9 @@ A 7B model is good at judging a recipe against a task, and poor at matching hund
 
 - **Code drafts.** The analyzer finds the response behind the data on screen, the JSON path behind each column, and what every request field is (`constant`, `user_input`, `derived`, `auth`, `pagination`), including where a CSRF token or ID came from. From that it drafts a complete recipe for each viable strategy.
 - **The model reviews.** The `code` model gets the task, the evidence and the draft, and returns the recipe: it names the fields and keeps the ones the task needs. The reply is a full recipe, validated by the recipe schema, so SPEC's "the model writes the recipe as JSON" still holds.
-- **The fallback is built by code.** The browser recipe comes from the capture and reads the same fields. Each field is tied to its column by its JSON path, or else by its draft name, so a field the model points at another path is still compared against the page.
+- **The fallback is built by code.** The browser recipe comes from the capture and reads the same fields. Each field is tied to its column by its JSON path, or else by its draft name, so a field the model points at another path is still compared against the page. A column whose cells hold the value inside other text, such as "Delivered 2026-10-20", is left out of the fallback. The page cannot give that value alone, so the API's field is returned, but it is neither required nor compared.
 - **Other model calls are small:** `clarify` (questions for the caller, usually none), `describe_tool` (name and descriptions), `classify_fields` (only for opaque fields the heuristics cannot explain), and `explore` (agent mode only).
-- **Limits today:** builds read tables and text. A list of cards is read as one text, until an op for repeated items exists. `html_fetch` reads the first page of a list, since the format cannot page HTML. `official_api` is never picked by a build; any API in the site's traffic is `http_replay`. Builds make read tools only, until safe mode (Phase 4).
+- **Limits today:** builds read tables and text. A list of cards is read as one text, until an op for repeated items exists. A column built from several values maps to the one that fills most rows: the Demo Shop's Delivery column shows either the delivered or the expected date, and a draft returns the expected date. `html_fetch` reads the first page of a list, since the format cannot page HTML. `official_api` is never picked by a build; any API in the site's traffic is `http_replay`. Builds make read tools only, until safe mode (Phase 4).
 - **Reuse (step 1):** a published tool on the same site whose name and description contain every word of the task is returned instead of building.
 
 ### D-036 Build jobs run in the engine, in the process that started them
@@ -432,3 +433,16 @@ Node's built-in fetch gives up when a server sends no response headers for 5 min
 - **Health check:** `tooldrop serve` runs every tool's saved test inputs daily, and `tooldrop tools check` runs them now. A failure goes through the same repair as a failing call.
 - **One-shot commands leave background heals alone:** `tooldrop run` exits after printing, so drift and fast-path repairs happen in `serve`, `mcp` or the next health check.
 - **Tests run on half the cores:** many end-to-end files drive their own Chromium, and a full parallel run on a 4-core laptop made some builds outlast their timeouts.
+
+### D-043 Keeping credentials out of prompts, answers and storage
+
+*Proposed · 2026-10-28*
+
+SPEC's Security criterion: no API, log, error or model prompt ever holds a plain-text credential.
+
+- **No request logs.** The REST server runs with Fastify's logger off. Model calls are stored as numbers only (purpose, model, tokens, time and outcome), never the prompt or the reply. So SPEC's "grep over logs" becomes a search of everything toolDrop does keep. Any log added later must pass through the same masking as prompts.
+- **Errors name the field, never the value,** for example "the login is not valid; check password".
+- **A site's saved login is masked in every prompt** of a build or a heal on that site: password and authenticator secret always, plain and URL-encoded, and the username when it holds a digit or a symbol, as emails and handles do. A username that is a plain word, such as `admin`, stays: sites use the same word in paths and labels, and masking it there would hide the recipe from the model. Cookies and tokens found in the capture are masked as before (D-011).
+- **Placeholders stay visible.** A `{{template}}`, the same after an auth scheme (`Bearer {{vars.token}}`), and a JSONPath such as `$.token` say where a secret goes, not what it is. Masking them hid the recipe from the model reviewing it. The Demo Shop test found this.
+- **The test:** `apps/server/src/security.e2e.test.ts` signs in with TOTP, builds a tool and calls it, then expires the sessions and calls it again. It searches every prompt, every REST answer, the database with its WAL, and the capture files for the account's username, password and authenticator secret. It also checks that no prompt, answer or capture file holds the session cookie.
+- **An OpenAI-compatible endpoint's API key** is sealed in the vault, in `<home>/secrets/llm-api-key` (mode 600), and never written to `config.json`. `tooldrop init` asks for it without echoing it, or reads it from stdin with `--api-key-stdin`. It is sealed with the endpoint's URL and sent only there: after `init` switches to another endpoint, the old key stays unused. It is unsealed on the first model call, so commands that make none never open the vault.

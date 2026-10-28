@@ -2,7 +2,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'n
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { findKeyStore } from '@tooldrop/auth';
+import { findKeyStore, readSealed, Vault } from '@tooldrop/auth';
 import { openDatabase, runMigrations } from '@tooldrop/db';
 import { Engine } from '@tooldrop/engine';
 import { defaultSettings, llmSettingsSchema, modelSetup, type LlmSettings } from '@tooldrop/llm';
@@ -40,6 +40,25 @@ export function modelSettings(): LlmSettings {
   return configured ? llmSettingsSchema.parse(configured) : defaultSettings();
 }
 
+/** Where the model endpoint's API key is kept, sealed by the vault. */
+export function llmKeyPath(): string {
+  return join(homeDir(), 'secrets', 'llm-api-key');
+}
+
+/** What the sealed file holds: the key with its endpoint, so it is never sent to another one. */
+export interface SavedApiKey {
+  base_url: string;
+  api_key: string;
+}
+
+/** The endpoint's API key, unsealed when the first model call needs it; undefined when none was saved for it. */
+async function llmApiKey(baseUrl: string): Promise<string | undefined> {
+  if (!existsSync(llmKeyPath())) return undefined;
+  const vault = await Vault.open(await findKeyStore({ home: homeDir() }));
+  const saved = JSON.parse(readSealed(llmKeyPath(), vault) ?? '{}') as Partial<SavedApiKey>;
+  return saved.base_url === baseUrl ? saved.api_key : undefined;
+}
+
 /** Opens the database in the home directory, applies migrations and starts an engine. */
 export function openEngine(options: { backgroundHeals?: boolean } = {}): {
   engine: Engine;
@@ -48,10 +67,11 @@ export function openEngine(options: { backgroundHeals?: boolean } = {}): {
   mkdirSync(homeDir(), { recursive: true });
   const handle = openDatabase(join(homeDir(), 'tooldrop.db'));
   runMigrations(handle.db);
+  const settings = modelSettings();
   const engine = new Engine({
     db: handle.db,
     dataDir: homeDir(),
-    builds: { models: modelSetup(modelSettings()) },
+    builds: { models: modelSetup(settings, { apiKey: () => llmApiKey(settings.base_url) }) },
     keyStore: () => findKeyStore({ home: homeDir() }),
     ...(options.backgroundHeals === false && { backgroundHeals: false }),
   });

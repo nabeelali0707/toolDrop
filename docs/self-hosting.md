@@ -37,7 +37,9 @@ cosign verify ghcr.io/nabeelali0707/tooldrop:latest \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
-With self-hosted mode (Phase 5), `postgres` and `valkey` join the stack, and the vault's master key comes from a file of 32 random bytes mounted at `/run/secrets/tooldrop_master_key`. `tooldrop init` will generate it. Keep it readable only by the toolDrop user, and never commit it.
+With self-hosted mode (Phase 5), `postgres` and `valkey` join the stack, and the vault's master key comes from a file mounted at `/run/secrets/tooldrop_master_key`: 32 random bytes in base64, such as `openssl rand -base64 32` prints. `tooldrop init` will generate it. Keep it readable only by the toolDrop user, and never commit it.
+
+Until then, the app creates the master key in `/data/master.key` the first time it saves a login, in the same volume as the database. Anyone who can read that volume, or a backup of it, can open the saved logins, so keep both private.
 
 ## Platform notes
 

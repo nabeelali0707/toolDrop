@@ -67,9 +67,19 @@ describe('Masker', () => {
     expect(maskPatterns('user=alice&password=hunter22&page=2')).toBe(`user=alice&password=${MASKED}&page=2`);
   });
 
+  it('keeps the JSONPaths that say where a recipe reads a token', () => {
+    const save = '{"op":"http","save":{"token":"$.token","csrfToken":"$[\'csrf\']"}}';
+    expect(maskPatterns(save)).toBe(save);
+  });
+
   it('keeps template placeholders, so the model sees where a secret goes', () => {
     expect(maskPatterns('{"x-csrf-token": "{{session.csrf}}"}')).toBe('{"x-csrf-token": "{{session.csrf}}"}');
     expect(maskPatterns('{"token": ""}')).toBe('{"token": ""}');
+    const header = '{"authorization": "Bearer {{vars.token}}", "Authorization": "Token [masked]"}';
+    expect(maskPatterns(header)).toBe(header);
+    expect(maskPatterns('{"authorization": "Bearer {{vars.token}} x"}')).toBe(
+      `{"authorization": "${MASKED}"}`,
+    );
   });
 });
 

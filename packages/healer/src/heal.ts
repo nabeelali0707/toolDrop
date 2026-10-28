@@ -54,6 +54,8 @@ export interface HealDeps {
   browser?: Browser;
   jobId?: string;
   signedIn?: { loginUrl: string; state: StorageState };
+  /** Values every prompt masks, such as the saved login's username and password. */
+  secrets?: string[];
   /** How long replayed steps wait for the page (default 10 s). */
   waitMs?: number;
   /** What the heal is doing now, for get_job. */
@@ -95,6 +97,13 @@ async function startAt(target: HealTarget, steps: readonly Step[], context: Temp
   const url = first?.op === 'goto' ? renderText(first.url, context) : target.site;
   const session = await CaptureSession.start(url, options(deps));
   return { session, from: first?.op === 'goto' ? 1 : 0 };
+}
+
+/** A masker that knows the login's values, as every heal prompt must. */
+function maskerFor(deps: HealDeps): Masker {
+  const masker = new Masker();
+  for (const secret of deps.secrets ?? []) masker.add(secret);
+  return masker;
 }
 
 function access(deps: HealDeps, masker: Masker): ModelAccess {
@@ -147,7 +156,7 @@ export async function healStep(
   failure: { plan: 'primary' | 'fallback'; step: number; error: string },
   deps: HealDeps,
 ): Promise<Healed> {
-  const masker = new Masker();
+  const masker = maskerFor(deps);
   const model = access(deps, masker);
   const plan = browserPlan(target.recipe, failure.plan);
   const context: TemplateContext = {
@@ -218,7 +227,7 @@ export async function healStep(
  * recipe. The fallback and the tool's field names stay as they are.
  */
 export async function rebuildPrimary(target: HealTarget, error: string, deps: HealDeps): Promise<Healed> {
-  const masker = new Masker();
+  const masker = maskerFor(deps);
   const model = access(deps, masker);
   const fallback = target.recipe.fallback;
   if (!fallback || target.recipe.strategy === 'browser_script') {

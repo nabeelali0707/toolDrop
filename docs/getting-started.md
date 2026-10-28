@@ -1,7 +1,7 @@
 # Getting started
 
 ::: info Status
-The `tooldrop` package is not on npm yet: until the first release, run it [from source](https://github.com/nabeelali0707/toolDrop/blob/main/CONTRIBUTING.md). Running tools and building them for sites without a sign-in work today; the Demo Shop below needs sign-in, which arrives with Phase 3. See the [plan](https://github.com/nabeelali0707/toolDrop/blob/main/PLAN.md).
+The `tooldrop` package is not on npm yet: until the first release, run it [from source](https://github.com/nabeelali0707/toolDrop/blob/main/CONTRIBUTING.md). Running tools and building them work today, including behind a sign-in like the Demo Shop's below. See the [plan](https://github.com/nabeelali0707/toolDrop/blob/main/PLAN.md).
 :::
 
 toolDrop runs as an [MCP](https://modelcontextprotocol.io) server that your AI agent talks to. You need [Node.js](https://nodejs.org) 24 or newer, and [Ollama](https://ollama.com/download) for the local models.
@@ -70,6 +70,12 @@ cd toolDrop && pnpm install && pnpm fixtures
 ```
 
 The Demo Shop runs at `http://127.0.0.1:4104` with the test account `demo-shopper` / `demo-shop-password-not-real`. Its TOTP secret, printed by `pnpm fixtures`, is a public test value: add it to any authenticator app.
+
+Before you ask for the tool, save the shop's login so toolDrop can sign in by itself. Type the password and the TOTP secret when asked:
+
+```sh
+npx -y tooldrop logins add http://127.0.0.1:4104 --username demo-shopper --totp
+```
 
 ## Other ways to install
 

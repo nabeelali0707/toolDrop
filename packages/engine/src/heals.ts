@@ -116,7 +116,7 @@ export class Heals {
         step: (name: string) => setJobStep(db, jobId, name),
         ...(llm && { llm }),
         ...(browser && { browser }),
-        ...(signedIn && { signedIn }),
+        ...(signedIn && { signedIn, secrets: await this.#engine.sessions.secretsFor(tool.site.origin) }),
       };
       let healed: Healed;
       if (trigger.kind === 'drift') healed = await refreshSelectors(target, trigger.drift, deps);

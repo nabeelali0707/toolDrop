@@ -122,6 +122,21 @@ export class Sessions {
     return this.#use(origin, saved, { loginUrl: resolve(used.url, origin), state });
   }
 
+  /**
+   * The saved login's values for a site, so prompts mask them. Nothing may
+   * ever show the password or the authenticator secret. A signed-in page can
+   * show the username, which is masked too, unless it is a plain word such as
+   * "admin": sites use the same word in paths and labels, and masking those
+   * would hide the recipe from the model.
+   */
+  async secretsFor(site: string): Promise<string[]> {
+    const saved = siteLogin(this.#engine.db, site);
+    if (!saved) return [];
+    const secret = loginSecret(await this.#engine.vault(), saved.login.encrypted_secret);
+    const values = [secret.password, ...(secret.totp_secret ? [secret.totp_secret] : [])];
+    return /[^a-z]/i.test(secret.username) ? [secret.username, ...values] : values;
+  }
+
   async #use(origin: string, saved: LoginWithSite, signedIn: SignedIn): Promise<SignedIn> {
     await this.#engine.runtime.useSession(origin, signedIn.state);
     this.#loaded.set(origin, { loginId: saved.login.id, signedIn });

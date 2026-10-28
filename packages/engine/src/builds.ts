@@ -230,7 +230,7 @@ export class Builds {
           runtime: this.#engine.runtime,
           jobId,
           nameTaken: (name) => getTool(db, name) !== undefined,
-          ...(signedIn && { signedIn }),
+          ...(signedIn && { signedIn, secrets: await this.#engine.sessions.secretsFor(request.url) }),
           ...(this.#options.browser && { browser: this.#options.browser }),
           ...this.#options.compiler,
         },

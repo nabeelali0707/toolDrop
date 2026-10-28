@@ -136,4 +136,14 @@ describe('signed-in sites', () => {
     await expect(engine.runTool('protected_invoices', {})).rejects.toMatchObject({ code: 'session_expired' });
     expect(listLogins(handle.db)[0]?.login.status).toBe('needs_attention');
   }, 60_000);
+
+  it('gives prompts every value to mask, except a username that is a plain word', async () => {
+    const engine = start();
+    const secret = 'pw-not-real-123';
+    await engine.addLogin({ site: 'http://127.0.0.1:1', username: 'admin', password: secret });
+    await engine.addLogin({ site: 'http://127.0.0.1:2', username: 'ana@example.test', password: secret });
+    expect(await engine.sessions.secretsFor('http://127.0.0.1:1/admin')).toEqual([secret]);
+    expect(await engine.sessions.secretsFor('http://127.0.0.1:2')).toEqual(['ana@example.test', secret]);
+    expect(await engine.sessions.secretsFor('http://127.0.0.1:3')).toEqual([]);
+  });
 });

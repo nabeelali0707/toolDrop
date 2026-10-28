@@ -197,6 +197,9 @@ importers:
       '@tooldrop/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@tooldrop/fixture-demo-shop':
+        specifier: workspace:*
+        version: link:../../fixtures/demo-shop
       '@tooldrop/fixture-html-app':
         specifier: workspace:*
         version: link:../../fixtures/html-app
@@ -206,6 +209,9 @@ importers:
       '@tooldrop/fixture-kit':
         specifier: workspace:*
         version: link:../../fixtures/kit
+      '@tooldrop/fixture-login-totp':
+        specifier: workspace:*
+        version: link:../../fixtures/login-totp
       '@tooldrop/llm':
         specifier: workspace:*
         version: link:../../packages/llm

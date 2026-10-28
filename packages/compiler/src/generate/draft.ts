@@ -10,9 +10,12 @@ import { targetRows, type HtmlCandidate, type JsonCandidate } from '../analyze/r
 // then reviews the draft against the task (generate/recipe.ts), which is far
 // more reliable for a 7B model than writing a recipe from nothing.
 
-/** An output field: the column on screen it shows in, and its path in each JSON record. */
 type HttpStep = Extract<Step, { op: 'http' }>;
 
+/**
+ * An output field: the column on screen it shows in, and its path in each
+ * JSON record. Only a field with a header is read by the browser fallback.
+ */
 export interface ColumnBinding {
   field: string;
   header?: string;
@@ -127,9 +130,11 @@ export function jsonDraft(candidate: JsonCandidate, analysis: RequestAnalysis, s
   const { exchange, pagination } = { exchange: analysis.exchange, pagination: analysis.pagination };
   const paging = pagination?.variable;
   const names = fieldNames(candidate.columns.map((column) => column.header));
-  const bindings = candidate.columns.map((column, index) => ({
+  // A cell that only contains the value ("Delivered 2026-10-20") is not the
+  // value, so the browser fallback leaves that column out.
+  const bindings: (ColumnBinding & { path: string })[] = candidate.columns.map((column, index) => ({
     field: names[index] ?? `field_${index}`,
-    header: column.header,
+    ...(column.exact && { header: column.header }),
     path: column.path,
   }));
 

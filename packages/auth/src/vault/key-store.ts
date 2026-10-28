@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { AsyncEntry } from '@napi-rs/keyring';
+import { AsyncEntry, type EntryOptions } from '@napi-rs/keyring';
 import { ToolDropError } from '@tooldrop/core';
 
 // Where the vault's master key lives (SPEC, Authentication; DECISIONS.md,
@@ -17,14 +17,29 @@ export interface KeyStore {
   write(encoded: string): Promise<void>;
 }
 
-/** The OS keychain: macOS Keychain, Windows Credential Manager or the Linux Secret Service. */
-export function osKeychain(service = 'tooldrop', account = 'master-key'): KeyStore {
-  const entry = new AsyncEntry(service, account);
+/** What the keychain needs from `@napi-rs/keyring`; tests pass a stand-in. */
+type EntryClass = new (
+  service: string,
+  account: string,
+  options: EntryOptions,
+) => Pick<AsyncEntry, 'getPassword' | 'setPassword'>;
+
+/**
+ * The OS keychain: macOS Keychain, Windows Credential Manager or the Linux
+ * Secret Service. On Linux the entry must use the Secret Service: without
+ * one, the library would fall back to the kernel keyring, which forgets the
+ * key at the next reboot. The entry then cannot be made, the read fails, and
+ * findKeyStore uses a key file instead.
+ */
+export function osKeychain(Entry: EntryClass = AsyncEntry): KeyStore {
+  const entry = () => new Entry('tooldrop', 'master-key', { linux: { store: 'secret-service' } });
   return {
     label: 'the OS keychain',
     creatable: true,
-    read: async () => (await entry.getPassword()) ?? undefined,
-    write: (encoded) => entry.setPassword(encoded),
+    read: async () => (await entry().getPassword()) ?? undefined,
+    write: async (encoded) => {
+      await entry().setPassword(encoded);
+    },
   };
 }
 

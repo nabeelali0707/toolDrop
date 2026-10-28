@@ -62,8 +62,15 @@ export function maskPatterns(text: string): string {
     );
 }
 
+/**
+ * Values that only say where a secret goes, never what it is: the mask
+ * itself or a {{template}}, either after an auth scheme ("Bearer
+ * {{vars.token}}"), or a JSONPath such as "$.token" in a recipe's `save`.
+ * Masking those would hide the recipe from the model writing it.
+ */
 function isPlaceholder(value: string): boolean {
-  return value === MASKED || /^\{\{[^{}]+\}\}$/.test(value);
+  const rest = value.replace(/^(Bearer|Basic|Token)\s+/i, '');
+  return rest === MASKED || /^\{\{[^{}]+\}\}$/.test(rest) || /^\$(\.|\[|$)/.test(value);
 }
 
 const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g;

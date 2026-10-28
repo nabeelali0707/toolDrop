@@ -2,7 +2,7 @@ import { chmodSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync }
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { findKeyStore, keyFile, memoryKeyStore } from './key-store.ts';
+import { findKeyStore, keyFile, memoryKeyStore, osKeychain } from './key-store.ts';
 import { Vault } from './vault.ts';
 
 let dir: string;
@@ -103,5 +103,31 @@ describe('findKeyStore', () => {
       composeKeyFile: absent,
     });
     expect(fallback).toMatchObject({ label: join(dir, 'master.key'), creatable: true });
+  });
+
+  it("needs Linux's Secret Service, not the kernel keyring that forgets the key at reboot", async () => {
+    const options: unknown[] = [];
+    class WithoutSecretService {
+      constructor(...args: unknown[]) {
+        options.push(args[2]);
+        throw new Error('no Secret Service');
+      }
+      getPassword() {
+        return Promise.resolve(null);
+      }
+      setPassword() {
+        return Promise.resolve();
+      }
+    }
+    const keychain = osKeychain(WithoutSecretService);
+    await expect(keychain.read()).rejects.toThrow('no Secret Service');
+    expect(options).toEqual([{ linux: { store: 'secret-service' } }]);
+    const store = await findKeyStore({
+      home: dir,
+      env: {},
+      keychain,
+      composeKeyFile: join(dir, 'no-compose.key'),
+    });
+    expect(store).toMatchObject({ label: join(dir, 'master.key'), creatable: true });
   });
 });

@@ -56,6 +56,52 @@ function cliWithInput(
   });
 }
 
+/** What a well-behaved model answers to each of toolDrop's prompts, for the stand-in model servers. */
+function answerLikeAModel(system: string, user: string): unknown {
+  if (system.startsWith('You write toolDrop recipes')) {
+    return JSON.parse(user.split('\n').find((line) => line.startsWith('{"strategy"')) ?? '{}') as unknown;
+  }
+  if (system.startsWith('You name and describe tools')) {
+    return {
+      name: 'list_invoices_by_status',
+      description: 'The 10 newest invoices, optionally only those with a given status.',
+      inputs: [{ name: 'status', description: 'Only invoices with this status.', required: false }],
+      fields: [],
+    };
+  }
+  return { questions: [] };
+}
+
+/** A recording of the HTML fixture's status filter, as a file `--recording` reads. */
+function writeRecording(): string {
+  const path = join(home, 'recording.json');
+  writeFileSync(
+    path,
+    JSON.stringify({
+      version: 1,
+      recorder: 'cli',
+      recorded_at: Date.now(),
+      actions: [
+        { kind: 'goto', url: `${fixture.url}/invoices` },
+        {
+          kind: 'select',
+          target: [{ kind: 'css', value: 'select[name="status"]' }],
+          label: 'combobox "Status"',
+          value: 'overdue',
+          options: ['', 'open', 'paid', 'overdue', 'draft'].map((value) => ({
+            value,
+            label: value || 'All',
+          })),
+        },
+        { kind: 'click', target: [{ kind: 'test_id', value: 'search' }], label: 'button "Search"' },
+      ],
+      inputs: [{ name: 'status', action: 1, example: 'overdue' }],
+      target: { selector: [{ kind: 'test_id', value: 'invoices' }] },
+    }),
+  );
+  return path;
+}
+
 const addSearchInvoices = () =>
   cli('tools', 'add', repo('fixtures/recipes/html-app.search_invoices.json'), '--site', fixture.url);
 
@@ -110,17 +156,7 @@ describe('tooldrop CLI', { timeout: 120_000 }, () => {
       request.on('end', () => {
         const { model, messages } = JSON.parse(body) as { model: string; messages: { content: string }[] };
         const [system = '', user = ''] = messages.map((message) => message.content);
-        let reply: unknown = { questions: [] };
-        if (system.startsWith('You write toolDrop recipes')) {
-          reply = JSON.parse(user.split('\n').find((line) => line.startsWith('{"strategy"')) ?? '{}');
-        } else if (system.startsWith('You name and describe tools')) {
-          reply = {
-            name: 'list_invoices_by_status',
-            description: 'The 10 newest invoices, optionally only those with a given status.',
-            inputs: [{ name: 'status', description: 'Only invoices with this status.', required: false }],
-            fields: [],
-          };
-        }
+        const reply = answerLikeAModel(system, user);
         response.end(
           JSON.stringify({
             model,
@@ -147,31 +183,7 @@ describe('tooldrop CLI', { timeout: 120_000 }, () => {
           },
         }),
       );
-      const recordingFile = join(home, 'recording.json');
-      writeFileSync(
-        recordingFile,
-        JSON.stringify({
-          version: 1,
-          recorder: 'cli',
-          recorded_at: Date.now(),
-          actions: [
-            { kind: 'goto', url: `${fixture.url}/invoices` },
-            {
-              kind: 'select',
-              target: [{ kind: 'css', value: 'select[name="status"]' }],
-              label: 'combobox "Status"',
-              value: 'overdue',
-              options: ['', 'open', 'paid', 'overdue', 'draft'].map((value) => ({
-                value,
-                label: value || 'All',
-              })),
-            },
-            { kind: 'click', target: [{ kind: 'test_id', value: 'search' }], label: 'button "Search"' },
-          ],
-          inputs: [{ name: 'status', action: 1, example: 'overdue' }],
-          target: { selector: [{ kind: 'test_id', value: 'invoices' }] },
-        }),
-      );
+      const recordingFile = writeRecording();
 
       const built = await cli(
         'build',
@@ -226,6 +238,98 @@ describe('tooldrop CLI', { timeout: 120_000 }, () => {
     }
     const refused = await cli('logins', 'add', fixture.url, '--username', 'x');
     expect(refused.stderr).toContain('--password-stdin');
+  });
+
+  it('seals an endpoint API key in the vault, and sends it on model calls', async () => {
+    const key = 'test-key-not-real-0123';
+    // A stand-in OpenAI-compatible server that refuses calls without the key.
+    const seen: (string | undefined)[] = [];
+    const server = createServer((request, response) => {
+      seen.push(request.headers.authorization);
+      response.setHeader('content-type', 'application/json');
+      if (request.headers.authorization !== `Bearer ${key}`) {
+        response.statusCode = 401;
+        return response.end(JSON.stringify({ error: 'bad key' }));
+      }
+      let body = '';
+      request.on('data', (chunk: Buffer) => (body += chunk.toString()));
+      request.on('end', () => {
+        const { messages } = JSON.parse(body) as { messages: { content: string }[] };
+        const [system = '', user = ''] = messages.map((message) => message.content);
+        const content = JSON.stringify(answerLikeAModel(system, user));
+        response.end(
+          JSON.stringify({
+            choices: [{ message: { content }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 900, completion_tokens: 120 },
+          }),
+        );
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    const url = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}/v1`;
+    try {
+      const init = await cliWithInput(
+        `${key}\n`,
+        'init',
+        '--yes',
+        '--skip-browser',
+        '--provider',
+        'openai_compatible',
+        '--base-url',
+        url,
+        '--code-model',
+        'local-model',
+        '--api-key-stdin',
+      );
+      expect(init.status).toBe(0);
+      expect(init.stdout).toContain('The API key is sealed in the vault');
+      const sealed = readFileSync(join(home, 'secrets', 'llm-api-key'));
+      expect(sealed.toString('latin1')).not.toContain(key);
+      expect(readFileSync(join(home, 'config.json'), 'utf8')).not.toContain(key);
+
+      const built = await cli(
+        'build',
+        `${fixture.url}/invoices`,
+        '--task',
+        'Invoices by status',
+        '--recording',
+        writeRecording(),
+      );
+      expect(built.stderr).not.toContain('The build failed');
+      expect(built.status).toBe(0);
+      expect(seen.length).toBeGreaterThanOrEqual(3);
+      expect(seen.every((header) => header === `Bearer ${key}`)).toBe(true);
+
+      // Another endpoint never gets the key saved for this one.
+      const other = `${url.slice(0, -'/v1'.length)}/other/v1`;
+      const switched = await cli(
+        'init',
+        '--yes',
+        '--skip-browser',
+        '--provider',
+        'openai_compatible',
+        '--base-url',
+        other,
+        '--code-model',
+        'local-model',
+      );
+      expect(switched.status).toBe(0);
+      seen.length = 0;
+      const refused = await cli(
+        'build',
+        `${fixture.url}/invoices`,
+        '--task',
+        'Invoices for the auditor',
+        '--recording',
+        writeRecording(),
+      );
+      expect(refused.status).not.toBe(0);
+      expect(seen.length).toBeGreaterThan(0);
+      expect(seen.every((header) => header === undefined)).toBe(true);
+    } finally {
+      server.close();
+    }
   });
 
   it('records only in a terminal', async () => {

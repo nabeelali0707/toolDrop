@@ -2,7 +2,7 @@
 
 The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of under a day, with the files each task touches. Choices and open questions are in [DECISIONS.md](DECISIONS.md).
 
-**Status:** Phases 0, 1 and 2 done (2026-10-28). Phase 1 waits on a manual MCP check in Claude Desktop or Claude Code, and Phase 2 on full builds with real models on a machine with a GPU. The open-source release track is partly done (below). Phase 3 is in progress.
+**Status:** Phases 0 to 3 done (2026-10-28). Phase 1 waits on a manual MCP check in Claude Desktop or Claude Code, and Phase 2 on full builds with real models on a machine with a GPU. The open-source release track is partly done (below). Phase 4 is next.
 
 **How this file works**
 
@@ -140,12 +140,12 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
   Files: `packages/db/src/repos/tools.ts`, `apps/server/src/app.ts` (`GET /v1/tools/:name/versions`, `POST /v1/tools/:name/rollback`), `apps/cli/src/commands/tools.ts` (`tools versions`, `tools rollback`), tests
 - [x] **3.10 `runtime`: hold during heal.** Hold the call for up to 5 minutes while the heal runs, then return a structured error with the job ID; record `runs.heal_job_id`.
   Files: `packages/engine/src/engine.ts`, `packages/db/src/repos/tools.ts` (`runs.heal_job_id`), tests
-- [ ] **3.11 Security sweep.** Log redaction paths; a test that greps logs and recorded prompts for the fixture credentials.
-  Files: `packages/core/src/logging.ts`, `apps/server/test/security.e2e.test.ts`
-- [ ] **3.12 `llm`: API key in the vault.** The OpenAI-compatible adapter reads its optional API key from the vault.
-  Files: `packages/llm/src/openai-compatible.ts`, `packages/auth/src/vault/vault.ts`, tests
+- [x] **3.11 Security sweep.** toolDrop keeps no request logs, so nothing needs log redaction (D-043). A saved login's values are masked in every build and heal prompt for its site. A test searches every prompt, REST answer, database byte and capture file of a signed-in flow for the fixture credentials.
+  Files: `packages/llm/src/redact.ts`, `packages/engine/src/{sessions,builds,heals}.ts`, `packages/compiler/src/build.ts`, `packages/healer/src/heal.ts`, `apps/server/src/security.e2e.test.ts`
+- [x] **3.12 `llm`: API key in the vault.** The OpenAI-compatible adapter reads its optional API key from the vault; `tooldrop init` asks for it and seals it.
+  Files: `packages/llm/src/{openai-compatible,config}.ts`, `packages/auth/src/secret-files.ts`, `apps/cli/src/{home.ts,commands/init.ts}`, tests
 
-**Gate:** *Login + 2FA*, *Self-heal*, *Rollback* and *Security* criteria.
+**Gate:** *Login + 2FA*, *Self-heal*, *Rollback* and *Security* criteria. All four pass in CI with a scripted model: `packages/engine/src/{sessions,heals}.e2e.test.ts`, `packages/db/src/repos/repos.test.ts` and `apps/server/src/security.e2e.test.ts`.
 
 ## Phase 4: MVP differentiators
 
@@ -167,6 +167,10 @@ The build plan for [SPEC.md](SPEC.md): each roadmap phase broken into tasks of u
   Files: `apps/dashboard/package.json`, `apps/dashboard/app/{layout,page}.tsx`, `apps/dashboard/app/tools/*`, `apps/dashboard/app/runs/*`
 - [ ] **4.9 `dashboard`: logins, approvals, 2FA, heals.** Masked logins, approve or reject previews with the screenshot, answer human-in-the-loop 2FA prompts, heal log.
   Files: `apps/dashboard/app/{logins,approvals,heals}/*`, tests
+- [ ] **4.10 `auth`: identity providers and captchas.** SPEC's sign-in rules that Phase 3's plan missed. When a sign-in leads to another origin (Okta, Microsoft), ask once to approve it and record it on the site; never type a login into an origin that is not approved. When a sign-in or a build meets a captcha, pause and ask a person to solve it (D-018).
+  Files: `packages/compiler/src/login/build-login.ts`, `packages/engine/src/sessions.ts`, `packages/db/src/repos/tools.ts` (sites), a second-origin switch on `fixtures/login-totp`, tests
+- [ ] **4.11 Recording behind a sign-in.** `tooldrop record` starts from the site's saved session, so the recording holds only the task.
+  Files: `apps/cli/src/commands/record.ts`, `packages/compiler/src/recording/recorder.ts`, tests
 
 **Gate:** *Watches*, *Safe mode* and *Recording* (through the extension) criteria; a dashboard smoke test.
 
@@ -215,8 +219,8 @@ From your release plan (2026-10-26). It runs alongside the phases: each item nee
 - [x] **R5 Install path A (npx), C (global CLI) and D (from source).** Tested from clean folders with the packed package.
 - [x] **R6 Release automation.** Changesets; a tag-triggered workflow with npm provenance, a multi-arch image on ghcr.io signed with cosign, and a GitHub release (D-033). Runs for the first time at your first tag.
 - [ ] **R7 Install path B (Docker Compose).** The image and `compose.yaml` (app, Ollama, model download) are built and checked in CI. Still needed: the dashboard on port 3000 (Phase 4), and Postgres and Valkey (Phase 5).
-- [ ] **R8 Bring your own model.** `tooldrop init` sizes and pulls Ollama models and accepts keyless OpenAI-compatible endpoints. Keys for other endpoints need the vault (Phase 3).
-- [ ] **R9 Main use case: the Demo Shop.** The fixture is ready (`fixtures/demo-shop`). The end-to-end test and the demo GIF need building (Phase 2), sign-in and healing (Phase 3), and watches and the dashboard (Phase 4).
+- [x] **R8 Bring your own model.** `tooldrop init` sizes and pulls Ollama models, and accepts any OpenAI-compatible endpoint; a key is sealed in the vault.
+- [ ] **R9 Main use case: the Demo Shop.** Steps 1 to 4 pass end to end with a scripted model (`apps/server/src/demo-shop.e2e.test.ts`): save the login, build `list_orders` from the shop's own API behind sign-in and TOTP, and answer which orders have not arrived in under 2 seconds. The watch, the dashboard and the demo GIF need Phase 4.
 - [ ] **R10 Chrome extension release zip and store listing.** The privacy policy page is written (`docs/privacy.md`); the extension, icons and screenshots come with Phase 4.
 - [ ] **R11 Chrome QA.** Dashboard and extension checks come with Phase 4. Done so far: the fixture pages and the docs site, checked in Chrome.
 
@@ -264,3 +268,27 @@ Filled in at the end of each phase: what shipped, test results and the commit.
   - Testing on that machine found that Node's fetch gives up on model calls after 5 minutes; fixed (D-038).
 - **Commits:** `168a363` (llm), `c04baf8` (capture and prompts), `40ace21` (recordings), `b3b740f` and `4a32b7f` (analyzer, generator, validation, explore agent), `f3c9343` (jobs), `a8e6f27` (interfaces), `798aedc` (record and build commands), plus the acceptance tests.
 - **Still open:** full builds with real models (`pnpm test:llm`) on a machine with a GPU, and the replies they record for CI (D-039).
+
+### Phase 3: Auth and self-healing, done 2026-10-28
+
+- **Shipped:**
+  - `@tooldrop/auth`: the vault (libsodium secretbox) with its master key in the OS keychain or a key file, saved logins with masked previews, and TOTP codes.
+  - Login recipes built by signing in once. Sessions are sealed in the vault and renewed within the call when they expire. Codes from a person come through job questions or `tooldrop logins verify`.
+  - `@tooldrop/healer`:
+    - Selectors that drifted are refreshed without a model.
+    - A broken fast path is rebuilt in the background while the browser answers.
+    - A broken step is repaired while the call waits.
+    - Every repair is tested before it is published.
+  - Version history and rollback over REST and the CLI, and a daily health check.
+  - The model endpoint's API key, sealed in the vault. A saved login's values are masked in every prompt.
+- **Results:**
+  - All four gate criteria pass with a scripted model: *Login + 2FA*, *Self-heal*, *Rollback* and *Security*.
+  - The Demo Shop's main use case passes steps 1 to 4 end to end (R9). `list_orders` is built from the shop's own API behind sign-in and TOTP, and answers in under 2 seconds.
+  - 305 tests pass in 41 files. Format, lint and typecheck are clean. The license check passes for 525 packages.
+  - Found and fixed on the way:
+    - The masker hid `$.token` and `Bearer {{vars.token}}` from the model reviewing a recipe.
+    - The browser fallback claimed columns whose cells only contain the value.
+    - On Linux without a Secret Service, the keychain library would have kept the master key in memory only, losing it at reboot.
+    - A sealed endpoint key would have been sent to the next endpoint `init` set up.
+- **Commits:** `4354fe1` (vault), `a80d1ed` (logins), `8691f81` (login recipes, 2FA, sessions), `e41c8d4` (versions and rollback), `1470785` (self-healing), plus the security sweep and the endpoint key.
+- **Still open:** approving identity providers and pausing for captchas, which this phase's plan missed, are now task 4.10. Recording behind a sign-in is task 4.11.

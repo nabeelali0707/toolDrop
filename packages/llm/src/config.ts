@@ -2,7 +2,7 @@ import { llmProviderSchema } from '@tooldrop/core';
 import { z } from 'zod';
 import { Llm, type LlmOptions } from './llm.ts';
 import { OllamaProvider } from './ollama.ts';
-import { OpenAiCompatibleProvider } from './openai-compatible.ts';
+import { OpenAiCompatibleProvider, type ApiKey } from './openai-compatible.ts';
 import type { LlmProvider } from './provider.ts';
 
 // The model settings in config.json, written by `tooldrop init`.
@@ -37,7 +37,7 @@ export function defaultSettings(): LlmSettings {
   return { provider: 'ollama', base_url: ollamaUrl(), models: { ...DEFAULT_MODELS } };
 }
 
-export function createProvider(settings: LlmSettings, options: { apiKey?: string } = {}): LlmProvider {
+export function createProvider(settings: LlmSettings, options: { apiKey?: ApiKey } = {}): LlmProvider {
   const timeout = settings.timeout_ms !== undefined ? { timeoutMs: settings.timeout_ms } : {};
   return settings.provider === 'ollama'
     ? new OllamaProvider(settings.base_url, timeout)
@@ -50,7 +50,7 @@ export function createProvider(settings: LlmSettings, options: { apiKey?: string
 /** What an Llm needs from the settings; the caller decides where its usage records go. */
 export type ModelSetup = Omit<LlmOptions, 'onCall'>;
 
-export function modelSetup(settings: LlmSettings, options: { apiKey?: string } = {}): ModelSetup {
+export function modelSetup(settings: LlmSettings, options: { apiKey?: ApiKey } = {}): ModelSetup {
   return {
     provider: createProvider(settings, options),
     models: settings.models,
@@ -63,7 +63,7 @@ export function modelSetup(settings: LlmSettings, options: { apiKey?: string } =
 
 export function createLlm(
   settings: LlmSettings,
-  options: { apiKey?: string; onCall?: LlmOptions['onCall'] } = {},
+  options: { apiKey?: ApiKey; onCall?: LlmOptions['onCall'] } = {},
 ): Llm {
   return new Llm({ ...modelSetup(settings, options), ...(options.onCall && { onCall: options.onCall }) });
 }
