@@ -1,7 +1,7 @@
 # Auth and 2FA
 
 ::: info Status
-Since Phase 3: the vault, saved logins, login recipes, session refresh, TOTP codes and codes typed by a person. Since Phase 4: approving an identity provider, and signing in by hand past a captcha. Since Phase 5: SMS codes from your phone. Email codes come later in Phase 5.
+Since Phase 3: the vault, saved logins, login recipes, session refresh, TOTP codes and codes typed by a person. Since Phase 4: approving an identity provider, and signing in by hand past a captcha. Since Phase 5: SMS codes from your phone, and email codes from your inbox.
 :::
 
 Credentials are optional. An agent can pass them with a single call, or you can save them in the vault so toolDrop signs in by itself.
@@ -37,7 +37,7 @@ toolDrop types a login only on the site itself. If signing in leads to an identi
 toolDrop tries these in order:
 
 1. **TOTP.** Save the authenticator secret, and toolDrop generates codes itself.
-2. **Email codes.** toolDrop reads the code from a connected inbox over IMAP, matched by sender and time.
+2. **Email codes.** toolDrop reads the code from a connected inbox over IMAP, matched by sender and time. Connect it once with `tooldrop email connect imap.example.com --user you@example.com` (many providers want an app password), then save the login with `--email <sender address>`. The inbox is opened read-only: toolDrop never marks, moves or deletes mail.
 3. **SMS codes,** from your own Android phone (see below). No paid SMS service.
 4. **Ask a human.** The job pauses and asks you for the code through your agent or the REST API, and from Phase 4 the dashboard. Outside a job, `tooldrop logins verify` asks in the terminal.
 

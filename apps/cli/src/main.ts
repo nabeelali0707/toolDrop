@@ -1,6 +1,7 @@
 import { isToolDropError } from '@tooldrop/core';
 import { approvals, policies } from './commands/approvals.ts';
 import { build } from './commands/build.ts';
+import { email } from './commands/email.ts';
 import { init } from './commands/init.ts';
 import { keys } from './commands/keys.ts';
 import { logins } from './commands/logins.ts';
@@ -28,7 +29,7 @@ Usage: tooldrop <command> [options]
   keys create            Create an API key for REST and remote MCP (--label, --scopes a,b)
   keys list              List API keys
   keys revoke <id>       Revoke an API key
-  logins add <site>      Save a login, sealed in the vault (--username, --totp, --human, --sms <sender>, --password-stdin)
+  logins add <site>      Save a login, sealed in the vault (--username, --totp, --human, --sms or --email <sender>, --password-stdin)
   logins list            List saved logins, masked
   logins verify <site>   Sign in now and keep the session, asking for a code when needed
   approvals              Writes waiting for approval (--all for every past one)
@@ -36,6 +37,7 @@ Usage: tooldrop <command> [options]
   policies add <tool>    Approve a write tool by itself when --when "amount < 100" holds
   policies list          List policies (remove <id> to delete one)
   sms enable             Turn on SMS codes from your phone, and show the forwarder settings
+  email connect <host>   Connect the inbox email codes are read from (--user, --port, --password-stdin)
   build <url> --task     Build a tool for a task (--recording <id or file>, --hint)
   record <url>           Do a task once in a browser, for the most reliable builds (--task, --out)
 
@@ -55,6 +57,7 @@ const COMMANDS: Record<string, (args: string[]) => Promise<number>> = {
   approvals,
   policies,
   sms,
+  email,
 };
 
 async function main(argv: string[]): Promise<number> {

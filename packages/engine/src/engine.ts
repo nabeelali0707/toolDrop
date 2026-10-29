@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  connectMailboxSchema,
   ToolDropError,
   type ApprovalView,
   type JobKind,
@@ -32,6 +33,7 @@ import {
 } from '@tooldrop/db';
 import {
   addLogin as saveLogin,
+  checkMailbox,
   parseInboundSms,
   readSealed,
   SmsInbox,
@@ -40,6 +42,7 @@ import {
   viewLogins,
   writeSealed,
   type KeyStore,
+  type MailboxConfig,
 } from '@tooldrop/auth';
 import { Runtime, type RunnableTool, type RunOutcome } from '@tooldrop/runtime';
 import { Approvals } from './approvals.ts';
@@ -479,6 +482,33 @@ export class Engine {
     const secret = randomBytes(24).toString('hex');
     writeSealed(this.#smsSecretPath(), vault, secret);
     return secret;
+  }
+
+  /**
+   * Saves the inbox email codes are read from, sealed in the vault, once
+   * toolDrop has signed in to it (SPEC, 2FA step 2). Errors name no values.
+   */
+  async connectMailbox(input: unknown, scopes: Scopes = ALL): Promise<{ host: string; user: string }> {
+    requireFullAccess(scopes);
+    const parsed = connectMailboxSchema.safeParse(input);
+    if (!parsed.success) {
+      const fields = [...new Set(parsed.error.issues.map((issue) => issue.path.join('.') || 'mailbox'))];
+      throw new ToolDropError('invalid_input', `the mailbox is not valid; check ${fields.join(', ')}`);
+    }
+    await checkMailbox(parsed.data);
+    writeSealed(this.#mailboxPath(), await this.vault(), JSON.stringify(parsed.data));
+    return { host: parsed.data.host, user: parsed.data.user };
+  }
+
+  /** The saved inbox for email codes, when there is one. */
+  async mailbox(): Promise<MailboxConfig | undefined> {
+    if (!this.#dataDir || !existsSync(this.#mailboxPath())) return undefined;
+    const sealed = readSealed(this.#mailboxPath(), await this.vault());
+    return sealed ? (JSON.parse(sealed) as MailboxConfig) : undefined;
+  }
+
+  #mailboxPath(): string {
+    return join(this.dataDir, 'secrets', 'mailbox');
   }
 
   /** Whether SMS codes are on: a webhook secret exists. */

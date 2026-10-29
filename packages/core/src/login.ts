@@ -107,3 +107,16 @@ export type LoginRecipe = z.infer<typeof loginRecipeSchema>;
 export function needsCode(recipe: LoginRecipe): boolean {
   return collectTemplateRefs(recipe.steps).refs.some((ref) => ref.root === 'input' && ref.path[0] === 'otp');
 }
+
+/** The inbox email codes are read from (SPEC, 2FA step 2), as `tooldrop email connect` takes it. */
+export const connectMailboxSchema = z
+  .strictObject({
+    host: z.string().min(1).max(253),
+    port: z.number().int().min(1).max(65_535).default(993),
+    /** TLS from the start; without it, STARTTLS when the server offers it. */
+    secure: z.boolean().optional(),
+    user: z.string().min(1).max(320),
+    password: z.string().min(1).max(500),
+  })
+  .transform((mailbox) => ({ ...mailbox, secure: mailbox.secure ?? mailbox.port === 993 }));
+export type ConnectMailbox = z.input<typeof connectMailboxSchema>;

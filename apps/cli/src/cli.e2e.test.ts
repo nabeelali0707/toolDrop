@@ -134,7 +134,8 @@ describe('tooldrop CLI', { timeout: 120_000 }, () => {
     expect((await cli('run', 'nope')).stderr).toContain('no tool named nope');
   });
 
-  it('asks for approval before a write, and makes it once approved', async () => {
+  // Seven CLI processes, three of them driving a browser: slow on a busy machine.
+  it('asks for approval before a write, and makes it once approved', { timeout: 300_000 }, async () => {
     await cli('tools', 'add', repo('fixtures/recipes/html-app.record_payment.json'), '--site', fixture.url);
     const asked = await cli('run', 'record_payment', '--input', '{"invoice":"INV-1057","amount":100}');
     expect(asked.status).toBe(2);

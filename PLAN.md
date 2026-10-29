@@ -192,8 +192,8 @@ Items marked "split first" are broken into day-sized tasks before work starts.
 
 **More 2FA methods**
 
-- [ ] **5.6 Email OTP over IMAP.** Read the code from a connected inbox, matched by sender and time.
-  Files: `packages/auth/src/twofa/email.ts`, tests with a local IMAP test server
+- [x] **5.6 Email OTP over IMAP.** Read the code from a connected inbox, read-only, matched by sender and time (D-050); `tooldrop email connect` and `logins add --email`.
+  Files: `packages/auth/src/twofa/email.ts`, `packages/engine/src/{engine,sessions}.ts`, `apps/cli/src/commands/{email,logins}.ts`, tests with Hoodiecrow, a local IMAP test server
 - [x] **5.7 SMS webhook.** `POST /v1/sms/inbound` with HMAC or bearer verification, stale and duplicate rejection, code extraction, waiting logins, the local network listener, codes in memory for 5 minutes (D-049); `tooldrop sms enable` and `logins add --sms`.
   Files: `packages/auth/src/twofa/sms.ts`, `packages/engine/src/{engine,sessions}.ts`, `packages/runtime/src/{runtime,executors/browser}.ts`, `apps/server/src/app.ts`, `apps/cli/src/commands/{sms,serve,logins}.ts`, tests
 - [x] **5.8 SMS fixture mode.** The login fixture sends its code "by SMS" to a forwarder URL that tests set, signed as SMS to URL Forwarder signs.

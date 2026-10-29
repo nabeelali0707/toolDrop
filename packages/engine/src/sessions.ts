@@ -1,4 +1,4 @@
-import { loginSecret, totpCode } from '@tooldrop/auth';
+import { loginSecret, totpCode, waitForEmailCode } from '@tooldrop/auth';
 import { buildLoginRecipe } from '@tooldrop/compiler';
 import { loginRecipeSchema, needsCode, ToolDropError, type LoginRecipe } from '@tooldrop/core';
 import {
@@ -88,6 +88,21 @@ export class Sessions {
     const started = Date.now();
     const otp = async () => {
       if (secret.totp_secret) return totpCode(secret.totp_secret);
+      if (saved.login.twofa_method === 'email') {
+        const mailbox = await this.#engine.mailbox();
+        if (!mailbox) {
+          throw new ToolDropError(
+            'session_expired',
+            `signing in to ${origin} needs an email code, and no mailbox is connected; run \`tooldrop email connect\``,
+          );
+        }
+        const config = saved.login.twofa_config ?? {};
+        return waitForEmailCode(mailbox, {
+          after: started,
+          ...(config.sender && { sender: config.sender }),
+          ...(config.code_pattern && { pattern: config.code_pattern }),
+        });
+      }
       if (saved.login.twofa_method === 'sms') {
         const config = saved.login.twofa_config ?? {};
         return this.#engine.sms.waitForCode({

@@ -519,3 +519,13 @@ SPEC's Security criterion: no API, log, error or model prompt ever holds a plain
 - **The local network listener:** `tooldrop serve` opens a second server on this computer's network address, same port, while SMS codes are on. It serves only the webhook. The API stays on loopback.
 - **One process:** codes are held by the process that receives them, `tooldrop serve`, so its sign-ins are the ones that get them. Self-hosted, codes move to Valkey (task 5.2), which every process shares.
 - **The fixture plays the phone:** with `smsCode` on, the login fixture sends its code to a forwarder URL that tests set, signed as SMS to URL Forwarder signs.
+
+### D-050 How email codes work
+
+*Proposed · 2026-10-29*
+
+- **IMAP only,** through `imapflow` and `mailparser` (both MIT). SPEC also names the Gmail API; Gmail serves IMAP with an app password, so one path covers it, without a Google Cloud project.
+- **The mailbox** (host, port, user, password) is sealed in the vault in `<home>/secrets/mailbox`, saved by `tooldrop email connect` only after toolDrop has signed in to it. The password comes from a hidden prompt or stdin, never an argument.
+- **Read-only:** the inbox is opened with EXAMINE, so toolDrop never marks, moves or deletes mail. It searches by sender and day, then takes the first message that arrived after the sign-in began (30 seconds of clock skew allowed), and reads the code from its subject and text with the login's pattern or the default.
+- **Polling, not IDLE:** it looks every 5 seconds for up to 3 minutes. That works with every server and keeps no connection open between sign-ins.
+- **Tests** run against Hoodiecrow (MIT), an in-memory IMAP server. In the end-to-end test, the login fixture's code goes out as an email through a relay in the test.

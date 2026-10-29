@@ -43,6 +43,7 @@ This file covers the project as a whole. From the first release on, the publishe
   - A daily health check in `tooldrop serve`, and `tooldrop tools check` to run it now.
   - Version history and rollback: `GET /v1/tools/:name/versions` and `POST /v1/tools/:name/rollback`, and `tooldrop tools versions` and `tooldrop tools rollback`.
   - API keys for OpenAI-compatible endpoints, sealed in the vault.
+- Email codes (Phase 5): toolDrop reads a sign-in code from your inbox over IMAP, read-only, matched by sender and time. `tooldrop email connect` and `tooldrop logins add --email <sender>`.
 - SMS codes from your own phone (Phase 5): an open-source forwarder app posts each SMS to toolDrop's signed webhook, and a sign-in waiting for a code takes it. `tooldrop sms enable` and `tooldrop logins add --sms <sender>`.
 - Sign-in safeguards (Phase 4): toolDrop types a login only on the site or an identity provider you allowed once, and a captcha stops it: `tooldrop logins verify --by-hand` lets you sign in yourself and keeps the session. `tooldrop record` opens signed in on sites with a saved login.
 - The dashboard (Phase 4), served by `tooldrop serve` on the same port as the API: tools with their schema, a cURL example, versions and rollback; runs; writes waiting for approval with screenshots, and the audit log; questions such as 2FA codes; repairs; and saved logins. New read routes: `GET /v1/tools/:name`, `GET /v1/runs` and `GET /v1/jobs`.

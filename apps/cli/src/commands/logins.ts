@@ -7,7 +7,7 @@ import { openEngine } from '../home.ts';
 import { askHidden, readStdin } from '../prompt.ts';
 
 const USAGE = `usage:
-  tooldrop logins add <site> [--username name] [--label text] [--totp] [--human] [--sms <sender>] [--password-stdin]
+  tooldrop logins add <site> [--username name] [--label text] [--totp] [--human] [--sms <sender>] [--email <sender>] [--password-stdin]
   tooldrop logins list [--site <url>]
   tooldrop logins verify <site> [--by-hand]`;
 
@@ -119,6 +119,7 @@ async function add(args: string[]): Promise<number> {
       totp: { type: 'boolean', default: false },
       human: { type: 'boolean', default: false },
       sms: { type: 'string' },
+      email: { type: 'string' },
       'password-stdin': { type: 'boolean', default: false },
     },
   });
@@ -160,6 +161,8 @@ async function add(args: string[]): Promise<number> {
       ...(values.human && { twofa: 'human' }),
       // Codes by SMS from this sender, forwarded by your phone (tooldrop sms enable).
       ...(values.sms && { twofa: 'sms', twofa_config: { sender: values.sms } }),
+      // Codes by email from this sender, read from the connected inbox (tooldrop email connect).
+      ...(values.email && { twofa: 'email', twofa_config: { sender: values.email } }),
     });
     const vault = await engine.vault();
     console.log(
