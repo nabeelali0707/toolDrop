@@ -8,6 +8,7 @@ import { mcp } from './commands/mcp.ts';
 import { record } from './commands/record.ts';
 import { run } from './commands/run.ts';
 import { serve } from './commands/serve.ts';
+import { sms } from './commands/sms.ts';
 import { tools } from './commands/tools.ts';
 import { version } from './home.ts';
 
@@ -27,13 +28,14 @@ Usage: tooldrop <command> [options]
   keys create            Create an API key for REST and remote MCP (--label, --scopes a,b)
   keys list              List API keys
   keys revoke <id>       Revoke an API key
-  logins add <site>      Save a login, sealed in the vault (--username, --totp, --human, --password-stdin)
+  logins add <site>      Save a login, sealed in the vault (--username, --totp, --human, --sms <sender>, --password-stdin)
   logins list            List saved logins, masked
   logins verify <site>   Sign in now and keep the session, asking for a code when needed
   approvals              Writes waiting for approval (--all for every past one)
   approvals approve <id> Approve a write and make it (or: reject, show)
   policies add <tool>    Approve a write tool by itself when --when "amount < 100" holds
   policies list          List policies (remove <id> to delete one)
+  sms enable             Turn on SMS codes from your phone, and show the forwarder settings
   build <url> --task     Build a tool for a task (--recording <id or file>, --hint)
   record <url>           Do a task once in a browser, for the most reliable builds (--task, --out)
 
@@ -52,6 +54,7 @@ const COMMANDS: Record<string, (args: string[]) => Promise<number>> = {
   logins,
   approvals,
   policies,
+  sms,
 };
 
 async function main(argv: string[]): Promise<number> {

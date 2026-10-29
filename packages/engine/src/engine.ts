@@ -1,3 +1,6 @@
+import { randomBytes } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   ToolDropError,
   type ApprovalView,
@@ -27,7 +30,17 @@ import {
   type PublishedTool,
   type VersionSummary,
 } from '@tooldrop/db';
-import { addLogin as saveLogin, Vault, viewLogins, type KeyStore } from '@tooldrop/auth';
+import {
+  addLogin as saveLogin,
+  parseInboundSms,
+  readSealed,
+  SmsInbox,
+  Vault,
+  verifySmsRequest,
+  viewLogins,
+  writeSealed,
+  type KeyStore,
+} from '@tooldrop/auth';
 import { Runtime, type RunnableTool, type RunOutcome } from '@tooldrop/runtime';
 import { Approvals } from './approvals.ts';
 import { Builds, type BuildOptions, type JobView } from './builds.ts';
@@ -92,6 +105,8 @@ export class Engine {
   readonly heals: Heals;
   readonly watches: Watches;
   readonly approvals: Approvals;
+  /** SMS codes forwarded from the person's phone, for logins waiting on one (SPEC, SMS codes). */
+  readonly sms = new SmsInbox();
   readonly #healHoldMs: number;
   readonly #backgroundHeals: boolean;
   readonly #dataDir: string | undefined;
@@ -450,6 +465,58 @@ export class Engine {
   ): JobView[] {
     requireFullAccess(scopes);
     return listJobs(this.db, options).map((job) => this.builds.view(job.id));
+  }
+
+  /**
+   * Turns SMS codes on: creates the webhook's secret, sealed in the vault,
+   * or returns the one there is. The person gives it to the forwarder app.
+   */
+  async enableSms(scopes: Scopes = ALL): Promise<string> {
+    requireFullAccess(scopes);
+    const vault = await this.vault();
+    const existing = readSealed(this.#smsSecretPath(), vault);
+    if (existing) return existing;
+    const secret = randomBytes(24).toString('hex');
+    writeSealed(this.#smsSecretPath(), vault, secret);
+    return secret;
+  }
+
+  /** Whether SMS codes are on: a webhook secret exists. */
+  smsEnabled(): boolean {
+    return this.#dataDir !== undefined && existsSync(this.#smsSecretPath());
+  }
+
+  /**
+   * Takes a forwarded SMS (POST /v1/sms/inbound). Only a request signed with
+   * the secret, or carrying it as a bearer token, counts; stale and repeated
+   * messages are refused. The text is never kept.
+   */
+  async receiveSms(
+    rawBody: string,
+    headers: { signature?: string | undefined; authorization?: string | undefined },
+  ): Promise<'accepted'> {
+    const vault = this.smsEnabled() ? await this.vault() : undefined;
+    const secret = vault && readSealed(this.#smsSecretPath(), vault);
+    if (!secret || !verifySmsRequest(secret, rawBody, headers)) {
+      throw new ToolDropError('unauthorized', 'this request is not signed with the SMS secret');
+    }
+    let body: unknown;
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      throw new ToolDropError('invalid_input', 'the body is not JSON');
+    }
+    const message = parseInboundSms(body);
+    if (!message) throw new ToolDropError('invalid_input', 'the body has no "from" and "text"');
+    const outcome = this.sms.accept(message);
+    if (outcome === 'stale')
+      throw new ToolDropError('invalid_input', 'the message is more than 5 minutes old');
+    if (outcome === 'duplicate') throw new ToolDropError('conflict', 'this message was received already');
+    return outcome;
+  }
+
+  #smsSecretPath(): string {
+    return join(this.dataDir, 'secrets', 'sms-secret');
   }
 
   /** Calls `listener` whenever the published tools change, e.g. to send MCP's list_changed. */

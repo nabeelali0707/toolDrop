@@ -42,7 +42,8 @@ export interface RunnableTool {
 export interface LoginValues {
   username: string;
   password: string;
-  otp?: string;
+  /** The one-time code, or how to get it once the site has sent it, as with an SMS code. */
+  otp?: string | (() => Promise<string>);
 }
 
 export interface Attempt {
@@ -221,7 +222,8 @@ export class Runtime {
   ): Promise<StorageState> {
     const context = await this.#browsers.fresh();
     try {
-      const templates: TemplateContext = { site, input: { ...values }, session: {}, vars: {}, loop: {} };
+      const { otp, ...account } = values;
+      const templates: TemplateContext = { site, input: { ...account }, session: {}, vars: {}, loop: {} };
       const waitMs = this.#options.browserWaitMs ?? 10_000;
       await runBrowserRecipe(recipe.steps, templates, {
         context: () => Promise.resolve(context),
@@ -229,6 +231,12 @@ export class Runtime {
         waitMs,
         // The login is typed only on the site or an allowed identity provider, and never past a captcha.
         signIn: { site, approved: options.approvedOrigins ?? [] },
+        // A code is asked for only when its step comes: an SMS code exists once the password is in.
+        beforeStep: async (step) => {
+          if (otp === undefined || templates.input.otp !== undefined) return;
+          if (!JSON.stringify(step).includes('input.otp')) return;
+          templates.input.otp = typeof otp === 'string' ? otp : await otp();
+        },
       });
       const login = renderText(recipe.url, templates);
       const page = await context.newPage();

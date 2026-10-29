@@ -194,10 +194,10 @@ Items marked "split first" are broken into day-sized tasks before work starts.
 
 - [ ] **5.6 Email OTP over IMAP.** Read the code from a connected inbox, matched by sender and time.
   Files: `packages/auth/src/twofa/email.ts`, tests with a local IMAP test server
-- [ ] **5.7 SMS webhook.** `POST /v1/sms/inbound` with HMAC or bearer verification, stale and duplicate rejection, code extraction, waiting logins, the LAN-only listener in local mode, codes kept in memory or Valkey for 5 minutes (D-008).
-  Files: `packages/auth/src/twofa/sms.ts`, `apps/server/src/routes/sms.ts`, `apps/server/src/lan-listener.ts`, tests
-- [ ] **5.8 SMS fixture mode.** The login fixture sends its code "by SMS" to a test forwarder that posts to the webhook.
-  Files: `fixtures/login-totp/src/sms.ts`, tests
+- [x] **5.7 SMS webhook.** `POST /v1/sms/inbound` with HMAC or bearer verification, stale and duplicate rejection, code extraction, waiting logins, the local network listener, codes in memory for 5 minutes (D-049); `tooldrop sms enable` and `logins add --sms`.
+  Files: `packages/auth/src/twofa/sms.ts`, `packages/engine/src/{engine,sessions}.ts`, `packages/runtime/src/{runtime,executors/browser}.ts`, `apps/server/src/app.ts`, `apps/cli/src/commands/{sms,serve,logins}.ts`, tests
+- [x] **5.8 SMS fixture mode.** The login fixture sends its code "by SMS" to a forwarder URL that tests set, signed as SMS to URL Forwarder signs.
+  Files: `fixtures/login-totp/src/server.ts`, `apps/server/src/sms.e2e.test.ts`
 
 **Later features** (split first)
 

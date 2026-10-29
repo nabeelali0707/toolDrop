@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomInt, randomUUID } from 'node:crypto';
 import {
   acceptFormBodies,
   cookie,
@@ -28,7 +28,12 @@ export interface LoginTotpSwitches extends Record<string, boolean> {
   ssoLogin: boolean;
   /** The sign-in form shows a captcha and is refused until it is solved. */
   captcha: boolean;
+  /** The code comes by SMS instead of an authenticator: sent to the forwarder set with /__fixture/sms-forwarder. */
+  smsCode: boolean;
 }
+
+/** Who the fixture's SMS codes come from: a number reserved for fiction. */
+export const FIXTURE_SMS_SENDER = '+1 555 555 0100';
 
 /** The captcha's answer a person gives; a test plays the person. */
 export const CAPTCHA_SOLVED = 'solved-by-a-person';
@@ -52,11 +57,24 @@ export function createLoginTotpFixture(): FastifyInstance {
 
   /** Identity provider codes: one-time code -> username. */
   const ssoCodes = new Map<string, string>();
-  const switches = createSwitches<LoginTotpSwitches>({ ssoLogin: false, captcha: false });
+  const switches = createSwitches<LoginTotpSwitches>({ ssoLogin: false, captcha: false, smsCode: false });
+  /** The code each pending sign-in was sent by SMS: pending token -> code. */
+  const smsCodes = new Map<string, string>();
+  /** Where the phone's forwarder posts SMS, as SMS to URL Forwarder does: the URL and its signing secret. */
+  let forwarder: { url: string; secret: string } | undefined;
   registerControls(app, switches, () => {
     pending.clear();
     sessions.clear();
     ssoCodes.clear();
+    smsCodes.clear();
+    forwarder = undefined;
+  });
+
+  app.post('/__fixture/sms-forwarder', async (request, reply) => {
+    const { url, secret } = (request.body ?? {}) as { url?: string; secret?: string };
+    if (!url || !secret) return reply.code(400).send({ error: 'send {"url": "...", "secret": "..."}' });
+    forwarder = { url, secret };
+    return reply.code(204).send();
   });
   /** This server under another host name: the identity provider's origin, or the site's. */
   const on = (request: FastifyRequest, host: 'localhost' | '127.0.0.1') =>
@@ -95,6 +113,11 @@ export function createLoginTotpFixture(): FastifyInstance {
     }
     const token = randomUUID();
     pending.set(token, username);
+    if (switches.current.smsCode) {
+      const code = String(100_000 + randomInt(900_000));
+      smsCodes.set(token, code);
+      await sendSms(forwarder, `Your Example Invoices code is ${code}. It expires in 10 minutes.`);
+    }
     return reply.header('set-cookie', cookie('pending', token)).redirect('/login/totp', 303);
   });
 
@@ -108,11 +131,14 @@ export function createLoginTotpFixture(): FastifyInstance {
     if (!username) return reply.redirect('/login', 303);
 
     const { code = '' } = form(request);
-    const result = await verify({
-      secret: FIXTURE_ACCOUNT.totpSecret,
-      token: code.trim(),
-      epochTolerance: 30,
-    });
+    const sent = smsCodes.get(parseCookies(request.headers.cookie).pending ?? '');
+    const result = sent
+      ? { valid: code.trim() === sent }
+      : await verify({
+          secret: FIXTURE_ACCOUNT.totpSecret,
+          token: code.trim(),
+          epochTolerance: 30,
+        });
     if (!result.valid) {
       return reply.code(401).type('text/html').send(totpPage('That code is not right. Try the current one.'));
     }
@@ -166,6 +192,18 @@ export function createLoginTotpFixture(): FastifyInstance {
   });
 
   return app;
+}
+
+/** Posts an SMS the way SMS to URL Forwarder does: its JSON template, signed with HMAC-SHA256. */
+async function sendSms(forwarder: { url: string; secret: string } | undefined, text: string): Promise<void> {
+  if (!forwarder) return;
+  const body = JSON.stringify({ from: FIXTURE_SMS_SENDER, text, receivedStamp: String(Date.now()) });
+  const signature = createHmac('sha256', forwarder.secret).update(body).digest('hex');
+  await fetch(forwarder.url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-signature': signature },
+    body,
+  }).catch(() => undefined);
 }
 
 export function startLoginTotpFixture(port = 0): Promise<RunningFixture> {

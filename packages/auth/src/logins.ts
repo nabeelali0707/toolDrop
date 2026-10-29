@@ -39,6 +39,7 @@ export function addLogin(db: Queryable, vault: Vault, input: unknown): LoginView
     label: login.label ?? maskUsername(login.username),
     encrypted_secret: vault.sealJson(secret),
     twofa_method: login.totp_secret ? 'totp' : (login.twofa ?? null),
+    ...(login.twofa_config && { twofa_config: login.twofa_config }),
   });
   return viewLogin(vault, created);
 }

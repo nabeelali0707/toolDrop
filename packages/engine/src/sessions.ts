@@ -84,8 +84,18 @@ export class Sessions {
     }
 
     const secret = loginSecret(vault, saved.login.encrypted_secret);
+    // An SMS code counts if it arrived after this sign-in began (SPEC, SMS codes).
+    const started = Date.now();
     const otp = async () => {
       if (secret.totp_secret) return totpCode(secret.totp_secret);
+      if (saved.login.twofa_method === 'sms') {
+        const config = saved.login.twofa_config ?? {};
+        return this.#engine.sms.waitForCode({
+          after: started,
+          ...(config.sender && { sender: config.sender }),
+          ...(config.code_pattern && { pattern: config.code_pattern }),
+        });
+      }
       if (saved.login.twofa_method === 'human' && options.ask) {
         return (await options.ask({ text: `Enter the sign-in code ${origin} just sent you.` })).trim();
       }
@@ -103,7 +113,7 @@ export class Sessions {
         }
         if (recipe) {
           const values = { username: secret.username, password: secret.password };
-          const code = needsCode(recipe) ? { otp: await otp() } : {};
+          const code = needsCode(recipe) ? { otp } : {};
           return {
             recipe,
             state: await this.#engine.runtime.signIn(

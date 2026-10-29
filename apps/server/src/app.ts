@@ -52,6 +52,8 @@ declare module 'fastify' {
     scopes: Scopes;
     /** Who is calling, for the write audit log: "api-key:<label>". */
     by: string;
+    /** The body as sent, for routes that check a signature over it. */
+    rawBody?: string;
   }
 }
 
@@ -59,6 +61,7 @@ export function createServer({ engine, version = '0.0.0', dashboardDir }: Server
   const app = Fastify({ logger: false });
   app.decorateRequest('scopes', null as unknown as Scopes);
   app.decorateRequest('by', '');
+  keepRawJson(app);
 
   app.addHook('onRequest', (request, _reply, done) => {
     // The dashboard's pages are the same for everyone; what they show comes from the API, with a key.
@@ -72,6 +75,8 @@ export function createServer({ engine, version = '0.0.0', dashboardDir }: Server
       done(error as Error);
     }
   });
+
+  registerSmsRoute(app, engine);
 
   app.setErrorHandler(async (error, _request, reply) => {
     const json = toErrorJson(error);
@@ -276,10 +281,60 @@ export function createServer({ engine, version = '0.0.0', dashboardDir }: Server
   return app;
 }
 
-/** API routes need a key; /health and the dashboard's files do not. */
+/** API routes need a key; /health, the dashboard's files and the signed SMS webhook do not. */
 function needsKey(url: string): boolean {
   const path = url.split('?')[0] ?? '';
+  if (path === SMS_ROUTE) return false;
   return path.startsWith('/v1/') || path === '/mcp' || path.startsWith('/mcp/');
+}
+
+const SMS_ROUTE = '/v1/sms/inbound';
+
+/**
+ * Forwarded SMS from the person's phone (SPEC, SMS codes). No API key: the
+ * forwarder signs the body with the SMS secret, or sends it as a bearer token.
+ */
+function registerSmsRoute(app: FastifyInstance, engine: Engine): void {
+  app.post(SMS_ROUTE, async (request, reply) => {
+    const signature = request.headers['x-signature'];
+    await engine.receiveSms(request.rawBody ?? '', {
+      signature: Array.isArray(signature) ? signature[0] : signature,
+      authorization: request.headers.authorization,
+    });
+    return reply.code(204).send();
+  });
+}
+
+/** JSON bodies parsed as usual, with the raw text kept for signature checks. */
+function keepRawJson(app: FastifyInstance): void {
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (request, body, done) => {
+    const text = String(body);
+    request.rawBody = text;
+    if (text.trim() === '') return done(null, undefined);
+    try {
+      done(null, JSON.parse(text));
+    } catch {
+      done(Object.assign(new Error('the body is not valid JSON'), { statusCode: 400 }), undefined);
+    }
+  });
+}
+
+/**
+ * Only the SMS webhook, for the listener on the local network address: a
+ * phone on the same network can reach it, and nothing else of toolDrop is
+ * exposed there (SPEC: locally the server listens on loopback only).
+ */
+export function createSmsServer({ engine }: { engine: Engine }): FastifyInstance {
+  const app = Fastify({ logger: false });
+  keepRawJson(app);
+  registerSmsRoute(app, engine);
+  app.setErrorHandler(async (error, _request, reply) => {
+    const json = toErrorJson(error);
+    const status =
+      !(error instanceof ToolDropError) && hasStatus(error) ? error.statusCode : STATUS[json.code];
+    return reply.code(status).send({ error: json });
+  });
+  return app;
 }
 
 function authenticate(engine: Engine, request: FastifyRequest): { scopes: Scopes; label: string } {

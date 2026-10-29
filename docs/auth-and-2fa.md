@@ -1,7 +1,7 @@
 # Auth and 2FA
 
 ::: info Status
-Since Phase 3: the vault, saved logins, login recipes, session refresh, TOTP codes and codes typed by a person. Since Phase 4: approving an identity provider, and signing in by hand past a captcha. Email and SMS codes come with Phase 5.
+Since Phase 3: the vault, saved logins, login recipes, session refresh, TOTP codes and codes typed by a person. Since Phase 4: approving an identity provider, and signing in by hand past a captcha. Since Phase 5: SMS codes from your phone. Email codes come later in Phase 5.
 :::
 
 Credentials are optional. An agent can pass them with a single call, or you can save them in the vault so toolDrop signs in by itself.
@@ -43,12 +43,13 @@ toolDrop tries these in order:
 
 ### SMS codes from your phone
 
-1. Install an open-source SMS forwarder on your Android phone, such as [SMS to URL Forwarder](https://github.com/bogkonstantin/android_income_sms_gateway_webhook) (MIT, from F-Droid).
-2. Point it at toolDrop's webhook, `http://<your computer's LAN address>:<port>/v1/sms/inbound`. toolDrop shows the address when you turn SMS codes on.
+1. Turn SMS codes on with `tooldrop sms enable`. It shows the webhook address and the signing secret, and `tooldrop serve` then opens the webhook on your computer's local network address. Nothing else of toolDrop is served there.
+2. Install an open-source SMS forwarder on your Android phone, such as [SMS to URL Forwarder](https://github.com/bogkonstantin/android_income_sms_gateway_webhook) (MIT, from F-Droid), and point it at that address.
 3. Set the JSON template to `{"from":"%from%","text":"%text%","receivedStamp":"%receivedStamp%"}`, and turn on HMAC-SHA256 signing with the secret toolDrop gives you.
 4. Set the sender filter so only your 2FA senders are forwarded.
+5. Save the login with its sender: `tooldrop logins add https://shop.example --sms "+1 555 555 0100"`.
 
-The message text is never logged or stored. toolDrop keeps only the extracted code, for at most 5 minutes. Messages older than 5 minutes, duplicates and unsigned requests are rejected. Your phone needs to be on the same network as your computer, or reach it through your own VPN.
+The message text is never logged or stored. toolDrop keeps only the extracted code, for at most 5 minutes. Messages older than 5 minutes, duplicates and unsigned requests are rejected. Your phone needs to be on the same network as your computer, or reach it through your own VPN. A forwarder that cannot sign may send the secret as a bearer token instead. Codes reach the sign-ins of the process running `tooldrop serve`.
 
 ## Captchas
 

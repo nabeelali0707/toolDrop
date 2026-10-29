@@ -36,8 +36,10 @@ export const addLoginSchema = z.strictObject({
     .min(16)
     .max(128)
     .optional(),
-  /** How codes arrive when there is no TOTP secret: "human" asks you each time. */
+  /** How codes arrive when there is no TOTP secret: "sms" from your phone's forwarder, "human" asks you each time. */
   twofa: twofaMethodSchema.optional(),
+  /** For codes by SMS or email: who sends them, and how to find the code in the message. */
+  twofa_config: twofaConfigSchema.optional(),
 });
 export type AddLogin = z.infer<typeof addLoginSchema>;
 

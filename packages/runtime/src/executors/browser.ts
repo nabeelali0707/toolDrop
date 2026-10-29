@@ -20,6 +20,8 @@ export interface BrowserDeps {
   onDrift?: (step: number, selector: number) => void;
   /** Safe mode: stop before the first commit step, or run it with screenshots around it. */
   write?: WriteMode;
+  /** Runs before each step, e.g. to fetch a sign-in code only when its step comes. */
+  beforeStep?: (step: Step) => Promise<void>;
   /** Signing in: every fill must be on the site or an allowed origin, with no captcha (SPEC, Authentication). */
   signIn?: { site: string; approved: readonly string[] };
 }
@@ -39,6 +41,7 @@ export async function runBrowserRecipe(
       let result: unknown;
       const write = deps.write;
       for (const [index, step] of steps.entries()) {
+        await deps.beforeStep?.(step);
         if (write && isCommit(step) && write.record.action === undefined) {
           await settle();
           write.record.url = page.url();

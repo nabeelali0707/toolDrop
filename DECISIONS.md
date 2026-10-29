@@ -507,3 +507,15 @@ SPEC's Security criterion: no API, log, error or model prompt ever holds a plain
 - **Asked once:** during a build as a job question (allow or deny), and in the terminal with `tooldrop logins verify <site>`. A plain call that meets a new origin fails with `human_needed` and says how to allow it.
 - **Captchas go to a person** (D-018): a captcha widget on the sign-in page stops the sign-in. `tooldrop logins verify <site> --by-hand` opens a visible browser where the person signs in and solves it, and toolDrop keeps the session. Its login recipe only opens the sign-in page, which tells later sign-ins that a person does them: when the session ends, toolDrop asks for a person again rather than meeting the captcha itself. A build that meets a captcha waits on a question until the person has signed in by hand.
 - **Recording behind a sign-in:** `tooldrop record` signs in with the site's saved login first, so its window opens signed in and the recording holds only the task.
+
+### D-049 How SMS codes work
+
+*Proposed · 2026-10-28*
+
+- **The webhook** is `POST /v1/sms/inbound`, with no API key. It checks a hex HMAC-SHA256 of the raw body in `X-Signature`, as SMS to URL Forwarder sends it, or the secret as a bearer token. The secret is 24 random bytes, sealed in the vault in `<home>/secrets/sms-secret`, and created by `tooldrop sms enable`, which shows it with the forwarder settings.
+- **Refused:** a request that is not signed, a message received more than 5 minutes ago, and one already taken in (a hash of sender, time and text, kept 5 minutes).
+- **Only codes are kept,** in memory, for at most 5 minutes. A login waiting for a code gets the first message from its sender that arrived after its sign-in began, read with its pattern or as the first number of 4 to 8 digits. A message no login waits for is kept as its sender and code alone, never its text.
+- **The code is asked for when its step comes.** A sign-in now fetches its one-time code just before the step that types it, since an SMS code exists only once the password is in.
+- **The local network listener:** `tooldrop serve` opens a second server on this computer's network address, same port, while SMS codes are on. It serves only the webhook. The API stays on loopback.
+- **One process:** codes are held by the process that receives them, `tooldrop serve`, so its sign-ins are the ones that get them. Self-hosted, codes move to Valkey (task 5.2), which every process shares.
+- **The fixture plays the phone:** with `smsCode` on, the login fixture sends its code to a forwarder URL that tests set, signed as SMS to URL Forwarder signs.
