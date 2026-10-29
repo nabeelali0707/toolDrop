@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
+import { defaultSettings } from './config.ts';
 import { OllamaProvider } from './ollama.ts';
 import { OpenAiCompatibleProvider } from './openai-compatible.ts';
 import type { ChatRequest } from './provider.ts';
@@ -172,5 +173,15 @@ describe('OpenAiCompatibleProvider', () => {
     expect(error.code).toBe('llm_unavailable');
     expect(error.message).toContain('500');
     expect(server.received).toHaveLength(1);
+  });
+});
+
+describe('defaultSettings', () => {
+  it('uses the models the Compose stack downloads, when it names them', () => {
+    expect(defaultSettings({}).models).toEqual({ code: 'qwen2.5-coder:7b', reasoning: 'llama3.1:8b' });
+    expect(
+      defaultSettings({ TOOLDROP_CODE_MODEL: 'qwen2.5-coder:14b', TOOLDROP_REASONING_MODEL: 'qwen2.5:7b' })
+        .models,
+    ).toEqual({ code: 'qwen2.5-coder:14b', reasoning: 'qwen2.5:7b' });
   });
 });

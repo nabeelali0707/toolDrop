@@ -33,8 +33,20 @@ export function ollamaUrl(host = process.env.OLLAMA_HOST): string {
 }
 
 /** Local Ollama with the default models: what toolDrop uses before `init` runs. */
-export function defaultSettings(): LlmSettings {
-  return { provider: 'ollama', base_url: ollamaUrl(), models: { ...DEFAULT_MODELS } };
+/**
+ * Local Ollama with the default models, or the ones named in
+ * TOOLDROP_CODE_MODEL and TOOLDROP_REASONING_MODEL: the variables the Compose
+ * stack downloads models by, so the app uses what was downloaded.
+ */
+export function defaultSettings(env: NodeJS.ProcessEnv = process.env): LlmSettings {
+  return {
+    provider: 'ollama',
+    base_url: ollamaUrl(),
+    models: {
+      code: env.TOOLDROP_CODE_MODEL || DEFAULT_MODELS.code,
+      reasoning: env.TOOLDROP_REASONING_MODEL || DEFAULT_MODELS.reasoning,
+    },
+  };
 }
 
 export function createProvider(settings: LlmSettings, options: { apiKey?: ApiKey } = {}): LlmProvider {

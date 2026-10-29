@@ -1,0 +1,6 @@
+# Added by scripts/zero-cost-e2e.ts: the app reaches the fixture site that the
+# script starts on the host machine.
+services:
+  app:
+    extra_hosts:
+      - host.docker.internal:host-gateway

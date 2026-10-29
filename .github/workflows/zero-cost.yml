@@ -1,0 +1,26 @@
+# SPEC's Zero cost criterion: on a clean machine with no API keys, `docker compose
+# up` builds and runs a fixture tool end to end. It downloads a 7B model and runs
+# it on a CPU, so it runs on demand and weekly rather than on every change.
+name: Zero cost
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  zero-cost:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/zero-cost-e2e.ts

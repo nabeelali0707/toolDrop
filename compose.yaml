@@ -20,6 +20,9 @@ services:
       - tooldrop-data:/data
     environment:
       OLLAMA_HOST: ${OLLAMA_HOST:-http://ollama:11434}
+      # The models the `models` service downloads, so the app uses the same ones.
+      TOOLDROP_CODE_MODEL: ${TOOLDROP_CODE_MODEL:-qwen2.5-coder:7b}
+      TOOLDROP_REASONING_MODEL: ${TOOLDROP_REASONING_MODEL:-llama3.1:8b}
     depends_on:
       ollama:
         condition: service_started
