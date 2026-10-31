@@ -247,7 +247,7 @@ From your release plan (2026-10-26). It runs alongside the phases: each item nee
 - [x] **R8 Bring your own model.** `tooldrop init` sizes and pulls Ollama models, and accepts any OpenAI-compatible endpoint; a key is sealed in the vault.
 - [ ] **R9 Main use case: the Demo Shop.** Steps 1 to 4 pass end to end with a scripted model (`apps/server/src/demo-shop.e2e.test.ts`): save the login, build `list_orders` from the shop's own API behind sign-in and TOTP, and answer which orders have not arrived in under 2 seconds. The watch, the dashboard and the demo GIF need Phase 4.
 - [ ] **R10 Chrome extension release zip and store listing.** The extension, its icons and its privacy policy (`docs/privacy.md`) are done, and the release workflow zips it at your first tag. Still needed: store screenshots and the listing, which you submit.
-- [ ] **R11 Chrome QA.** Dashboard and extension checks come with Phase 4. Done so far: the fixture pages and the docs site, checked in Chrome.
+- [x] **R11 Chrome QA.** The fixture pages and the docs site, checked in Chrome; the extension in Chrome during Phase 4; and the dashboard's pages, including the Phase 5 ones (transparency figures, discovery, audit log), checked in a real browser at desktop and phone widths, which fixed the schema cards overflowing on phones. Signing in with an API key is left to you in your own Chrome.
 
 ## Done log
 

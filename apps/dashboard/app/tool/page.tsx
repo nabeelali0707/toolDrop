@@ -53,11 +53,12 @@ function ToolDetails() {
       </Card>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Card>
+        {/* min-w-0: long schema lines scroll inside their card instead of widening it. */}
+        <Card className="min-w-0">
           <CardTitle>Inputs</CardTitle>
           <pre className="overflow-x-auto text-xs">{JSON.stringify(details.input_schema, null, 2)}</pre>
         </Card>
-        <Card>
+        <Card className="min-w-0">
           <CardTitle>Output</CardTitle>
           <pre className="overflow-x-auto text-xs">{JSON.stringify(details.output_schema, null, 2)}</pre>
         </Card>
