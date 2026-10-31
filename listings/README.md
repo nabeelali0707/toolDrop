@@ -8,6 +8,7 @@ Everything needed to list toolDrop in MCP directories. **Nothing here has been s
 | [Glama](https://glama.ai/mcp/servers) | [`glama.json`](../glama.json) | Glama's website |
 | [Smithery](https://smithery.ai) | [`smithery.yaml`](../smithery.yaml) | Smithery's website |
 | [mcp.so](https://mcp.so) | none | mcp.so's submission form |
+| [Agensi](https://www.agensi.io) (as a skill) | [`agensi/`](agensi/README.md) | Agensi's creator dashboard |
 
 ## Before any listing
 
