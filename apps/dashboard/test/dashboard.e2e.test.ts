@@ -83,13 +83,18 @@ async function openPage(): Promise<{ page: Page; errors: string[] }> {
   await page.goto(`${base}/`);
   await page.getByLabel('API key').fill(key);
   await page.getByRole('button', { name: 'Open the dashboard' }).click();
-  await page.getByRole('heading', { name: 'Tools' }).waitFor();
+  await page.getByRole('heading', { name: 'Tools', exact: true }).waitFor();
   return { page, errors };
 }
 
 describe('the dashboard', () => {
   it('shows tools, their schema and cURL, runs, logins and questions', async () => {
     const { page, errors } = await openPage();
+    // Discovery needs a model, and this server has none: the card says what to do.
+    await page.getByLabel('Site address').fill(fixture.url);
+    await page.getByRole('button', { name: 'Discover' }).click();
+    await page.getByTestId('discover').getByText('no model is configured').waitFor();
+
     await page.getByRole('link', { name: 'search_invoices' }).click();
     await page.getByRole('heading', { name: 'search_invoices' }).waitFor();
     expect(await page.getByTestId('curl').textContent()).toContain(`${base}/v1/tools/search_invoices/run`);

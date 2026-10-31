@@ -169,6 +169,27 @@ const BUILD_TOOLS: Tool[] = [
     annotations: { readOnlyHint: false, openWorldHint: true },
   },
   {
+    name: 'discover_tools',
+    title: 'Discover tools on a site',
+    description:
+      "Look around a website from one URL, signed in when it has a saved login, and propose tools worth building. Starts a discover job and returns it at once; poll get_job, then build the ones the user wants with build_tool, passing each proposal's url and task.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'Where to start, e.g. "https://portal.example.com".' },
+        max_pages: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 50,
+          description: 'Optional: most pages to visit (default 12).',
+        },
+      },
+      required: ['url'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true, openWorldHint: true },
+  },
+  {
     name: 'get_job',
     title: 'Check a build',
     description:
@@ -261,6 +282,7 @@ export function createMcpServer(engine: Engine, options: McpOptions = {}): Serve
     const args = params.arguments ?? {};
     try {
       if (params.name === 'build_tool') return success({ job: await engine.startBuild(args, scopes) });
+      if (params.name === 'discover_tools') return success({ job: await engine.startDiscover(args, scopes) });
       if (params.name === 'add_login') return success({ login: await engine.addLogin(args, scopes) });
       if (params.name === 'list_logins') {
         return success({ logins: await engine.listLogins(scopes, optionalString(args.site, 'site')) });

@@ -23,6 +23,7 @@
     "playwright": "^1.64.1"
   },
   "devDependencies": {
+    "@tooldrop/fixture-demo-shop": "workspace:*",
     "@tooldrop/fixture-html-app": "workspace:*",
     "@tooldrop/fixture-json-api": "workspace:*",
     "@tooldrop/fixture-kit": "workspace:*",

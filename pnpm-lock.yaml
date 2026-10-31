@@ -570,6 +570,9 @@ importers:
         specifier: ^1.64.1
         version: 1.64.1
     devDependencies:
+      '@tooldrop/fixture-demo-shop':
+        specifier: workspace:*
+        version: link:../../fixtures/demo-shop
       '@tooldrop/fixture-html-app':
         specifier: workspace:*
         version: link:../../fixtures/html-app

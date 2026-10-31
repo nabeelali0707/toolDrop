@@ -206,7 +206,11 @@ Items marked "split first" are broken into day-sized tasks before work starts.
   - [x] **5.9b Version recipes.** `GET /v1/tools/:name/versions/:version`, for comparing versions.
   - [x] **5.9c Dashboard.** Call figures, builds and repairs, model use, and a line diff of any version against the current one, next to rollback.
   Files: `packages/db/src/repos/{stats,tools}.ts`, `packages/engine/src/engine.ts`, `apps/server/src/app.ts`, `apps/dashboard/{components/transparency.tsx,lib/diff.ts,app/tool/page.tsx}`, `apps/cli/src/commands/tools.ts`, tests
-- [ ] **5.10 URL-first discovery**
+- [x] **5.10 URL-first discovery**, split into:
+  - [x] **5.10a Crawl.** Same-site links from one URL, signed in when the site has a login: tables, forms, links and the JSON pages load, as structure only. Never a click, a form or a sign-out.
+  - [x] **5.10b Propose.** The reasoning model turns the notes into a catalog of tools (name, description, task, start page, authority, inputs), checked by schema and kept on the site.
+  - [x] **5.10c Interfaces.** Discover jobs on the build queue; `discover_tools`, `POST /v1/discover`, `tooldrop discover`, and the dashboard's Discover box with one-click builds (D-055).
+  Files: `packages/compiler/src/discover/{crawl,propose}.ts`, `packages/core/src/job.ts`, `packages/engine/src/{builds,engine}.ts`, `apps/{mcp,server,cli,dashboard}`, `fixtures/html-app/src/server.ts`, tests
 - [ ] **5.11 Multi-site workflows**
 - [x] **5.12 Code export**, split into:
   - [x] **5.12a The runtime an export carries.** toolDrop's runtime and a small entry, bundled into one file at build time (from source on first use), with third-party packages as the export's dependencies.

@@ -27,6 +27,7 @@ The MCP server offers these management tools next to the tools you have built:
 | --- | --- |
 | `find_tool` | Search existing tools by site and task |
 | `build_tool` | Start a build: URL, task, authority, optional recording |
+| `discover_tools` | Look around a site from one URL and propose tools to build |
 | `get_job` | Job status, pending questions and the result |
 | `answer_question` | Answer a build's question |
 | `run_tool` | Run a published tool by name |
@@ -51,6 +52,18 @@ tooldrop build http://127.0.0.1:4101 --task "List my invoices, filtered by statu
 ```
 
 The build runs in the terminal, prints each step, and asks its questions there. Add `--recording <id or file>` to build from a [recording](./recording-mode). On a machine without a GPU, a build can take many minutes: local models read long prompts slowly there.
+
+## Not sure what to build?
+
+Give toolDrop a URL only, and it proposes tools:
+
+```sh
+tooldrop discover https://portal.example.com
+```
+
+It opens the site, signed in when it has a saved login, and follows its links, at most 12 pages by default (`--max-pages`). It never clicks a button, sends a form, or follows a sign-out or delete link. For each page it notes the tables' columns, the forms' fields, and the keys and types of the JSON the page loads, never the data in them, and your reasoning model proposes tools from those notes. Each proposal comes with its `tooldrop build` command. A proposal that changes data is marked as a write: make it as a tool file with a commit step ([Safe mode](./safe-mode)).
+
+The same comes from `discover_tools` over MCP, `POST /v1/discover` over REST (then poll `GET /v1/jobs/:id`), and the **Discover tools** box on the dashboard's Tools page, which builds a proposal with one click.
 
 ## What builds can read today
 

@@ -72,6 +72,7 @@ describe('MCP server', () => {
       'list_watches',
       'delete_watch',
       'build_tool',
+      'discover_tools',
       'get_job',
       'answer_question',
       'add_login',

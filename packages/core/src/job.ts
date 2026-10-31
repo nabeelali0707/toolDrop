@@ -32,6 +32,14 @@ export const buildInputSchema = z.strictObject({
 });
 export type BuildInput = z.infer<typeof buildInputSchema>;
 
+/** POST /v1/discover and discover_tools: a URL only (SPEC, URL-first discovery). */
+export const discoverInputSchema = z.strictObject({
+  url: z.url({ protocol: /^https?$/ }),
+  /** Most pages the crawl visits (default 12). */
+  max_pages: z.number().int().min(1).max(50).optional(),
+});
+export type DiscoverInput = z.infer<typeof discoverInputSchema>;
+
 /** A clarifying question. Times are epoch milliseconds, like every timestamp. */
 export const jobQuestionSchema = z.strictObject({
   id: idSchema,

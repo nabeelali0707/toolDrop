@@ -576,3 +576,14 @@ SPEC's Security criterion: no API, log, error or model prompt ever holds a plain
 - **No login in the package:** a signed-in site's package holds the login recipe (the steps) only. The caller passes the login when calling, with a TOTP secret or a function for the code. Exporting such a tool needs a login recipe, so toolDrop must have signed in once.
 - **Writes:** a write tool exports `preview()` and `commit()`. Safe mode's approvals and policies stay in toolDrop; the caller's code decides when to commit.
 - **No healing:** an export is a snapshot of one version. When it breaks, export again from toolDrop.
+
+### D-055 How URL-first discovery works
+
+*Proposed · 2026-10-31*
+
+- **A crawl, then one model call.** A discover job opens the site from its URL, signed in when the site has a saved login, and follows same-site links breadth first: at most 12 pages by default (50 at most), and two per path whatever their query. The reasoning model then proposes a catalog from notes on those pages, in one call checked by schema.
+- **Nothing that could change the site:** only links are followed. No button is clicked and no form is sent, so a sign-out form or a payment form stays untouched, and links whose text or path says sign out, delete, remove, cancel or unsubscribe are skipped, as are downloads.
+- **Structure, not data:** the notes hold titles, headings, table columns with their row counts, form fields with their labels and choices, link texts, and the keys and types of the JSON each page loads. Cell values, JSON values and tokens never reach the model; the saved login's values are masked as in every prompt.
+- **Proposals are suggestions:** each has a name, a description, the task and start page that `build_tool` takes, its authority and its likely inputs. Proposals off the site or with a repeated name are dropped, and one whose name a published tool on the site already has says so. Building stays a separate, deliberate step. Builds make read tools, so a proposed write points to a tool file with a commit step until write builds arrive (5.13).
+- **Jobs:** discover jobs (the `discover` kind SPEC's data model has) wait in the build queue, since they drive a browser and a model too, and can ask questions, such as a 2FA code while signing in.
+- **The HTML fixture links its payment form** from the invoice list, as real sites link their forms, so the crawl test finds the site's write side.

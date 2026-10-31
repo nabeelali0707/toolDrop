@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Discover } from '../components/discover';
 import { PageTitle, Status } from '../components/shell';
 import { Badge } from '../components/ui/badge';
 import { Table, Td, Th } from '../components/ui/table';
@@ -60,6 +61,7 @@ export default function ToolsPage() {
           </tbody>
         </Table>
       )}
+      <Discover />
     </>
   );
 }

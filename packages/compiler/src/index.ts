@@ -26,3 +26,5 @@ export * from './recording/assemble.ts';
 export * from './names.ts';
 export * from './login/build-login.ts';
 export * from './recording/replay-steps.ts';
+export * from './discover/crawl.ts';
+export * from './discover/propose.ts';

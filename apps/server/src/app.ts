@@ -191,6 +191,11 @@ export function createServer({ engine, version = '0.0.0', dashboardDir }: Server
     reply.code(202).send({ job: await engine.startBuild(request.body ?? {}, request.scopes) }),
   );
 
+  // URL-first discovery: a URL only; the job proposes tools to build (SPEC, Differentiating features).
+  app.post('/v1/discover', async (request, reply) =>
+    reply.code(202).send({ job: await engine.startDiscover(request.body ?? {}, request.scopes) }),
+  );
+
   app.get('/v1/jobs/:id', async (request) => {
     const { id } = request.params as { id: string };
     return { job: await engine.getJob(id, request.scopes) };

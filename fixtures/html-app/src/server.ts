@@ -124,6 +124,7 @@ ${switches.dateFilterMoved ? `<details><summary>Search options</summary>${dateFi
 </form>
 ${invoiceTable(result.items, columns)}
 ${result.items.length === 0 ? '<p id="empty">No invoices match.</p>' : ''}
-<nav aria-label="Pagination"><span>Page ${query.page}</span> ${links}</nav>`,
+<nav aria-label="Pagination"><span>Page ${query.page}</span> ${links}</nav>
+<p><a href="/payments/new">Record a payment</a></p>`,
   );
 }

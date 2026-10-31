@@ -208,6 +208,15 @@ export class Engine {
     return this.builds.start(input);
   }
 
+  /**
+   * Starts a discover job (SPEC, URL-first discovery and discover_tools): a URL
+   * only, and the job proposes tools to build. Poll it with getJob.
+   */
+  async startDiscover(input: unknown, scopes: Scopes = ALL): Promise<JobView> {
+    requireFullAccess(scopes);
+    return this.builds.startDiscover(input);
+  }
+
   async getJob(id: string, scopes: Scopes = ALL): Promise<JobView> {
     requireFullAccess(scopes);
     return this.builds.view(id);

@@ -1,6 +1,7 @@
 import { isToolDropError } from '@tooldrop/core';
 import { approvals, policies } from './commands/approvals.ts';
 import { build } from './commands/build.ts';
+import { discover } from './commands/discover.ts';
 import { email } from './commands/email.ts';
 import { exportTool } from './commands/export.ts';
 import { init } from './commands/init.ts';
@@ -42,6 +43,7 @@ Usage: tooldrop <command> [options]
   sms enable             Turn on SMS codes from your phone, and show the forwarder settings
   email connect <host>   Connect the inbox email codes are read from (--user, --port, --password-stdin)
   build <url> --task     Build a tool for a task (--recording <id or file>, --hint)
+  discover <url>         Look around a site from one URL and propose tools to build (--max-pages)
   record <url>           Do a task once in a browser, for the most reliable builds (--task, --out)
 
 Data lives in ~/.tooldrop; set TOOLDROP_HOME to use another folder.
@@ -62,6 +64,7 @@ const COMMANDS: Record<string, (args: string[]) => Promise<number>> = {
   sms,
   email,
   export: exportTool,
+  discover,
 };
 
 async function main(argv: string[]): Promise<number> {

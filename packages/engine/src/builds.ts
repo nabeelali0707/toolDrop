@@ -1,5 +1,6 @@
 import {
   buildInputSchema,
+  discoverInputSchema,
   newId,
   ToolDropError,
   type BuildInput,
@@ -7,7 +8,7 @@ import {
   type JobQuestion,
   type ToolDropErrorJson,
 } from '@tooldrop/core';
-import { buildTool, writeCapture, type BuildDeps } from '@tooldrop/compiler';
+import { buildTool, crawlSite, proposeTools, writeCapture, type BuildDeps } from '@tooldrop/compiler';
 import {
   addJobAnswer,
   addJobQuestion,
@@ -23,7 +24,7 @@ import {
   type JobRow,
   type JobUsage,
 } from '@tooldrop/db';
-import { formatIssues, Llm, type ModelSetup } from '@tooldrop/llm';
+import { formatIssues, Llm, Masker, type ModelSetup } from '@tooldrop/llm';
 import type { Browser } from 'playwright';
 import type { Engine } from './engine.ts';
 import { JobHolds } from './job-holds.ts';
@@ -192,6 +193,29 @@ export class Builds {
     return this.#queue.close();
   }
 
+  /**
+   * Starts a discover job (SPEC, URL-first discovery): crawl the signed-in
+   * site from a URL, then propose a catalog of tools to build. Discover jobs
+   * wait in the build queue, since they drive a browser and a model too.
+   */
+  async startDiscover(input: unknown): Promise<JobView> {
+    const parsed = discoverInputSchema.safeParse(input);
+    if (!parsed.success) {
+      const problems = formatIssues(parsed.error.issues);
+      throw new ToolDropError(
+        'invalid_input',
+        `invalid discover request: ${problems.slice(0, 3).join('; ')}`,
+        {
+          details: { problems },
+        },
+      );
+    }
+    const job = await createJob(this.#engine.db, { kind: 'discover', input: parsed.data });
+    if (!this.#queue.durable) this.#holds.hold(job.id);
+    await this.#queue.enqueue({ id: job.id, kind: 'discover' });
+    return this.view(job.id);
+  }
+
   /** Runs a job this process took from the queue. */
   async #take(id: string): Promise<void> {
     this.#holds.hold(id);
@@ -199,9 +223,62 @@ export class Builds {
       const job = await getJob(this.#engine.db, id);
       // Only a job that still waits: one failed meanwhile, or taken before, is left alone.
       if (job?.status !== 'queued') return;
-      await this.#run(id, buildInputSchema.parse(job.input));
+      if (job.kind === 'discover') await this.#discover(id, discoverInputSchema.parse(job.input));
+      else await this.#run(id, buildInputSchema.parse(job.input));
     } finally {
       this.#holds.release(id);
+    }
+  }
+
+  async #discover(jobId: string, request: { url: string; max_pages?: number }): Promise<void> {
+    const db = this.#engine.db;
+    try {
+      await setJobStatus(db, jobId, 'running', { step: 'starting' });
+      const llm = this.#llm;
+      if (!llm) throw new ToolDropError('llm_unavailable', 'no model is configured; run `tooldrop init`');
+      await setJobStep(db, jobId, 'signing in');
+      const signedIn = await this.#engine.sessions.ensure(request.url, {
+        ask: (question) => this.#ask(jobId, question),
+      });
+      await setJobStep(db, jobId, 'crawling');
+      const crawl = await crawlSite(request.url, {
+        ...(this.#options.browser && { browser: this.#options.browser }),
+        ...(signedIn && { storageState: signedIn.state }),
+        ...(request.max_pages !== undefined && { maxPages: request.max_pages }),
+        ...(this.#options.compiler?.waitMs !== undefined && { waitMs: this.#options.compiler.waitMs }),
+      });
+      if (crawl.pages.length === 0) {
+        throw new ToolDropError(
+          'invalid_input',
+          `no page of ${crawl.site} could be opened from ${request.url}`,
+        );
+      }
+      await setJobStep(db, jobId, 'proposing tools');
+      const masker = new Masker();
+      for (const secret of await this.#engine.sessions.secretsFor(request.url)) masker.add(secret);
+      const candidates = await proposeTools({ llm, jobId, masker }, crawl.site, crawl.pages);
+      // A published tool that already does a task is named, so it is not built twice.
+      const published = await this.#engine.findTools({ site: crawl.site });
+      const tools = candidates.map((candidate) => {
+        const existing = published.find(
+          (tool) => tool.name === candidate.name && tool.site.origin === crawl.site,
+        );
+        return existing ? { ...candidate, existing: existing.name } : candidate;
+      });
+      await setJobStatus(db, jobId, 'succeeded', {
+        step: null,
+        result: {
+          site: crawl.site,
+          pages: crawl.pages.map((page) => ({ url: page.url, title: page.title })),
+          tools,
+        },
+      });
+    } catch (error) {
+      const json =
+        error instanceof ToolDropError
+          ? error.toJSON()
+          : { code: 'internal' as const, message: error instanceof Error ? error.message : String(error) };
+      await setJobStatus(db, jobId, 'failed', { step: null, error: json });
     }
   }
 
