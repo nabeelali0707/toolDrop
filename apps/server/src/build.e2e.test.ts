@@ -125,9 +125,9 @@ interface Setup {
 
 let setup: Setup | undefined;
 
-function start(provider: LlmProvider): Setup {
+async function start(provider: LlmProvider): Promise<Setup> {
   const handle = openDatabase(':memory:');
-  runMigrations(handle.db);
+  await runMigrations(handle.db);
   const dataDir = mkdtempSync(join(tmpdir(), 'tooldrop-gate-'));
   const engine = new Engine({
     db: handle.db,
@@ -140,7 +140,7 @@ function start(provider: LlmProvider): Setup {
     },
   });
   const app = createServer({ engine });
-  setup = { handle, engine, app, key: createApiKey(handle.db, { label: 'test' }).key, dataDir };
+  setup = { handle, engine, app, key: (await createApiKey(handle.db, { label: 'test' })).key, dataDir };
   return setup;
 }
 
@@ -149,7 +149,7 @@ afterEach(async () => {
   await setup.engine.builds.idle();
   await setup.app.close();
   await setup.engine.close();
-  setup.handle.close();
+  await setup.handle.close();
   rmSync(setup.dataDir, { recursive: true, force: true, maxRetries: 3 });
   setup = undefined;
 });
@@ -195,7 +195,7 @@ const htmlRecording = (url: string) => ({
 
 describe('Phase 2 acceptance', { timeout: 180_000 }, () => {
   it('Build (JSON API fixture): a task description becomes an http_replay tool that answers in under a second', async () => {
-    const s = start(new ScriptedModel());
+    const s = await start(new ScriptedModel());
     const started = Date.now();
     const { status, body } = await rest(s, 'POST', '/v1/builds', {
       url: jsonApi.url,
@@ -225,7 +225,7 @@ describe('Phase 2 acceptance', { timeout: 180_000 }, () => {
   });
 
   it('Build (HTML fixture) and Recording: an uploaded recording becomes an html_fetch tool, with no exploring', async () => {
-    const s = start(new ScriptedModel());
+    const s = await start(new ScriptedModel());
     const uploaded = await rest(s, 'POST', '/v1/recordings', htmlRecording(htmlApp.url));
     expect(uploaded.status).toBe(201);
     const { body } = await rest(s, 'POST', '/v1/builds', {
@@ -236,7 +236,7 @@ describe('Phase 2 acceptance', { timeout: 180_000 }, () => {
     });
     const job = await finished(s, (body.job as JobView).id);
     expect(job.result).toMatchObject({ tool: 'list_invoices', strategy: 'html_fetch' });
-    const purposes = listLlmCalls(s.handle.db, job.id).map((call) => call.purpose);
+    const purposes = (await listLlmCalls(s.handle.db, job.id)).map((call) => call.purpose);
     expect(purposes).not.toContain('explore');
     expect(purposes).toEqual(['clarify', 'write_recipe', 'describe_tool']);
 
@@ -249,7 +249,7 @@ describe('Phase 2 acceptance', { timeout: 180_000 }, () => {
   });
 
   it('LLM output: a reply that keeps failing its schema fails the job after four tries, with the error', async () => {
-    const s = start(new ScriptedModel(true));
+    const s = await start(new ScriptedModel(true));
     const uploaded = await rest(s, 'POST', '/v1/recordings', htmlRecording(htmlApp.url));
     const { body } = await rest(s, 'POST', '/v1/builds', {
       url: `${htmlApp.url}/invoices`,
@@ -263,7 +263,9 @@ describe('Phase 2 acceptance', { timeout: 180_000 }, () => {
     expect(job.error?.message).toMatch(
       /write_recipe reply did not match its schema after 4 tries: steps: Invalid input/,
     );
-    const attempts = listLlmCalls(s.handle.db, job.id).filter((call) => call.purpose === 'write_recipe');
+    const attempts = (await listLlmCalls(s.handle.db, job.id)).filter(
+      (call) => call.purpose === 'write_recipe',
+    );
     expect(attempts.map((call) => [call.attempt, call.ok])).toEqual([
       [1, false],
       [2, false],
@@ -273,7 +275,7 @@ describe('Phase 2 acceptance', { timeout: 180_000 }, () => {
   });
 
   it('Privacy: by default only the fixture and the local model are contacted', async () => {
-    const s = start(new ScriptedModel());
+    const s = await start(new ScriptedModel());
     expect(isLocalEndpoint('http://127.0.0.1:11434')).toBe(true);
     const { body } = await rest(s, 'POST', '/v1/builds', {
       url: jsonApi.url,
@@ -282,7 +284,7 @@ describe('Phase 2 acceptance', { timeout: 180_000 }, () => {
     });
     const job = await finished(s, (body.job as JobView).id);
     expect(job.status).toBe('succeeded');
-    const [capture] = listCaptures(s.handle.db, job.id);
+    const [capture] = await listCaptures(s.handle.db, job.id);
     const har = JSON.parse(readFileSync(join(s.dataDir, capture?.har_path ?? ''), 'utf8')) as {
       log: { entries: { request: { url: string } }[] };
     };
@@ -306,7 +308,7 @@ describe('Phase 2 acceptance', { timeout: 180_000 }, () => {
         );
       },
     });
-    const s = start(external);
+    const s = await start(external);
     const { body } = await rest(s, 'POST', '/v1/builds', {
       url: jsonApi.url,
       task: 'List invoices by status',

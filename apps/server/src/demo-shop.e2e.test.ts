@@ -70,7 +70,7 @@ beforeAll(async () => {
   shop = await startDemoShopFixture();
   dataDir = mkdtempSync(join(tmpdir(), 'tooldrop-demo-'));
   handle = openDatabase(':memory:');
-  runMigrations(handle.db);
+  await runMigrations(handle.db);
   engine = new Engine({
     db: handle.db,
     dataDir,
@@ -86,7 +86,7 @@ beforeAll(async () => {
     },
   });
   app = createServer({ engine });
-  key = createApiKey(handle.db, { label: 'agent' }).key;
+  key = (await createApiKey(handle.db, { label: 'agent' })).key;
 });
 
 afterAll(async () => {
@@ -94,7 +94,7 @@ afterAll(async () => {
   await engine.heals.idle();
   await app.close();
   await engine.close();
-  handle.close();
+  await handle.close();
   await browser.close();
   await shop.close();
   rmSync(dataDir, { recursive: true, force: true, maxRetries: 3 });
@@ -136,7 +136,7 @@ describe('the Demo Shop order tracker', () => {
     expect(job.result).toMatchObject({ tool: 'list_orders', strategy: 'http_replay' });
 
     // The recipe trades the session for the shop's short-lived bearer token, like the page does.
-    const recipe = engine.listTools().find((tool) => tool.name === 'list_orders')?.recipe;
+    const recipe = (await engine.listTools()).find((tool) => tool.name === 'list_orders')?.recipe;
     expect(recipe?.steps[0]).toMatchObject({
       op: 'http',
       url: '{{site}}/api/session/token',

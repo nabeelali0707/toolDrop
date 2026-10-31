@@ -59,7 +59,7 @@ export interface HealDeps {
   /** How long replayed steps wait for the page (default 10 s). */
   waitMs?: number;
   /** What the heal is doing now, for get_job. */
-  step?: (name: string) => void;
+  step?: (name: string) => void | Promise<void>;
 }
 
 export interface Healed {
@@ -168,7 +168,7 @@ export async function healStep(
   };
   let feedback: string | undefined;
   for (let attempt = 1; attempt <= MAX_HEAL_ATTEMPTS; attempt++) {
-    deps.step?.(`repairing step ${failure.step + 1} (attempt ${attempt} of ${MAX_HEAL_ATTEMPTS})`);
+    await deps.step?.(`repairing step ${failure.step + 1} (attempt ${attempt} of ${MAX_HEAL_ATTEMPTS})`);
     let steps: Step[];
     const { session, from } = await startAt(target, plan.steps, context, deps);
     try {
@@ -202,7 +202,7 @@ export async function healStep(
         ? { ...target.recipe, fallback: { strategy: 'browser_script' as const, steps } }
         : { ...target.recipe, steps };
     try {
-      deps.step?.(`testing the repair (attempt ${attempt} of ${MAX_HEAL_ATTEMPTS})`);
+      await deps.step?.(`testing the repair (attempt ${attempt} of ${MAX_HEAL_ATTEMPTS})`);
       await testPlan(target, { strategy: 'browser_script', steps }, deps);
     } catch (error) {
       feedback = message(error);
@@ -242,7 +242,7 @@ export async function rebuildPrimary(target: HealTarget, error: string, deps: He
   };
   let problem = `the old ${target.recipe.strategy} recipe stopped working: ${error}`;
   for (let attempt = 1; attempt <= MAX_HEAL_ATTEMPTS; attempt++) {
-    deps.step?.(
+    await deps.step?.(
       `rebuilding the ${target.recipe.strategy} recipe (attempt ${attempt} of ${MAX_HEAL_ATTEMPTS})`,
     );
     const { session, from } = await startAt(target, fallback.steps, context, deps);
@@ -270,7 +270,7 @@ export async function rebuildPrimary(target: HealTarget, error: string, deps: He
       problem,
     );
     const recipe = recipeSchema.parse({ ...primary, fallback });
-    deps.step?.(`testing the rebuilt recipe (attempt ${attempt} of ${MAX_HEAL_ATTEMPTS})`);
+    await deps.step?.(`testing the rebuilt recipe (attempt ${attempt} of ${MAX_HEAL_ATTEMPTS})`);
     const report = await validateTwice(
       deps.runtime,
       {
@@ -350,7 +350,7 @@ export async function refreshSelectors(
     loop: {},
   };
   const labels: string[] = [];
-  deps.step?.('refreshing selectors');
+  await deps.step?.('refreshing selectors');
   const { session, from } = await startAt(target, steps, context, deps);
   try {
     let next = from;
@@ -370,7 +370,7 @@ export async function refreshSelectors(
     which === 'fallback'
       ? { ...target.recipe, fallback: { strategy: 'browser_script' as const, steps } }
       : { ...target.recipe, steps };
-  deps.step?.('testing the refreshed selectors');
+  await deps.step?.('testing the refreshed selectors');
   await testPlan(target, { strategy: 'browser_script', steps }, deps);
   const reason = `${labels.join(', ')}: the first selector no longer matched, so the selectors were refreshed from the page`;
   return { recipe: recipeSchema.parse(recipe), reason, attempts: 1 };

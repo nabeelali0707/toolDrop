@@ -43,7 +43,7 @@ export async function email(args: string[]): Promise<number> {
     ? (await readStdin()).trim()
     : await askHidden('Password or app password (hidden): ');
 
-  const { engine, close } = openEngine({ backgroundHeals: false });
+  const { engine, close } = await openEngine({ backgroundHeals: false });
   try {
     const port = Number(values.port);
     const saved = await engine.connectMailbox({

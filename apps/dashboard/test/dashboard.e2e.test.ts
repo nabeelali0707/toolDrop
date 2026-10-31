@@ -39,22 +39,22 @@ beforeAll(async () => {
   fixture = await startHtmlAppFixture();
   dataDir = mkdtempSync(join(tmpdir(), 'tooldrop-dashboard-'));
   handle = openDatabase(join(dataDir, 'tooldrop.db'));
-  runMigrations(handle.db);
+  await runMigrations(handle.db);
   engine = new Engine({
     db: handle.db,
     dataDir,
     runtime: new Runtime({ browserWaitMs: 5_000 }),
     keyStore: () => Promise.resolve(memoryKeyStore()),
   });
-  engine.publish(recipe('html-app.search_invoices.json'), fixture.url);
-  engine.publish(recipe('html-app.record_payment.json'), fixture.url);
+  await engine.publish(recipe('html-app.search_invoices.json'), fixture.url);
+  await engine.publish(recipe('html-app.record_payment.json'), fixture.url);
   await engine.runTool('search_invoices', { status: 'paid' });
   await engine.runTool('record_payment', { invoice: 'INV-1057', amount: 100 }).catch(() => undefined);
   server = createServer({ engine, dashboardDir: join(app, 'out') });
   await server.listen({ host: '127.0.0.1', port: 0 });
   const address = server.server.address();
   base = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}`;
-  key = createApiKey(handle.db, { label: 'dashboard' }).key;
+  key = (await createApiKey(handle.db, { label: 'dashboard' })).key;
   browser = await chromium.launch();
 }, 300_000);
 
@@ -62,7 +62,7 @@ afterAll(async () => {
   await browser.close();
   await server.close();
   await engine.close();
-  handle.close();
+  await handle.close();
   await fixture.close();
   rmSync(dataDir, { recursive: true, force: true, maxRetries: 3 });
 });

@@ -22,25 +22,25 @@ let dataDir: string;
 
 beforeEach(async () => {
   handle = openDatabase(':memory:');
-  runMigrations(handle.db);
+  await runMigrations(handle.db);
   dataDir = mkdtempSync(join(tmpdir(), 'tooldrop-server-'));
   engine = new Engine({ db: handle.db, dataDir, keyStore: () => Promise.resolve(memoryKeyStore()) });
   fixture = await startHtmlAppFixture();
-  engine.publish(
+  await engine.publish(
     readToolFile(
       fileURLToPath(new URL('../../../fixtures/recipes/html-app.search_invoices.json', import.meta.url)),
     ),
     fixture.url,
   );
   app = createServer({ engine, version: '1.2.3' });
-  key = createApiKey(handle.db, { label: 'test' }).key;
+  key = (await createApiKey(handle.db, { label: 'test' })).key;
 });
 
 afterEach(async () => {
   await app.close();
   await engine.close();
   await fixture.close();
-  handle.close();
+  await handle.close();
   rmSync(dataDir, { recursive: true, force: true });
 });
 
@@ -96,7 +96,7 @@ describe('REST API', () => {
 
     expect((await run('nope', {})).statusCode).toBe(404);
 
-    const scoped = createApiKey(handle.db, { label: 'scoped', scopes: ['list_orders'] }).key;
+    const scoped = (await createApiKey(handle.db, { label: 'scoped', scopes: ['list_orders'] })).key;
     expect((await run('search_invoices', {}, { authorization: `Bearer ${scoped}` })).statusCode).toBe(403);
   });
 });
@@ -117,8 +117,8 @@ describe('versions', () => {
 });
 
 describe('safe mode', () => {
-  beforeEach(() => {
-    engine.publish(
+  beforeEach(async () => {
+    await engine.publish(
       readToolFile(
         fileURLToPath(new URL('../../../fixtures/recipes/html-app.record_payment.json', import.meta.url)),
       ),
@@ -168,7 +168,7 @@ describe('safe mode', () => {
       policies: [{ id, ...policy }],
     });
 
-    const scoped = createApiKey(handle.db, { label: 'scoped', scopes: ['record_payment'] }).key;
+    const scoped = (await createApiKey(handle.db, { label: 'scoped', scopes: ['record_payment'] })).key;
     const refused = await app.inject({
       method: 'POST',
       url: '/v1/policies',
@@ -252,7 +252,7 @@ describe('logins', () => {
     expect(invalid.statusCode).toBe(400);
     expect(invalid.body).not.toContain(password);
 
-    const scoped = createApiKey(handle.db, { label: 'scoped', scopes: ['search_invoices'] }).key;
+    const scoped = (await createApiKey(handle.db, { label: 'scoped', scopes: ['search_invoices'] })).key;
     const forbidden = await app.inject({ url: '/v1/logins', headers: { authorization: `Bearer ${scoped}` } });
     expect(forbidden.statusCode).toBe(403);
   });
@@ -283,7 +283,7 @@ describe('builds', () => {
 
     const missing = await app.inject({ url: '/v1/jobs/01JZZZZZZZZZZZZZZZZZZZZZZZ', headers: auth() });
     expect(missing.statusCode).toBe(404);
-    const scoped = createApiKey(handle.db, { label: 'scoped', scopes: ['search_invoices'] }).key;
+    const scoped = (await createApiKey(handle.db, { label: 'scoped', scopes: ['search_invoices'] })).key;
     const forbidden = await app.inject({
       url: `/v1/jobs/${job.id}`,
       headers: { authorization: `Bearer ${scoped}` },
@@ -371,7 +371,7 @@ describe('recordings', () => {
   });
 
   it('needs a key with access to every tool', async () => {
-    const scoped = createApiKey(handle.db, { label: 'scoped', scopes: ['search_invoices'] }).key;
+    const scoped = (await createApiKey(handle.db, { label: 'scoped', scopes: ['search_invoices'] })).key;
     const response = await app.inject({
       method: 'POST',
       url: '/v1/recordings',

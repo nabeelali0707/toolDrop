@@ -21,10 +21,10 @@ export async function approvals(args: string[]): Promise<number> {
     options: { all: { type: 'boolean', default: false }, screenshot: { type: 'string' } },
   });
   const [action = 'list', id] = positionals;
-  const { engine, close } = openEngine({ backgroundHeals: false });
+  const { engine, close } = await openEngine({ backgroundHeals: false });
   try {
     if (action === 'list') {
-      const shown = engine.listApprovals(['*'], values.all ? undefined : 'pending');
+      const shown = await engine.listApprovals(['*'], values.all ? undefined : 'pending');
       if (shown.length === 0)
         console.log(values.all ? 'No writes yet.' : 'No write is waiting for approval.');
       for (const approval of shown) {
@@ -35,8 +35,8 @@ export async function approvals(args: string[]): Promise<number> {
     }
     if (!id) throw new ToolDropError('invalid_input', APPROVALS_USAGE);
     if (action === 'show') {
-      console.log(describeApproval(engine.getApproval(id)));
-      const png = values.screenshot ? engine.approvalScreenshot(id, 'before') : undefined;
+      console.log(describeApproval(await engine.getApproval(id)));
+      const png = values.screenshot ? await engine.approvalScreenshot(id, 'before') : undefined;
       if (values.screenshot && png) {
         writeFileSync(values.screenshot, png);
         console.log(`\nSaved the filled form to ${values.screenshot}.`);
@@ -97,10 +97,10 @@ export async function policies(args: string[]): Promise<number> {
     options: { when: { type: 'string' } },
   });
   const [action = 'list', target] = positionals;
-  const { engine, close } = openEngine({ backgroundHeals: false });
+  const { engine, close } = await openEngine({ backgroundHeals: false });
   try {
     if (action === 'list') {
-      const all = engine.listPolicies();
+      const all = await engine.listPolicies();
       if (all.length === 0) console.log('No policies: every write waits for an approval.');
       for (const policy of all) {
         console.log(`${policy.id}  ${policy.tool} when ${policy.field} ${policy.op} ${String(policy.value)}`);
@@ -114,14 +114,14 @@ export async function policies(args: string[]): Promise<number> {
       const [, field, op, raw = ''] = match;
       const text = raw.replace(/^(["'])(.*)\1$/, '$2');
       const value = /^-?\d+(\.\d+)?$/.test(text) ? Number(text) : text;
-      const policy = engine.createPolicy({ tool: target, field, op, value });
+      const policy = await engine.createPolicy({ tool: target, field, op, value });
       console.log(
         `${target} now runs without asking when ${field} ${op} ${String(value)} (policy ${policy.id}).`,
       );
       return 0;
     }
     if (action === 'remove' && target) {
-      engine.deletePolicy(target);
+      await engine.deletePolicy(target);
       console.log(`Removed policy ${target}.`);
       return 0;
     }

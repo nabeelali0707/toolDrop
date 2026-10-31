@@ -41,6 +41,36 @@ jobs:
       # Bundles the published package and fails if it imports an undeclared dependency.
       - run: pnpm build
 
+  postgres:
+    # The database tests again, on a real Postgres server through the driver
+    # self-hosted toolDrop uses; the main job runs them on PGlite (D-051).
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          # A throwaway server for this job only, so it needs no password.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      TOOLDROP_TEST_POSTGRES_URL: postgres://postgres@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec vitest run packages/db
+
   docker:
     # Builds the app image and checks that it serves, as `docker compose up` would.
     runs-on: ubuntu-latest

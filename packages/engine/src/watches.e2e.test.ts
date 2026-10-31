@@ -63,7 +63,7 @@ afterAll(() => new Promise((resolve) => receiver.close(resolve)));
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'tooldrop-watches-'));
   handle = openDatabase(join(dir, 'tooldrop.db'));
-  runMigrations(handle.db);
+  await runMigrations(handle.db);
   fixture = await startJsonApiFixture();
   now = Date.parse('2026-10-28T12:00:00Z');
   answer = 204;
@@ -72,7 +72,7 @@ beforeEach(async () => {
 afterEach(async () => {
   for (const engine of engines.splice(0)) await engine.close();
   await fixture.close();
-  handle.close();
+  await handle.close();
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -82,13 +82,13 @@ const watchInvoices = { tool: 'list_invoices', interval_s: 300, key_field: 'numb
 describe('watches', () => {
   it('sends exactly one signed created webhook for a new row, within one interval', async () => {
     const engine = start();
-    engine.publish(listInvoices, fixture.url);
+    await engine.publish(listInvoices, fixture.url);
     const events: WatchEvent[] = [];
     engine.watches.onEvent((event) => events.push(event));
     const { watch, secret } = await engine.createWatch({ ...watchInvoices, webhook_url: hooks });
     expect(secret).toMatch(/^[0-9a-f]{64}$/);
-    expect(engine.listWatches()).toEqual([watch]);
-    expect(JSON.stringify(engine.listWatches())).not.toContain(secret);
+    expect(await engine.listWatches()).toEqual([watch]);
+    expect(JSON.stringify(await engine.listWatches())).not.toContain(secret);
 
     // Nothing is due yet, and the first run was only the baseline.
     await engine.watches.tick();
@@ -116,12 +116,12 @@ describe('watches', () => {
     now += FIVE_MINUTES;
     await engine.watches.tick();
     expect(received).toHaveLength(1);
-    expect(engine.listWatches()[0]).toMatchObject({ last_error: null });
+    expect((await engine.listWatches())[0]).toMatchObject({ last_error: null });
   }, 60_000);
 
   it('sends a change again on the next run when its webhook failed', async () => {
     const engine = start();
-    engine.publish(listInvoices, fixture.url);
+    await engine.publish(listInvoices, fixture.url);
     await engine.createWatch({ ...watchInvoices, webhook_url: hooks });
     await newInvoice();
 
@@ -129,19 +129,19 @@ describe('watches', () => {
     now += FIVE_MINUTES;
     await engine.watches.tick();
     expect(received).toHaveLength(3);
-    expect(engine.listWatches()[0]).toMatchObject({ last_error: 'the webhook answered 503' });
+    expect((await engine.listWatches())[0]).toMatchObject({ last_error: 'the webhook answered 503' });
 
     answer = 204;
     received.length = 0;
     now += FIVE_MINUTES;
     await engine.watches.tick();
     expect(received.map((hook) => (JSON.parse(hook.body) as WatchEvent).key)).toEqual(['INV-1058']);
-    expect(engine.listWatches()[0]).toMatchObject({ last_error: null });
+    expect((await engine.listWatches())[0]).toMatchObject({ last_error: null });
   }, 60_000);
 
   it('runs a due watch in one process only, when several share the database', async () => {
     const [first, second] = [start(), start()];
-    first.publish(listInvoices, fixture.url);
+    await first.publish(listInvoices, fixture.url);
     await first.createWatch({ ...watchInvoices, webhook_url: hooks });
     await newInvoice();
     now += FIVE_MINUTES;
@@ -151,7 +151,7 @@ describe('watches', () => {
 
   it('refuses a watch that could not work, and says why', async () => {
     const engine = start();
-    engine.publish(listInvoices, fixture.url);
+    await engine.publish(listInvoices, fixture.url);
     await expect(
       engine.createWatch({ ...watchInvoices, key_field: 'status', webhook_url: hooks }),
     ).rejects.toThrow('"status" is not unique');
@@ -166,15 +166,15 @@ describe('watches', () => {
     ).rejects.toMatchObject({
       code: 'not_found',
     });
-    expect(engine.listWatches()).toEqual([]);
+    expect(await engine.listWatches()).toEqual([]);
   }, 60_000);
 
   it('deletes a watch', async () => {
     const engine = start();
-    engine.publish(listInvoices, fixture.url);
+    await engine.publish(listInvoices, fixture.url);
     const { watch } = await engine.createWatch({ ...watchInvoices, webhook_url: hooks });
-    expect(() => engine.deleteWatch(watch.id, ['other_tool'])).toThrow(`no watch ${watch.id}`);
-    engine.deleteWatch(watch.id);
-    expect(engine.listWatches()).toEqual([]);
+    await expect(engine.deleteWatch(watch.id, ['other_tool'])).rejects.toThrow(`no watch ${watch.id}`);
+    await engine.deleteWatch(watch.id);
+    expect(await engine.listWatches()).toEqual([]);
   }, 60_000);
 });

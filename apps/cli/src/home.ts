@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findKeyStore, readSealed, Vault } from '@tooldrop/auth';
+import { ToolDropError } from '@tooldrop/core';
 import { openDatabase, runMigrations } from '@tooldrop/db';
 import { Engine } from '@tooldrop/engine';
 import { defaultSettings, llmSettingsSchema, modelSetup, type LlmSettings } from '@tooldrop/llm';
@@ -70,14 +71,33 @@ async function llmApiKey(baseUrl: string): Promise<string | undefined> {
   return saved.base_url === baseUrl ? saved.api_key : undefined;
 }
 
-/** Opens the database in the home directory, applies migrations and starts an engine. */
-export function openEngine(options: { backgroundHeals?: boolean } = {}): {
+/**
+ * The database: Postgres when TOOLDROP_DATABASE_URL is set, as self-hosted
+ * toolDrop does (DECISIONS.md, D-051), or else the SQLite file in the home
+ * directory. The URL may hold a password, so errors never repeat it.
+ */
+export function databaseTarget(env: NodeJS.ProcessEnv = process.env): string {
+  const url = env.TOOLDROP_DATABASE_URL;
+  if (!url) return join(homeDir(), 'tooldrop.db');
+  if (!/^postgres(ql)?:\/\//.test(url)) {
+    throw new ToolDropError('invalid_input', 'TOOLDROP_DATABASE_URL must be a postgres:// URL');
+  }
+  return url;
+}
+
+/** Opens the database, applies migrations and starts an engine. */
+export async function openEngine(options: { backgroundHeals?: boolean } = {}): Promise<{
   engine: Engine;
   close: () => Promise<void>;
-} {
+}> {
   mkdirSync(homeDir(), { recursive: true });
-  const handle = openDatabase(join(homeDir(), 'tooldrop.db'));
-  runMigrations(handle.db);
+  const handle = openDatabase(databaseTarget());
+  try {
+    await runMigrations(handle.db);
+  } catch (error) {
+    await handle.close();
+    throw error;
+  }
   const settings = modelSettings();
   const engine = new Engine({
     db: handle.db,
@@ -90,7 +110,7 @@ export function openEngine(options: { backgroundHeals?: boolean } = {}): {
     engine,
     close: async () => {
       await engine.close();
-      handle.close();
+      await handle.close();
     },
   };
 }

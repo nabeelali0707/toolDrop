@@ -13,11 +13,11 @@ export async function serve(args: string[]): Promise<number> {
     options: { port: { type: 'string', default: '3000' }, host: { type: 'string', default: '127.0.0.1' } },
   });
   const port = Number(values.port);
-  const { engine, close } = openEngine();
+  const { engine, close } = await openEngine();
 
   // First run: make a key, since every route needs one.
-  if (!listApiKeys(engine.db).some((key) => !key.revoked_at)) {
-    const { key } = createApiKey(engine.db, { label: 'first key' });
+  if (!(await listApiKeys(engine.db)).some((key) => !key.revoked_at)) {
+    const { key } = await createApiKey(engine.db, { label: 'first key' });
     console.log(`Created your first API key. It is shown only this once:\n\n  ${key}\n`);
   }
 

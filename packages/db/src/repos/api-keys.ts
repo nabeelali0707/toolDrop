@@ -1,8 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { newId } from '@tooldrop/core';
 import { and, desc, eq, isNull } from 'drizzle-orm';
-import type { Queryable } from '../client.ts';
-import { api_keys } from '../schema.ts';
+import { first, tablesOf, type Queryable } from '../client.ts';
 
 // API keys (DECISIONS.md, D-021).
 
@@ -13,36 +12,40 @@ export function hashApiKey(key: string): string {
 }
 
 /** Creates a key. The returned `key` is the only time it is ever shown. */
-export function createApiKey(
+export async function createApiKey(
   db: Queryable,
   options: { label: string; scopes?: string[] },
-): { id: string; key: string } {
+): Promise<{ id: string; key: string }> {
+  const { api_keys } = tablesOf(db);
   const key = `${KEY_PREFIX}${randomBytes(32).toString('base64url')}`;
   const id = newId();
-  db.insert(api_keys)
-    .values({ id, label: options.label, key_hash: hashApiKey(key), scopes: options.scopes ?? ['*'] })
-    .run();
+  await db
+    .insert(api_keys)
+    .values({ id, label: options.label, key_hash: hashApiKey(key), scopes: options.scopes ?? ['*'] });
   return { id, key };
 }
 
 /** The key's record when it is valid and not revoked. */
-export function verifyApiKey(
+export async function verifyApiKey(
   db: Queryable,
   key: string,
-): { id: string; label: string; scopes: string[] } | undefined {
+): Promise<{ id: string; label: string; scopes: string[] } | undefined> {
   if (!key.startsWith(KEY_PREFIX)) return undefined;
-  const row = db
-    .select()
-    .from(api_keys)
-    .where(and(eq(api_keys.key_hash, hashApiKey(key)), isNull(api_keys.revoked_at)))
-    .get();
+  const { api_keys } = tablesOf(db);
+  const row = first(
+    await db
+      .select()
+      .from(api_keys)
+      .where(and(eq(api_keys.key_hash, hashApiKey(key)), isNull(api_keys.revoked_at))),
+  );
   if (!row) return undefined;
-  db.update(api_keys).set({ last_used_at: new Date() }).where(eq(api_keys.id, row.id)).run();
+  await db.update(api_keys).set({ last_used_at: new Date() }).where(eq(api_keys.id, row.id));
   return { id: row.id, label: row.label, scopes: row.scopes };
 }
 
-export function revokeApiKey(db: Queryable, id: string): void {
-  db.update(api_keys).set({ revoked_at: new Date() }).where(eq(api_keys.id, id)).run();
+export async function revokeApiKey(db: Queryable, id: string): Promise<void> {
+  const { api_keys } = tablesOf(db);
+  await db.update(api_keys).set({ revoked_at: new Date() }).where(eq(api_keys.id, id));
 }
 
 /** Whether a key's scopes allow running a tool. */
@@ -51,8 +54,9 @@ export function keyAllows(scopes: string[], toolName: string): boolean {
 }
 
 /** Every key's label, scopes and dates; never the key or its hash. */
-export function listApiKeys(db: Queryable) {
-  return db
+export async function listApiKeys(db: Queryable) {
+  const { api_keys } = tablesOf(db);
+  const rows = await db
     .select({
       id: api_keys.id,
       label: api_keys.label,
@@ -62,6 +66,6 @@ export function listApiKeys(db: Queryable) {
       revoked_at: api_keys.revoked_at,
     })
     .from(api_keys)
-    .orderBy(desc(api_keys.created_at))
-    .all();
+    .orderBy(desc(api_keys.created_at));
+  return rows;
 }

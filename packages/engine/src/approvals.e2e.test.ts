@@ -35,18 +35,18 @@ beforeEach(async () => {
   await fetch(`${fixture.url}/__fixture/reset`, { method: 'POST' });
   dataDir = mkdtempSync(join(tmpdir(), 'tooldrop-approvals-'));
   handle = openDatabase(join(dataDir, 'tooldrop.db'));
-  runMigrations(handle.db);
+  await runMigrations(handle.db);
   engine = new Engine({
     db: handle.db,
     dataDir,
     runtime: new Runtime({ browserWaitMs: 5_000 }),
     keyStore: () => Promise.resolve(memoryKeyStore()),
   });
-  engine.publish(recordPayment, fixture.url);
+  await engine.publish(recordPayment, fixture.url);
 });
 afterEach(async () => {
   await engine.close();
-  handle.close();
+  await handle.close();
   rmSync(dataDir, { recursive: true, force: true, maxRetries: 3 });
 });
 
@@ -78,9 +78,9 @@ describe('safe mode', () => {
         { field: 'Amount', value: '100' },
       ],
     });
-    expect(isPng(engine.approvalScreenshot(id, 'before'))).toBe(true);
+    expect(isPng(await engine.approvalScreenshot(id, 'before'))).toBe(true);
     expect(await payments()).toEqual([]);
-    expect(engine.listApprovals(['*'], 'pending').map((approval) => approval.id)).toEqual([id]);
+    expect((await engine.listApprovals(['*'], 'pending')).map((approval) => approval.id)).toEqual([id]);
 
     const decided = await engine.decideApproval(id, 'approve', ['*'], 'test');
     expect(decided.result).toBe('Payment PAY-0001 recorded: INV-1057 is paid, 100.00 USD.');
@@ -91,7 +91,7 @@ describe('safe mode', () => {
       screenshots: { before: true, after: true },
       outcome: { ok: true, url: `${fixture.url}/payments/PAY-0001` },
     });
-    expect(isPng(engine.approvalScreenshot(id, 'after'))).toBe(true);
+    expect(isPng(await engine.approvalScreenshot(id, 'after'))).toBe(true);
     expect(await payments()).toEqual([{ id: 'PAY-0001', invoice: 'INV-1057', amount: 100, reference: '' }]);
 
     // An approval is used once.
@@ -118,15 +118,20 @@ describe('safe mode', () => {
     expect(outcome.meta).toMatchObject({ dry_run: true });
     expect(outcome.result).toMatchObject({ fields: [{ field: 'Invoice number', value: 'INV-1057' }, {}] });
     expect(isPng(outcome.screenshot)).toBe(true);
-    expect(engine.listApprovals()).toEqual([]);
+    expect(await engine.listApprovals()).toEqual([]);
     expect(await payments()).toEqual([]);
   }, 60_000);
 
   it('lets a policy approve small payments, while larger ones still wait', async () => {
-    const policy = engine.createPolicy({ tool: 'record_payment', field: 'amount', op: '<', value: 100 });
+    const policy = await engine.createPolicy({
+      tool: 'record_payment',
+      field: 'amount',
+      op: '<',
+      value: 100,
+    });
     const small = await engine.runTool('record_payment', { invoice: 'INV-1057', amount: 40 });
     expect(small.result).toContain('INV-1057 is paid');
-    expect(engine.listApprovals()[0]).toMatchObject({
+    expect((await engine.listApprovals())[0]).toMatchObject({
       decided_by: `policy:${policy.id}`,
       status: 'approved',
     });
@@ -134,31 +139,30 @@ describe('safe mode', () => {
     await askToPay('INV-1056', 150);
     expect(await payments()).toHaveLength(1);
 
-    expect(() =>
+    await expect(
       engine.createPolicy({ tool: 'record_payment', field: 'amount', op: '<', value: 1 }, ['x']),
-    ).toThrow('scope "*"');
-    expect(() =>
+    ).rejects.toThrow('scope "*"');
+    await expect(
       engine.createPolicy({ tool: 'record_payment', field: 'amount', op: '<', value: 'x' }),
-    ).toThrow('needs a number');
-    engine.deletePolicy(policy.id);
-    expect(engine.listPolicies()).toEqual([]);
+    ).rejects.toThrow('needs a number');
+    await engine.deletePolicy(policy.id);
+    expect(await engine.listPolicies()).toEqual([]);
   }, 60_000);
 
   it('refuses an approval that is too old, or for a tool that changed since', async () => {
     const old = await askToPay('INV-1057', 100);
-    handle.db
+    await handle.db
       .update(approvals)
       .set({ expires_at: new Date(Date.now() - 1) })
-      .where(eq(approvals.id, old.approval_id))
-      .run();
+      .where(eq(approvals.id, old.approval_id));
     await expect(engine.decideApproval(old.approval_id, 'approve')).rejects.toThrow('more than 24 hours old');
 
     const changed = await askToPay('INV-1057', 100);
-    engine.publish(recordPayment, fixture.url);
+    await engine.publish(recordPayment, fixture.url);
     await expect(engine.decideApproval(changed.approval_id, 'approve')).rejects.toThrow(
       'changed since this preview',
     );
-    expect(engine.getApproval(changed.approval_id)).toMatchObject({
+    expect(await engine.getApproval(changed.approval_id)).toMatchObject({
       status: 'rejected',
       decided_by: 'outdated',
     });
@@ -172,7 +176,7 @@ describe('safe mode', () => {
       code: 'strategy_failed',
       details: { approval_id: id, committed: true },
     });
-    const approval = engine.getApproval(id);
+    const approval = await engine.getApproval(id);
     expect(approval.outcome).toMatchObject({ ok: false, url: `${fixture.url}/payments` });
     expect(approval.outcome?.error?.message).toContain('no element matches css=#confirmation');
     expect(await payments()).toEqual([]);
@@ -181,7 +185,7 @@ describe('safe mode', () => {
   it('keeps write tools out of the health check and away from other keys', async () => {
     expect(await engine.healthCheck()).toEqual([]);
     const { approval_id: id } = await askToPay('INV-1057', 100);
-    expect(() => engine.getApproval(id, ['list_invoices'])).toThrow(`no approval ${id}`);
-    expect(engine.listApprovals(['list_invoices'])).toEqual([]);
+    await expect(engine.getApproval(id, ['list_invoices'])).rejects.toThrow(`no approval ${id}`);
+    expect(await engine.listApprovals(['list_invoices'])).toEqual([]);
   }, 60_000);
 });

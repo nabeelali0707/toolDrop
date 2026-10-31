@@ -13,10 +13,10 @@ export async function tools(args: string[]): Promise<number> {
     options: { site: { type: 'string' } },
   });
   const [action, path] = positionals;
-  const { engine, close } = openEngine();
+  const { engine, close } = await openEngine();
   try {
     if (action === 'list') {
-      const published = engine.listTools();
+      const published = await engine.listTools();
       if (published.length === 0) {
         console.log('No tools yet. Add one with `tooldrop tools add <path>`.');
         return 0;
@@ -40,7 +40,7 @@ export async function tools(args: string[]): Promise<number> {
           'a tool file needs --site <url>, e.g. --site https://example.com',
         );
       }
-      const tool = engine.publish(file, site);
+      const tool = await engine.publish(file, site);
       console.log(`Published ${tool.name} v${tool.version} for ${tool.site.origin}.`);
       return 0;
     }
@@ -58,7 +58,7 @@ export async function tools(args: string[]): Promise<number> {
     }
 
     if (action === 'versions' && path) {
-      for (const version of engine.versions(path)) {
+      for (const version of await engine.versions(path)) {
         const reason = version.change_reason ? `  ${version.change_reason}` : '';
         console.log(
           `${version.current ? '*' : ' '} v${version.version}  ${version.strategy}  ${version.created_by}  ${version.created_at}${reason}`,
@@ -72,7 +72,7 @@ export async function tools(args: string[]): Promise<number> {
       if (!Number.isInteger(version)) {
         throw new ToolDropError('invalid_input', 'usage: tooldrop tools rollback <tool> <version>');
       }
-      const tool = engine.rollback(path, version);
+      const tool = await engine.rollback(path, version);
       console.log(`${tool.name} is back on version ${tool.version}.`);
       return 0;
     }

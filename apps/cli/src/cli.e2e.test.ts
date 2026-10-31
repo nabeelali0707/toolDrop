@@ -105,7 +105,7 @@ function writeRecording(): string {
 const addSearchInvoices = () =>
   cli('tools', 'add', repo('fixtures/recipes/html-app.search_invoices.json'), '--site', fixture.url);
 
-describe('tooldrop CLI', { timeout: 120_000 }, () => {
+describe('tooldrop CLI', { timeout: 300_000 }, () => {
   it('publishes a tool file and runs it', async () => {
     const added = await addSearchInvoices();
     expect(added.status).toBe(0);

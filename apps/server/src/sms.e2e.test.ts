@@ -32,7 +32,7 @@ beforeAll(async () => {
   fixture = await startLoginTotpFixture();
   dataDir = mkdtempSync(join(tmpdir(), 'tooldrop-sms-'));
   handle = openDatabase(join(dataDir, 'tooldrop.db'));
-  runMigrations(handle.db);
+  await runMigrations(handle.db);
   engine = new Engine({
     db: handle.db,
     dataDir,
@@ -50,7 +50,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await app.close();
   await engine.close();
-  handle.close();
+  await handle.close();
   await browser.close();
   await fixture.close();
   rmSync(dataDir, { recursive: true, force: true, maxRetries: 3 });
@@ -90,7 +90,7 @@ describe('SMS codes', () => {
     });
     expect(await engine.signIn(fixture.url)).toBe(true);
 
-    engine.publish(
+    await engine.publish(
       toolFileSchema.parse({
         name: 'protected_invoices',
         description: 'The newest invoices on the signed-in page.',

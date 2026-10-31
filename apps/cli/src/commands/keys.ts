@@ -11,28 +11,28 @@ export async function keys(args: string[]): Promise<number> {
     options: { label: { type: 'string', default: 'cli' }, scopes: { type: 'string', default: '*' } },
   });
   const [action, id] = positionals;
-  const { engine, close } = openEngine();
+  const { engine, close } = await openEngine();
   try {
     if (action === 'create') {
       const scopes = values.scopes
         .split(',')
         .map((scope) => scope.trim())
         .filter(Boolean);
-      const { key } = createApiKey(engine.db, { label: values.label, scopes });
+      const { key } = await createApiKey(engine.db, { label: values.label, scopes });
       console.log(
         `API key "${values.label}" for ${scopes.join(', ')}. It is shown only this once:\n\n  ${key}\n`,
       );
       return 0;
     }
     if (action === 'list') {
-      for (const key of listApiKeys(engine.db)) {
+      for (const key of await listApiKeys(engine.db)) {
         const state = key.revoked_at ? 'revoked' : `last used ${key.last_used_at?.toISOString() ?? 'never'}`;
         console.log(`${key.id}  ${key.label}  [${key.scopes.join(', ')}]  ${state}`);
       }
       return 0;
     }
     if (action === 'revoke' && id) {
-      revokeApiKey(engine.db, id);
+      await revokeApiKey(engine.db, id);
       console.log(`Revoked ${id}.`);
       return 0;
     }

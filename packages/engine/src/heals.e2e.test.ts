@@ -31,14 +31,14 @@ afterAll(async () => {
 });
 beforeEach(async () => {
   handle = openDatabase(':memory:');
-  runMigrations(handle.db);
+  await runMigrations(handle.db);
   for (const fixture of [htmlApp, jsonApi]) await fetch(`${fixture.url}/__fixture/reset`, { method: 'POST' });
 });
 afterEach(async () => {
   await engine?.heals.idle();
   await engine?.close();
   engine = undefined;
-  handle.close();
+  await handle.close();
 });
 
 async function flip(fixture: RunningFixture, switches: Record<string, boolean>): Promise<void> {
@@ -132,7 +132,7 @@ describe('self-healing', () => {
       ],
       heal_reason: [{ reason: 'The date filter moved into a new Search options panel.' }],
     });
-    healer.publish(sinceTool, htmlApp.url, { test_inputs: [{ from: '2026-03-01' }] });
+    await healer.publish(sinceTool, htmlApp.url, { test_inputs: [{ from: '2026-03-01' }] });
     await flip(htmlApp, { dateFilterMoved: true });
 
     const outcome = await healer.runTool('invoices_since', { from: '2026-04-01' });
@@ -140,7 +140,7 @@ describe('self-healing', () => {
     const rows = outcome.result as { issued_on: string }[];
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.every((row) => row.issued_on >= '2026-04-01')).toBe(true);
-    expect(listVersions(handle.db, 'invoices_since')).toMatchObject([
+    expect(await listVersions(handle.db, 'invoices_since')).toMatchObject([
       { version: 1, created_by: 'user', current: false },
       {
         version: 2,
@@ -175,14 +175,14 @@ describe('self-healing', () => {
       write_recipe: [reviewDraft],
       heal_reason: [{ reason: 'The invoice API moved to /api/v3.' }],
     });
-    healer.publish(tool, jsonApi.url, { test_inputs: [{ status: 'paid' }] });
+    await healer.publish(tool, jsonApi.url, { test_inputs: [{ status: 'paid' }] });
     await flip(jsonApi, { apiMoved: true });
 
     const answered = await healer.runTool('list_invoices', { status: 'paid' });
     expect(answered.meta.strategy).toBe('browser_script');
     await healer.heals.idle();
 
-    expect(listVersions(handle.db, 'list_invoices').at(-1)).toMatchObject({
+    expect((await listVersions(handle.db, 'list_invoices')).at(-1)).toMatchObject({
       version: 2,
       created_by: 'heal',
       change_reason: 'The invoice API moved to /api/v3.',
@@ -194,7 +194,7 @@ describe('self-healing', () => {
 
   it('refreshes selectors that drifted, without a model', async () => {
     const healer = start();
-    healer.publish(sinceTool, htmlApp.url, { test_inputs: [{ from: '2026-03-01' }] });
+    await healer.publish(sinceTool, htmlApp.url, { test_inputs: [{ from: '2026-03-01' }] });
     await flip(htmlApp, { searchButtonRenamed: true });
 
     // "Search" is now "Find": the test id still finds the button, so the call works.
@@ -202,7 +202,7 @@ describe('self-healing', () => {
     expect(drifted.drift).toEqual({ strategy: 'browser_script', steps: [{ step: 2, selector: 1 }] });
     await healer.heals.idle();
 
-    const versions = listVersions(handle.db, 'invoices_since');
+    const versions = await listVersions(handle.db, 'invoices_since');
     expect(versions.at(-1)).toMatchObject({ version: 2, created_by: 'heal' });
     expect(versions.at(-1)?.change_reason).toContain('button "Find"');
     expect((await healer.runTool('invoices_since', { from: '2026-03-01' })).drift).toBeUndefined();
@@ -213,7 +213,7 @@ describe('self-healing', () => {
       changes: [{ change: 'retarget', step: 1, ref: refIn(request, 'heading "Invoices"') }],
     });
     const healer = start({ heal_patch: [wrong, wrong, wrong] });
-    healer.publish(sinceTool, htmlApp.url, { test_inputs: [{ from: '2026-03-01' }] });
+    await healer.publish(sinceTool, htmlApp.url, { test_inputs: [{ from: '2026-03-01' }] });
     await flip(htmlApp, { dateFilterMoved: true });
 
     const failed = await healer
@@ -224,8 +224,10 @@ describe('self-healing', () => {
       message: expect.stringContaining('The repair failed too') as string,
     });
     const jobId = (failed as { details: { heal_job_id: string } }).details.heal_job_id;
-    expect(getJob(handle.db, jobId)).toMatchObject({ kind: 'heal', status: 'failed' });
-    expect(healer.listTools().find((tool) => tool.name === 'invoices_since')?.status).toBe('degraded');
+    expect(await getJob(handle.db, jobId)).toMatchObject({ kind: 'heal', status: 'failed' });
+    expect((await healer.listTools()).find((tool) => tool.name === 'invoices_since')?.status).toBe(
+      'degraded',
+    );
 
     // A second call within the hour fails without starting another repair.
     const again = await healer
@@ -250,10 +252,10 @@ describe('self-healing', () => {
       ],
       heal_reason: [{ reason: 'The date filter moved into a new Search options panel.' }],
     });
-    healer.publish(sinceTool, htmlApp.url, { test_inputs: [{ from: '2026-03-01' }] });
+    await healer.publish(sinceTool, htmlApp.url, { test_inputs: [{ from: '2026-03-01' }] });
     await flip(htmlApp, { dateFilterMoved: true });
     expect(await healer.healthCheck()).toEqual([{ tool: 'invoices_since', ok: true, healed: true }]);
-    expect(listVersions(handle.db, 'invoices_since').at(-1)).toMatchObject({
+    expect((await listVersions(handle.db, 'invoices_since')).at(-1)).toMatchObject({
       version: 2,
       created_by: 'heal',
     });
@@ -277,7 +279,7 @@ describe('self-healing', () => {
       },
       50,
     );
-    healer.publish(sinceTool, htmlApp.url, { test_inputs: [{ from: '2026-03-01' }] });
+    await healer.publish(sinceTool, htmlApp.url, { test_inputs: [{ from: '2026-03-01' }] });
     await flip(htmlApp, { dateFilterMoved: true });
 
     const timedOut = await healer
@@ -286,7 +288,7 @@ describe('self-healing', () => {
     expect(timedOut).toMatchObject({ code: 'heal_timeout' });
     // The repair goes on, and publishes when it is done.
     await healer.heals.idle();
-    expect(listVersions(handle.db, 'invoices_since').at(-1)).toMatchObject({
+    expect((await listVersions(handle.db, 'invoices_since')).at(-1)).toMatchObject({
       version: 2,
       created_by: 'heal',
     });

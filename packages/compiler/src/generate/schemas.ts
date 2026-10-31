@@ -164,8 +164,11 @@ export function describeSchemas(
 }
 
 /** The model's name, made unique among the published tools. */
-export function uniqueToolName(name: string, taken: (name: string) => boolean): string {
+export async function uniqueToolName(
+  name: string,
+  taken: (name: string) => boolean | Promise<boolean>,
+): Promise<string> {
   let candidate = name;
-  for (let n = 2; taken(candidate); n++) candidate = `${name.slice(0, 60)}_${n}`;
+  for (let n = 2; await taken(candidate); n++) candidate = `${name.slice(0, 60)}_${n}`;
   return candidate;
 }

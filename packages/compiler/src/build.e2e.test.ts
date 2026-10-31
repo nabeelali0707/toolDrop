@@ -80,7 +80,9 @@ function setup(replies: Record<string, FakeReply[]>, recordings: Record<string, 
   const questions: string[] = [];
   const answers: string[] = [];
   const hooks: BuildHooks = {
-    step: (name) => steps.push(name),
+    step: (name) => {
+      steps.push(name);
+    },
     ask: (question) => {
       questions.push(question.text);
       return Promise.resolve(answers.shift() ?? 'no answer');

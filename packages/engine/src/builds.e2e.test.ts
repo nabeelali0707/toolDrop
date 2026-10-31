@@ -83,7 +83,7 @@ function start(replies: Record<string, FakeReply[]>, withModels = true, staleMs?
 async function settle(id: string, until: JobView['status'][], withinMs = 100_000): Promise<JobView> {
   const deadline = Date.now() + withinMs;
   while (Date.now() < deadline) {
-    const job = engine.getJob(id);
+    const job = await engine.getJob(id);
     if (until.includes(job.status)) return job;
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
@@ -100,16 +100,16 @@ afterAll(async () => {
   await fixture.close();
 });
 
-beforeEach(() => {
+beforeEach(async () => {
   handle = openDatabase(':memory:');
-  runMigrations(handle.db);
+  await runMigrations(handle.db);
   dataDir = mkdtempSync(join(tmpdir(), 'tooldrop-builds-'));
 });
 
 afterEach(async () => {
   await engine.builds.idle();
   await engine.close();
-  handle.close();
+  await handle.close();
   rmSync(dataDir, { recursive: true, force: true, maxRetries: 3 });
 });
 
@@ -117,7 +117,7 @@ describe('build jobs', () => {
   it('builds, publishes and runs a tool, and keeps the usage and the capture', async () => {
     start({ clarify: [{ questions: [] }], write_recipe: [reviewDraft], describe_tool: [description] });
     const { id: recordingId } = engine.saveRecording(recording(fixture.url));
-    const started = engine.startBuild({
+    const started = await engine.startBuild({
       url: fixture.url,
       task: 'List my invoices by status',
       authority: 'read',
@@ -133,12 +133,12 @@ describe('build jobs', () => {
       result: { tool: 'list_invoices', version: 1, strategy: 'http_replay', attempts: 1 },
       usage: { calls: 3, retries: 0 },
     });
-    expect(listLlmCalls(handle.db, started.id).map((call) => call.purpose)).toEqual([
+    expect((await listLlmCalls(handle.db, started.id)).map((call) => call.purpose)).toEqual([
       'clarify',
       'write_recipe',
       'describe_tool',
     ]);
-    const [capture] = listCaptures(handle.db, started.id);
+    const [capture] = await listCaptures(handle.db, started.id);
     expect(capture && existsSync(join(dataDir, capture.har_path))).toBe(true);
 
     const { result, meta } = await engine.runTool('list_invoices', { status: 'overdue' });
@@ -155,7 +155,7 @@ describe('build jobs', () => {
       describe_tool: [description],
     });
     const { id: recordingId } = engine.saveRecording(recording(fixture.url));
-    const started = engine.startBuild({
+    const started = await engine.startBuild({
       url: fixture.url,
       task: 'List invoices',
       authority: 'read',
@@ -170,7 +170,7 @@ describe('build jobs', () => {
       options: ['every page', 'first page'],
     });
 
-    const answered = engine.answerQuestion(started.id, question?.id ?? '', 'every page');
+    const answered = await engine.answerQuestion(started.id, question?.id ?? '', 'every page');
     expect(answered.questions[0]?.answer).toBe('every page');
     expect((await settle(started.id, ['succeeded', 'failed'])).status).toBe('succeeded');
     const recipePrompt = prompt(provider.requests.find((request) => request.purpose === 'write_recipe')!);
@@ -180,7 +180,7 @@ describe('build jobs', () => {
   it('reuses a published tool that already does the task', async () => {
     start({ clarify: [{ questions: [] }], write_recipe: [reviewDraft], describe_tool: [description] });
     const { id: recordingId } = engine.saveRecording(recording(fixture.url));
-    const first = engine.startBuild({
+    const first = await engine.startBuild({
       url: fixture.url,
       task: 'List invoices',
       authority: 'read',
@@ -188,20 +188,24 @@ describe('build jobs', () => {
     });
     await settle(first.id, ['succeeded', 'failed']);
 
-    const again = engine.startBuild({ url: `${fixture.url}/`, task: 'list invoices', authority: 'read' });
+    const again = await engine.startBuild({
+      url: `${fixture.url}/`,
+      task: 'list invoices',
+      authority: 'read',
+    });
     expect(again).toMatchObject({ status: 'succeeded', result: { tool: 'list_invoices', reused: true } });
   }, 120_000);
 
   it('fails a job whose process stopped, and a build without a model', async () => {
     start({}, false, 0);
-    const orphan = createJob(handle.db, { kind: 'build', input: {} });
-    setJobStatus(handle.db, orphan.id, 'running');
+    const orphan = await createJob(handle.db, { kind: 'build', input: {} });
+    await setJobStatus(handle.db, orphan.id, 'running');
     // No process of this engine runs the job, and with staleMs 0 it counts as abandoned at once.
     await new Promise((resolve) => setTimeout(resolve, 5));
-    expect(engine.getJob(orphan.id)).toMatchObject({ status: 'failed', error: { code: 'internal' } });
+    expect(await engine.getJob(orphan.id)).toMatchObject({ status: 'failed', error: { code: 'internal' } });
 
     const { id: recordingId } = engine.saveRecording(recording(fixture.url));
-    const started = engine.startBuild({
+    const started = await engine.startBuild({
       url: fixture.url,
       task: 'List invoices',
       authority: 'read',
@@ -214,14 +218,14 @@ describe('build jobs', () => {
     });
   }, 60_000);
 
-  it('checks the request and the caller', () => {
+  it('checks the request and the caller', async () => {
     start({});
-    expect(() => engine.startBuild({ url: 'ftp://x', task: 'x', authority: 'read' })).toThrow(
+    await expect(engine.startBuild({ url: 'ftp://x', task: 'x', authority: 'read' })).rejects.toThrow(
       /invalid build request/,
     );
-    expect(() =>
+    await expect(
       engine.startBuild({ url: fixture.url, task: 'x', authority: 'read' }, ['list_invoices']),
-    ).toThrow(/scope/);
-    expect(() => engine.getJob('01JZZZZZZZZZZZZZZZZZZZZZZZ')).toThrow(/no job/);
+    ).rejects.toThrow(/scope/);
+    await expect(engine.getJob('01JZZZZZZZZZZZZZZZZZZZZZZZ')).rejects.toThrow(/no job/);
   });
 });

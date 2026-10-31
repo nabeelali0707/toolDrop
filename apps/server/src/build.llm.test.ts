@@ -41,9 +41,9 @@ afterAll(async () => {
   await htmlApp.close();
 });
 
-function start(): Engine {
+async function start(): Promise<Engine> {
   handle = openDatabase(':memory:');
-  runMigrations(handle.db);
+  await runMigrations(handle.db);
   dataDir = mkdtempSync(join(tmpdir(), 'tooldrop-llm-'));
   provider = new RecordingProvider(new OllamaProvider(ollamaUrl(), { timeoutMs: BUILD_TIMEOUT }));
   engine = new Engine({ db: handle.db, dataDir, builds: { models: { provider, models } } });
@@ -53,25 +53,25 @@ function start(): Engine {
 afterEach(async () => {
   await engine.builds.idle();
   await engine.close();
-  handle.close();
+  await handle.close();
   rmSync(dataDir, { recursive: true, force: true, maxRetries: 3 });
 });
 
 async function finished(id: string): Promise<JobView> {
   for (;;) {
-    const job = engine.getJob(id);
+    const job = await engine.getJob(id);
     if (job.status === 'succeeded' || job.status === 'failed') return job;
     if (job.status === 'waiting_for_answer') {
       // A real model may ask; the tests answer like a person who wants every row.
       const open = job.questions.find((question) => question.answer === undefined);
-      if (open) engine.answerQuestion(id, open.id, open.options?.[0] ?? 'every page, all rows');
+      if (open) await engine.answerQuestion(id, open.id, open.options?.[0] ?? 'every page, all rows');
     }
     await new Promise((resolve) => setTimeout(resolve, 1_000));
   }
 }
 
-function report(name: string, job: JobView): void {
-  const calls = listLlmCalls(handle.db, job.id).map(
+async function report(name: string, job: JobView): Promise<void> {
+  const calls = (await listLlmCalls(handle.db, job.id)).map(
     (call) => `${call.purpose}#${call.attempt}${call.ok ? '' : ' (invalid)'}`,
   );
   console.log(
@@ -88,15 +88,17 @@ describe('builds with real models', () => {
   it(
     'Build (JSON API fixture): from a task description',
     async () => {
-      start();
+      await start();
       const job = await finished(
-        engine.startBuild({
-          url: jsonApi.url,
-          task: 'List my supplier invoices, filtered by status',
-          authority: 'read',
-        }).id,
+        (
+          await engine.startBuild({
+            url: jsonApi.url,
+            task: 'List my supplier invoices, filtered by status',
+            authority: 'read',
+          })
+        ).id,
       );
-      report('json-api-explore', job);
+      await report('json-api-explore', job);
       expect(job.error).toBeNull();
       expect(job.result).toMatchObject({ strategy: 'http_replay' });
     },
@@ -106,7 +108,7 @@ describe('builds with real models', () => {
   it(
     'Build (HTML fixture): from a recording',
     async () => {
-      start();
+      await start();
       const { id } = engine.saveRecording({
         version: 1,
         recorder: 'cli',
@@ -128,15 +130,14 @@ describe('builds with real models', () => {
         inputs: [{ name: 'status', action: 1, example: 'overdue' }],
         target: { selector: [{ kind: 'test_id', value: 'invoices' }] },
       });
-      const job = await finished(
-        engine.startBuild({
-          url: `${htmlApp.url}/invoices`,
-          task: 'Search invoices by status',
-          authority: 'read',
-          recording_id: id,
-        }).id,
-      );
-      report('html-app-recording', job);
+      const started = await engine.startBuild({
+        url: `${htmlApp.url}/invoices`,
+        task: 'Search invoices by status',
+        authority: 'read',
+        recording_id: id,
+      });
+      const job = await finished(started.id);
+      await report('html-app-recording', job);
       expect(job.error).toBeNull();
       expect(job.result).toMatchObject({ strategy: 'html_fetch' });
     },

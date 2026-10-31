@@ -180,8 +180,8 @@ Items marked "split first" are broken into day-sized tasks before work starts.
 
 **Self-hosted mode**
 
-- [ ] **5.1 `db`: Postgres.** The Postgres side of the database layer (D-015), with migrations and a parity test against the local database.
-  Files: `packages/db/src/*`, `packages/db/migrations/*`, tests
+- [x] **5.1 `db`: Postgres.** The Postgres side of the database layer (D-015, D-051): the Postgres schema and its migrations, one set of async queries for both databases, `TOOLDROP_DATABASE_URL`, a parity test, and the database tests on both, with PGlite in the main job and a Postgres 18 service in CI.
+  Files: `packages/db/src/*`, `packages/db/migrations-pg/*`, `apps/cli/src/home.ts`, `.github/workflows/ci.yml`, and every caller, now awaiting the database
 - [ ] **5.2 Queue on Valkey.** A BullMQ implementation of the queue interface; CI runs the queue tests against a Valkey 8.1 service (D-010).
   Files: `apps/server/src/jobs/bullmq-queue.ts`, `.github/workflows/ci.yml`, tests
 - [ ] **5.3 Compose stack.** App image on the Playwright base image, `compose.yaml` with `app`, `postgres`, `valkey` and `ollama` (behind a profile), the master key as a Compose secret, volumes, model pull on first start, telemetry off.

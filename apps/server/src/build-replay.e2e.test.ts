@@ -36,9 +36,9 @@ afterAll(async () => {
   await htmlApp.close();
 });
 
-async function replay(file: string, build: (engine: Engine) => string): Promise<JobView> {
+async function replay(file: string, build: (engine: Engine) => Promise<string>): Promise<JobView> {
   const handle: DatabaseHandle = openDatabase(':memory:');
-  runMigrations(handle.db);
+  await runMigrations(handle.db);
   const dataDir = mkdtempSync(join(tmpdir(), 'tooldrop-replay-'));
   const provider = FakeProvider.fromFile(file);
   const engine = new Engine({
@@ -53,20 +53,20 @@ async function replay(file: string, build: (engine: Engine) => string): Promise<
     },
   });
   try {
-    const id = build(engine);
+    const id = await build(engine);
     for (;;) {
-      const job = engine.getJob(id);
+      const job = await engine.getJob(id);
       if (job.status === 'succeeded' || job.status === 'failed') return job;
       const open = job.questions.find((question) => question.answer === undefined);
       if (job.status === 'waiting_for_answer' && open) {
-        engine.answerQuestion(id, open.id, open.options?.[0] ?? 'every page, all rows');
+        await engine.answerQuestion(id, open.id, open.options?.[0] ?? 'every page, all rows');
       }
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
   } finally {
     await engine.builds.idle();
     await engine.close();
-    handle.close();
+    await handle.close();
     rmSync(dataDir, { recursive: true, force: true, maxRetries: 3 });
   }
 }
@@ -75,12 +75,14 @@ describe('builds from recorded model replies', { timeout: 180_000 }, () => {
   it.runIf(existsSync(replies('json-api-explore')))('rebuilds the JSON API fixture tool', async () => {
     const job = await replay(
       replies('json-api-explore'),
-      (engine) =>
-        engine.startBuild({
-          url: jsonApi.url,
-          task: 'List my supplier invoices, filtered by status',
-          authority: 'read',
-        }).id,
+      async (engine) =>
+        (
+          await engine.startBuild({
+            url: jsonApi.url,
+            task: 'List my supplier invoices, filtered by status',
+            authority: 'read',
+          })
+        ).id,
     );
     expect(job.error).toBeNull();
     expect(job.result).toMatchObject({ strategy: 'http_replay' });
@@ -89,7 +91,7 @@ describe('builds from recorded model replies', { timeout: 180_000 }, () => {
   it.runIf(existsSync(replies('html-app-recording')))(
     'rebuilds the HTML fixture tool from its recording',
     async () => {
-      const job = await replay(replies('html-app-recording'), (engine) => {
+      const job = await replay(replies('html-app-recording'), async (engine) => {
         const { id } = engine.saveRecording({
           version: 1,
           recorder: 'cli',
@@ -111,12 +113,13 @@ describe('builds from recorded model replies', { timeout: 180_000 }, () => {
           inputs: [{ name: 'status', action: 1, example: 'overdue' }],
           target: { selector: [{ kind: 'test_id', value: 'invoices' }] },
         });
-        return engine.startBuild({
+        const job = await engine.startBuild({
           url: `${htmlApp.url}/invoices`,
           task: 'Search invoices by status',
           authority: 'read',
           recording_id: id,
-        }).id;
+        });
+        return job.id;
       });
       expect(job.error).toBeNull();
       expect(job.result).toMatchObject({ strategy: 'html_fetch' });

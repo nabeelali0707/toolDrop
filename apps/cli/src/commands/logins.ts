@@ -37,7 +37,7 @@ async function verify(args: string[]): Promise<number> {
   });
   const [site] = positionals;
   if (!site) throw new ToolDropError('invalid_input', USAGE);
-  const { engine, close } = openEngine();
+  const { engine, close } = await openEngine();
   try {
     const ask = async (question: { text: string; options?: string[] }) => {
       if (!process.stdin.isTTY)
@@ -150,7 +150,7 @@ async function add(args: string[]): Promise<number> {
     ? (await askHidden('Authenticator secret, base32 (hidden): ')).replace(/\s+/g, '')
     : undefined;
 
-  const { engine, close } = openEngine();
+  const { engine, close } = await openEngine();
   try {
     const login = await engine.addLogin({
       site,
@@ -176,7 +176,7 @@ async function add(args: string[]): Promise<number> {
 
 async function list(args: string[]): Promise<number> {
   const { values } = parseArgs({ args, options: { site: { type: 'string' } } });
-  const { engine, close } = openEngine();
+  const { engine, close } = await openEngine();
   try {
     const saved = await engine.listLogins(['*'], values.site);
     if (saved.length === 0) {

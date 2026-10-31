@@ -61,7 +61,7 @@ export class Watches {
     }
     const request = parsed.data;
     const db = this.#engine.db;
-    const tool = getTool(db, request.tool);
+    const tool = await getTool(db, request.tool);
     if (!tool || tool.status === 'disabled' || !keyAllows(scopes, request.tool)) {
       throw new ToolDropError('not_found', `no tool named ${request.tool}`);
     }
@@ -77,7 +77,7 @@ export class Watches {
     const outcome = await this.#engine.runTool(tool.name, request.inputs, scopes);
     const snapshot = snapshotOf(rowsByKey(outcome.result, request.key_field));
     const secret = randomBytes(32).toString('hex');
-    const row = createWatch(db, {
+    const row = await createWatch(db, {
       tool_id: tool.id,
       inputs: request.inputs,
       interval_s: request.interval_s,
@@ -93,16 +93,14 @@ export class Watches {
   }
 
   /** The watches on tools a key may use. */
-  list(scopes: Scopes): WatchView[] {
-    return listWatches(this.#engine.db)
-      .filter((watch) => keyAllows(scopes, watch.tool))
-      .map(view);
+  async list(scopes: Scopes): Promise<WatchView[]> {
+    return (await listWatches(this.#engine.db)).filter((watch) => keyAllows(scopes, watch.tool)).map(view);
   }
 
-  delete(id: string, scopes: Scopes): void {
-    const watch = getWatch(this.#engine.db, id);
+  async delete(id: string, scopes: Scopes): Promise<void> {
+    const watch = await getWatch(this.#engine.db, id);
     if (!watch || !keyAllows(scopes, watch.tool)) throw new ToolDropError('not_found', `no watch ${id}`);
-    deleteWatch(this.#engine.db, id);
+    await deleteWatch(this.#engine.db, id);
   }
 
   /** Calls `listener` with every change a watch finds, e.g. to send MCP notifications. */
@@ -114,7 +112,7 @@ export class Watches {
   /** Runs every due watch once. The scheduler calls this; tests call it after moving the clock. */
   async tick(): Promise<void> {
     const now = this.#now();
-    for (const claimed of claimDueWatches(this.#engine.db, new Date(now), new Date(now + LEASE_MS))) {
+    for (const claimed of await claimDueWatches(this.#engine.db, new Date(now), new Date(now + LEASE_MS))) {
       await this.#run(claimed);
     }
   }
@@ -139,7 +137,7 @@ export class Watches {
 
   async #run(claimed: WatchRow): Promise<void> {
     const db = this.#engine.db;
-    const watch = getWatch(db, claimed.id);
+    const watch = await getWatch(db, claimed.id);
     if (!watch) return;
     const started = this.#now();
     const times = {
@@ -152,7 +150,7 @@ export class Watches {
       const rows = rowsByKey(outcome.result, watch.key_field);
       const snapshot = snapshotOf(rows);
       if (snapshot.hash === watch.last_snapshot_hash) {
-        finishWatchRun(db, watch.id, { ...times, last_error: null });
+        await finishWatchRun(db, watch.id, { ...times, last_error: null });
         return;
       }
       const secret = (await this.#engine.vault()).open(watch.secret).toString('utf8');
@@ -175,14 +173,14 @@ export class Watches {
         if (delivery.ok) applyChange(kept, change);
         else failure ??= delivery.error;
       }
-      finishWatchRun(db, watch.id, {
+      await finishWatchRun(db, watch.id, {
         ...times,
         last_snapshot_hash: failure ? null : snapshot.hash,
         row_hashes: kept,
         last_error: failure ?? null,
       });
     } catch (error) {
-      finishWatchRun(db, watch.id, {
+      await finishWatchRun(db, watch.id, {
         ...times,
         last_error: error instanceof Error ? error.message : String(error),
       });

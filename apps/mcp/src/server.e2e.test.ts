@@ -29,7 +29,7 @@ let dataDir: string;
 
 beforeEach(async () => {
   handle = openDatabase(':memory:');
-  runMigrations(handle.db);
+  await runMigrations(handle.db);
   now = Date.parse('2026-10-28T12:00:00Z');
   dataDir = mkdtempSync(join(tmpdir(), 'tooldrop-mcp-'));
   engine = new Engine({
@@ -39,13 +39,13 @@ beforeEach(async () => {
     watches: { now: () => now, delivery: { backoffMs: [] } },
   });
   fixture = await startHtmlAppFixture();
-  engine.publish(searchInvoices, fixture.url);
+  await engine.publish(searchInvoices, fixture.url);
 });
 
 afterEach(async () => {
   await engine.close();
   await fixture.close();
-  handle.close();
+  await handle.close();
   rmSync(dataDir, { recursive: true, force: true, maxRetries: 3 });
 });
 
@@ -119,7 +119,7 @@ describe('MCP server', () => {
     const changed = new Promise<void>((resolve) => {
       client.setNotificationHandler(ToolListChangedNotificationSchema, () => resolve());
     });
-    engine.publish({ ...searchInvoices, name: 'search_invoices_copy' }, fixture.url);
+    await engine.publish({ ...searchInvoices, name: 'search_invoices_copy' }, fixture.url);
     await changed;
     expect((await client.listTools()).tools.map((tool) => tool.name)).toContain('search_invoices_copy');
   });
@@ -196,7 +196,7 @@ describe('MCP server', () => {
   });
 
   it('shows a write as a preview with a screenshot, and makes it once approved', async () => {
-    engine.publish(
+    await engine.publish(
       readToolFile(
         fileURLToPath(new URL('../../../fixtures/recipes/html-app.record_payment.json', import.meta.url)),
       ),

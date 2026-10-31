@@ -46,7 +46,7 @@ export interface BuildDeps {
   browser?: Browser;
   jobId?: string;
   /** Whether a tool name is already published. */
-  nameTaken: (name: string) => boolean;
+  nameTaken: (name: string) => boolean | Promise<boolean>;
   /** Request rate for validation runs; the site's default when absent. */
   rateLimit?: RateLimit;
   /** How long capture steps wait for the page. */
@@ -61,13 +61,13 @@ export interface BuildDeps {
 
 export interface BuildHooks {
   /** What the build is doing now, for get_job. */
-  step(name: string): void;
+  step(name: string): void | Promise<void>;
   /** Asks the caller and waits for the answer (SPEC, Build pipeline step 4). */
   ask(question: { text: string; options?: string[] }): Promise<string>;
   /** Loads a recording the caller names in an answer. */
   recording(id: string): Recording;
   /** Receives the capture, to keep it in the data directory. */
-  captured?(capture: Capture, masker: Masker): void;
+  captured?(capture: Capture, masker: Masker): void | Promise<void>;
 }
 
 export interface BuildResult {
@@ -120,7 +120,7 @@ export async function buildTool(
   };
 
   // Step 3: replay the recording, or explore; if exploring fails, ask for a recording.
-  hooks.step('capturing');
+  await hooks.step('capturing');
   let capture: Capture;
   if (request.recording) {
     capture = await replayRecording(request.recording, captureOptions);
@@ -133,22 +133,22 @@ export async function buildTool(
       capture = explored.capture;
     } else {
       const id = (await hooks.ask({ text: `${RECORDING_QUESTION} (${explored.gaveUp})` })).trim();
-      hooks.step('capturing');
+      await hooks.step('capturing');
       capture = await replayRecording(hooks.recording(id), captureOptions);
     }
   }
   collectSecrets(capture.exchanges, masker);
-  hooks.captured?.(capture, masker);
+  await hooks.captured?.(capture, masker);
   if (!capture.target) {
     throw new ToolDropError('invalid_input', 'the capture does not mark the data the tool returns');
   }
 
   // Steps 5 and 6: analyze the traffic, and plan the strategies that can work.
-  hooks.step('analyzing traffic');
+  await hooks.step('analyzing traffic');
   const plans = await resolveLeftovers(access, context, planStrategies(capture, site));
 
   // Step 4: ask when the task is ambiguous.
-  hooks.step('checking the task');
+  await hooks.step('checking the task');
   for (const question of await clarify(access, context, capture, plans)) {
     context.answers.push({ question: question.text, answer: await hooks.ask(question) });
   }
@@ -159,13 +159,13 @@ export async function buildTool(
   let problem: string | undefined;
   for (const [index, plan] of attemptOrder(plans).entries()) {
     const attempt = index + 1;
-    hooks.step(`writing the ${plan.strategy} recipe (attempt ${attempt} of ${MAX_ATTEMPTS})`);
+    await hooks.step(`writing the ${plan.strategy} recipe (attempt ${attempt} of ${MAX_ATTEMPTS})`);
     let assembled: ReturnType<typeof assembleRecipe>;
     let first: unknown;
     try {
       const primary = await writeRecipe(access, context, capture, plan, problem);
       assembled = assembleRecipe(primary, capture, site, plan.draft.bindings);
-      hooks.step(`validating the ${plan.strategy} recipe (attempt ${attempt} of ${MAX_ATTEMPTS})`);
+      await hooks.step(`validating the ${plan.strategy} recipe (attempt ${attempt} of ${MAX_ATTEMPTS})`);
       first = (
         await deps.runtime.run(
           {
@@ -212,11 +212,11 @@ export async function buildTool(
     }
 
     // Step 8: names and descriptions an agent reads.
-    hooks.step('describing the tool');
+    await hooks.step('describing the tool');
     const description = await describeTool(access, context, capture, first);
     const schemas = describeSchemas(inputs, output, description);
     const tool = toolFileSchema.parse({
-      name: uniqueToolName(description.name, deps.nameTaken),
+      name: await uniqueToolName(description.name, deps.nameTaken),
       description: description.description,
       authority: 'read',
       input_schema: schemas.input,

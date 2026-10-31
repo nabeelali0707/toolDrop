@@ -71,7 +71,7 @@ beforeAll(async () => {
   fixture = await startHtmlAppFixture();
   dataDir = mkdtempSync(join(tmpdir(), 'tooldrop-extension-data-'));
   handle = openDatabase(join(dataDir, 'tooldrop.db'));
-  runMigrations(handle.db);
+  await runMigrations(handle.db);
   builder = await chromium.launch();
   engine = new Engine({
     db: handle.db,
@@ -88,7 +88,7 @@ beforeAll(async () => {
   await app.listen({ host: '127.0.0.1', port: 0 });
   const address = app.server.address();
   server = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}`;
-  key = createApiKey(handle.db, { label: 'extension' }).key;
+  key = (await createApiKey(handle.db, { label: 'extension' })).key;
 
   // Extensions load in Chromium's new headless mode, which the "chromium" channel runs.
   context = await chromium.launchPersistentContext('', {
@@ -104,7 +104,7 @@ afterAll(async () => {
   await engine.builds.idle();
   await app.close();
   await engine.close();
-  handle.close();
+  await handle.close();
   await builder.close();
   await fixture.close();
   rmSync(extension, { recursive: true, force: true });
@@ -157,9 +157,11 @@ describe('the Chrome extension', () => {
     await review.fill('#server', server);
     await review.fill('#key', key);
     await review.click('#upload');
-    await expect.poll(() => review.textContent('#result')).toContain('Saved as recording');
+    await expect
+      .poll(() => review.textContent('#result'), { timeout: 15_000 })
+      .toContain('Saved as recording');
     await review.click('#build');
-    await expect.poll(() => review.textContent('#result')).toContain('Building, as job');
+    await expect.poll(() => review.textContent('#result'), { timeout: 15_000 }).toContain('Building, as job');
     const jobId = /as job (\S+)\./.exec((await review.textContent('#result')) ?? '')?.[1] ?? '';
 
     const headers = { authorization: `Bearer ${key}`, 'content-type': 'application/json' };

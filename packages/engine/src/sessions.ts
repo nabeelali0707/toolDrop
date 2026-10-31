@@ -68,14 +68,14 @@ export class Sessions {
 
   async #ensure(origin: string, options: SignInOptions): Promise<SignedIn | undefined> {
     const db = this.#engine.db;
-    const saved = siteLogin(db, origin);
+    const saved = await siteLogin(db, origin);
     if (!saved) return undefined;
     const loaded = this.#loaded.get(origin);
     if (!options.force && loaded?.loginId === saved.login.id) return loaded.signedIn;
 
     const vault = await this.#engine.vault();
-    const recipe = getLoginRecipe(db, origin);
-    const session = latestSession(db, saved.login.id);
+    const recipe = await getLoginRecipe(db, origin);
+    const session = await latestSession(db, saved.login.id);
     if (!options.force && recipe && session) {
       return this.#use(origin, saved, {
         loginUrl: resolve(recipe.url, origin),
@@ -144,22 +144,22 @@ export class Sessions {
           { username: secret.username, password: secret.password, otp },
           { ...(this.#browser && { browser: this.#browser }), approvedOrigins: approved },
         );
-        saveLoginRecipe(db, origin, built.recipe, 'build');
+        await saveLoginRecipe(db, origin, built.recipe, 'build');
         return built;
       }));
     } catch (error) {
       // A person has to act; the login itself may be fine.
       if (!(error instanceof ToolDropError && error.code === 'human_needed')) {
-        setLoginStatus(db, saved.login.id, 'needs_attention');
+        await setLoginStatus(db, saved.login.id, 'needs_attention');
       }
       throw error;
     }
-    saveSession(db, {
+    await saveSession(db, {
       login_id: saved.login.id,
       storage_state: vault.sealJson(state),
       expires_at: expiry(state),
     });
-    setLoginStatus(db, saved.login.id, 'verified');
+    await setLoginStatus(db, saved.login.id, 'verified');
     return this.#use(origin, saved, { loginUrl: resolve(used.url, origin), state });
   }
 
@@ -171,7 +171,7 @@ export class Sessions {
    * would hide the recipe from the model.
    */
   async secretsFor(site: string): Promise<string[]> {
-    const saved = siteLogin(this.#engine.db, site);
+    const saved = await siteLogin(this.#engine.db, site);
     if (!saved) return [];
     const secret = loginSecret(await this.#engine.vault(), saved.login.encrypted_secret);
     const values = [secret.password, ...(secret.totp_secret ? [secret.totp_secret] : [])];
@@ -189,7 +189,7 @@ export class Sessions {
   ): Promise<void> {
     const origin = new URL(site).origin;
     const db = this.#engine.db;
-    const saved = siteLogin(db, origin);
+    const saved = await siteLogin(db, origin);
     if (!saved) {
       throw new ToolDropError(
         'not_found',
@@ -201,13 +201,13 @@ export class Sessions {
       steps: [{ op: 'goto', url: signedIn.signInUrl }],
       check: { kind: 'page', url: signedIn.landingUrl },
     });
-    saveLoginRecipe(db, origin, recipe, 'user');
-    saveSession(db, {
+    await saveLoginRecipe(db, origin, recipe, 'user');
+    await saveSession(db, {
       login_id: saved.login.id,
       storage_state: (await this.#engine.vault()).sealJson(signedIn.state),
       expires_at: expiry(signedIn.state),
     });
-    setLoginStatus(db, saved.login.id, 'verified');
+    await setLoginStatus(db, saved.login.id, 'verified');
     await this.#use(origin, saved, { loginUrl: signedIn.signInUrl, state: signedIn.state });
   }
 
@@ -224,7 +224,7 @@ export class Sessions {
     attempt: (approved: string[]) => Promise<{ recipe: LoginRecipe; state: StorageState }>,
   ): Promise<{ recipe: LoginRecipe; state: StorageState }> {
     const db = this.#engine.db;
-    const approved = approvedAuthOrigins(db, origin);
+    const approved = await approvedAuthOrigins(db, origin);
     for (let round = 1; ; round++) {
       try {
         return await attempt(approved);
@@ -247,15 +247,15 @@ export class Sessions {
               },
             );
           }
-          approveAuthOrigin(db, origin, other);
+          await approveAuthOrigin(db, origin, other);
           approved.push(other);
           continue;
         }
         // A person signs in by hand; the build waits until they say it is done.
         const asked = Date.now();
         await options.ask({ text: `${error.message} Answer "done" once you have.`, options: ['done'] });
-        const session = latestSession(db, saved.login.id);
-        const recipe = getLoginRecipe(db, origin);
+        const session = await latestSession(db, saved.login.id);
+        const recipe = await getLoginRecipe(db, origin);
         if (!session || !recipe || session.created_at.getTime() < asked) throw error;
         return { recipe, state: (await this.#engine.vault()).openJson<StorageState>(session.storage_state) };
       }

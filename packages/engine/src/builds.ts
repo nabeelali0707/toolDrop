@@ -85,8 +85,10 @@ export class Builds {
     this.#llm = options.models
       ? new Llm({
           ...options.models,
+          // Usage logging never holds up or fails a model call.
           onCall: (call) => {
-            if (call.job_id) recordLlmCall(engine.db, { ...call, job_id: call.job_id });
+            if (call.job_id)
+              recordLlmCall(engine.db, { ...call, job_id: call.job_id }).catch(() => undefined);
           },
         })
       : undefined;
@@ -103,7 +105,7 @@ export class Builds {
   }
 
   /** Starts a build job, or finishes at once when a published tool already does the task (step 1). */
-  start(input: unknown): JobView {
+  async start(input: unknown): Promise<JobView> {
     const parsed = buildInputSchema.safeParse(input);
     if (!parsed.success) {
       const problems = formatIssues(parsed.error.issues);
@@ -115,18 +117,18 @@ export class Builds {
     if (request.recording_id) this.#engine.getRecording(request.recording_id);
 
     const db = this.#engine.db;
-    const job = createJob(db, { kind: 'build', input: request });
-    const existing = this.#existingTool(request);
+    const job = await createJob(db, { kind: 'build', input: request });
+    const existing = await this.#existingTool(request);
     if (existing) {
-      setJobStatus(db, job.id, 'running');
-      setJobStatus(db, job.id, 'succeeded', {
+      await setJobStatus(db, job.id, 'running');
+      await setJobStatus(db, job.id, 'succeeded', {
         result: { tool: existing, reused: true, message: `${existing} already does this task` },
       });
       return this.view(job.id);
     }
 
     this.#active.add(job.id);
-    const heartbeat = setInterval(() => touchJob(db, job.id), HEARTBEAT_MS);
+    const heartbeat = setInterval(() => void touchJob(db, job.id).catch(() => undefined), HEARTBEAT_MS);
     heartbeat.unref();
     this.#queue.enqueue(async () => {
       try {
@@ -139,16 +141,16 @@ export class Builds {
     return this.view(job.id);
   }
 
-  view(id: string): JobView {
+  async view(id: string): Promise<JobView> {
     const db = this.#engine.db;
-    let job = getJob(db, id);
+    let job = await getJob(db, id);
     if (!job) throw new ToolDropError('not_found', `no job ${id}`);
     if (
       UNFINISHED.has(job.status) &&
       !this.#active.has(id) &&
       Date.now() - job.updated_at.getTime() > (this.#options.staleMs ?? STALE_MS)
     ) {
-      job = setJobStatus(db, id, 'failed', {
+      job = await setJobStatus(db, id, 'failed', {
         step: null,
         error: {
           code: 'internal',
@@ -169,16 +171,16 @@ export class Builds {
       }),
       result: job.result ?? null,
       error: (job.error as ToolDropErrorJson | null) ?? null,
-      usage: jobUsage(db, id),
+      usage: await jobUsage(db, id),
       created_at: job.created_at.toISOString(),
       updated_at: job.updated_at.toISOString(),
     };
   }
 
   /** Answers a job's question; the waiting build picks it up, in this process or another. */
-  answer(jobId: string, questionId: string, text: string): JobView {
+  async answer(jobId: string, questionId: string, text: string): Promise<JobView> {
     const answer: JobAnswer = { question_id: questionId, text, answered_at: Date.now() };
-    addJobAnswer(this.#engine.db, jobId, answer);
+    await addJobAnswer(this.#engine.db, jobId, answer);
     this.#answered.get(questionId)?.();
     return this.view(jobId);
   }
@@ -188,13 +190,14 @@ export class Builds {
     return this.#queue.idle();
   }
 
-  #existingTool(request: BuildInput): string | undefined {
+  async #existingTool(request: BuildInput): Promise<string | undefined> {
     const words = request.task
       .toLowerCase()
       .split(/[^a-z0-9]+/)
       .filter((word) => word.length >= 3);
     const origin = new URL(request.url).origin;
-    const match = findTools(this.#engine.db, { site: origin, task: request.task }).find((tool) => {
+    const found = await findTools(this.#engine.db, { site: origin, task: request.task });
+    const match = found.find((tool) => {
       const text = `${tool.name.replaceAll('_', ' ')} ${tool.description}`.toLowerCase();
       return tool.site.origin === origin && words.length > 0 && words.every((word) => text.includes(word));
     });
@@ -204,7 +207,7 @@ export class Builds {
   async #run(jobId: string, request: BuildInput): Promise<void> {
     const db = this.#engine.db;
     try {
-      setJobStatus(db, jobId, 'running', { step: 'starting' });
+      await setJobStatus(db, jobId, 'running', { step: 'starting' });
       const llm = this.#llm;
       if (!llm) {
         throw new ToolDropError('llm_unavailable', 'no model is configured; run `tooldrop init`');
@@ -212,7 +215,7 @@ export class Builds {
       await llm.provider.ping?.([...new Set(Object.values(llm.models))]);
 
       // Step 2: sign in, when the site has a saved login.
-      setJobStep(db, jobId, 'signing in');
+      await setJobStep(db, jobId, 'signing in');
       const signedIn = await this.#engine.sessions.ensure(request.url, {
         ask: (question) => this.#ask(jobId, question),
       });
@@ -229,7 +232,7 @@ export class Builds {
           llm,
           runtime: this.#engine.runtime,
           jobId,
-          nameTaken: (name) => getTool(db, name) !== undefined,
+          nameTaken: async (name) => (await getTool(db, name)) !== undefined,
           ...(signedIn && { signedIn, secrets: await this.#engine.sessions.secretsFor(request.url) }),
           ...(this.#options.browser && { browser: this.#options.browser }),
           ...this.#options.compiler,
@@ -238,18 +241,18 @@ export class Builds {
           step: (name) => setJobStep(db, jobId, name),
           ask: (question) => this.#ask(jobId, question),
           recording: (id) => this.#engine.getRecording(id),
-          captured: (capture, masker) => {
+          captured: async (capture, masker) => {
             const stored = writeCapture(capture, this.#engine.dataDir, { masker });
-            saveCapture(db, { job_id: jobId, ...stored });
+            await saveCapture(db, { job_id: jobId, ...stored });
           },
         },
       );
-      const published = this.#engine.publish(result.tool, result.site, {
+      const published = await this.#engine.publish(result.tool, result.site, {
         created_by: 'build',
         change_reason: `built for: ${request.task}`,
         test_inputs: result.test_inputs,
       });
-      setJobStatus(db, jobId, 'succeeded', {
+      await setJobStatus(db, jobId, 'succeeded', {
         step: null,
         result: {
           tool: published.name,
@@ -266,7 +269,7 @@ export class Builds {
         error instanceof ToolDropError
           ? error.toJSON()
           : { code: 'internal' as const, message: error instanceof Error ? error.message : String(error) };
-      setJobStatus(db, jobId, 'failed', { step: null, error: json });
+      await setJobStatus(db, jobId, 'failed', { step: null, error: json });
     }
   }
 
@@ -274,17 +277,17 @@ export class Builds {
   async #ask(jobId: string, question: { text: string; options?: string[] }): Promise<string> {
     const db = this.#engine.db;
     const id = newId();
-    addJobQuestion(db, jobId, {
+    await addJobQuestion(db, jobId, {
       id,
       text: question.text,
       ...(question.options && { options: question.options }),
       asked_at: Date.now(),
     });
     for (;;) {
-      const answer = getJob(db, jobId)?.answers.find((a) => a.question_id === id);
+      const answer = (await getJob(db, jobId))?.answers.find((a) => a.question_id === id);
       if (answer) {
         this.#answered.delete(id);
-        setJobStatus(db, jobId, 'running');
+        await setJobStatus(db, jobId, 'running');
         return answer.text;
       }
       await new Promise<void>((resolve) => {

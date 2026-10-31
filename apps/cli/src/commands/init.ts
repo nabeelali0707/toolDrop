@@ -49,7 +49,7 @@ export async function init(args: string[]): Promise<number> {
   };
 
   // The database, so tools can be added right away.
-  await openEngine().close();
+  await (await openEngine()).close();
   console.log(`toolDrop keeps its data in ${homeDir()}`);
   // The vault's master key, for saved logins (SPEC, Authentication).
   const vault = await Vault.open(await findKeyStore({ home: homeDir(), init: true }));

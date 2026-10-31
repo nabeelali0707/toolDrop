@@ -79,7 +79,7 @@ export class Approvals {
     const db = this.#engine.db;
     const id = newId();
     const expires = new Date(Date.now() + APPROVAL_TTL_MS);
-    createApproval(db, {
+    await createApproval(db, {
       id,
       tool_id: tool.id,
       version: tool.version,
@@ -88,9 +88,10 @@ export class Approvals {
       screenshot_path: screenshot ? this.#saveScreenshot(id, 'before', screenshot) : null,
       expires_at: expires,
     });
-    const policy = listPolicies(db, { tool_id: tool.id }).find((rule) => policyApproves(rule, inputs));
+    const policies = await listPolicies(db, { tool_id: tool.id });
+    const policy = policies.find((rule) => policyApproves(rule, inputs));
     if (policy) {
-      decideApproval(db, id, {
+      await decideApproval(db, id, {
         status: 'approved',
         decided_by: `policy:${policy.id}`,
         decided_at: new Date(),
@@ -124,54 +125,53 @@ export class Approvals {
       );
     }
     const db = this.#engine.db;
-    const approval = this.#find(id, scopes);
+    const approval = await this.#find(id, scopes);
     if (approval.status !== 'pending') {
       throw new ToolDropError('conflict', `approval ${id} was already ${approval.status}`);
     }
     if (parsed.data.decision === 'reject') {
-      this.#close(id, 'rejected', by);
-      return { approval: this.get(id, scopes) };
+      await this.#close(id, 'rejected', by);
+      return { approval: await this.get(id, scopes) };
     }
-    const tool = getTool(db, approval.tool);
+    const tool = await getTool(db, approval.tool);
     if (approval.expires_at.getTime() < Date.now()) {
-      this.#close(id, 'rejected', 'expired');
+      await this.#close(id, 'rejected', 'expired');
       throw new ToolDropError(
         'conflict',
         `approval ${id} is more than 24 hours old; call ${approval.tool} again for a fresh preview`,
       );
     }
     if (!tool || tool.status === 'disabled' || tool.version !== approval.version) {
-      this.#close(id, 'rejected', 'outdated');
+      await this.#close(id, 'rejected', 'outdated');
       throw new ToolDropError(
         'conflict',
         `${approval.tool} changed since this preview; call it again for a fresh one`,
       );
     }
-    this.#close(id, 'approved', by);
+    await this.#close(id, 'approved', by);
     const { result, meta } = await this.#commit(id, tool, approval.inputs);
-    return { approval: this.get(id, scopes), result, meta };
+    return { approval: await this.get(id, scopes), result, meta };
   }
 
-  get(id: string, scopes: Scopes): ApprovalView {
-    return view(this.#find(id, scopes));
+  async get(id: string, scopes: Scopes): Promise<ApprovalView> {
+    return view(await this.#find(id, scopes));
   }
 
   /** The write audit log, newest first: approvals of the tools a key may use. */
-  list(scopes: Scopes, options: { status?: ApprovalView['status'] } = {}): ApprovalView[] {
-    return listApprovals(this.#engine.db, options.status ? { status: options.status } : {})
-      .filter((approval) => keyAllows(scopes, approval.tool))
-      .map(view);
+  async list(scopes: Scopes, options: { status?: ApprovalView['status'] } = {}): Promise<ApprovalView[]> {
+    const approvals = await listApprovals(this.#engine.db, options.status ? { status: options.status } : {});
+    return approvals.filter((approval) => keyAllows(scopes, approval.tool)).map(view);
   }
 
   /** A PNG of the filled form before the write, or of the page after it. */
-  screenshot(id: string, which: 'before' | 'after', scopes: Scopes): Buffer | undefined {
-    const approval = this.#find(id, scopes);
+  async screenshot(id: string, which: 'before' | 'after', scopes: Scopes): Promise<Buffer | undefined> {
+    const approval = await this.#find(id, scopes);
     const path = which === 'before' ? approval.screenshot_path : approval.after_screenshot_path;
     return path ? readFileSync(join(this.#engine.dataDir, path)) : undefined;
   }
 
   /** A rule that approves a write tool's calls by itself. Only full-access keys may set one. */
-  createPolicy(input: unknown, scopes: Scopes): PolicyView {
+  async createPolicy(input: unknown, scopes: Scopes): Promise<PolicyView> {
     requireFullAccess(scopes);
     const parsed = createPolicySchema.safeParse(input);
     if (!parsed.success) {
@@ -180,24 +180,24 @@ export class Approvals {
         `invalid policy: ${formatIssues(parsed.error.issues).join('; ')}`,
       );
     }
-    const tool = getTool(this.#engine.db, parsed.data.tool);
+    const tool = await getTool(this.#engine.db, parsed.data.tool);
     if (!tool) throw new ToolDropError('not_found', `no tool named ${parsed.data.tool}`);
     if (tool.authority !== 'write') {
       throw new ToolDropError('invalid_input', `${tool.name} only reads, so it needs no approval`);
     }
     const { field, op, value } = parsed.data;
-    const row = createPolicy(this.#engine.db, { tool_id: tool.id, field, op, value });
+    const row = await createPolicy(this.#engine.db, { tool_id: tool.id, field, op, value });
     return policyView({ ...row, tool: tool.name });
   }
 
-  listPolicies(scopes: Scopes): PolicyView[] {
+  async listPolicies(scopes: Scopes): Promise<PolicyView[]> {
     requireFullAccess(scopes);
-    return listPolicies(this.#engine.db).map(policyView);
+    return (await listPolicies(this.#engine.db)).map(policyView);
   }
 
-  deletePolicy(id: string, scopes: Scopes): void {
+  async deletePolicy(id: string, scopes: Scopes): Promise<void> {
     requireFullAccess(scopes);
-    if (!deletePolicy(this.#engine.db, id)) throw new ToolDropError('not_found', `no policy ${id}`);
+    if (!(await deletePolicy(this.#engine.db, id))) throw new ToolDropError('not_found', `no policy ${id}`);
   }
 
   /** Makes an approved write and records how it went. */
@@ -210,7 +210,7 @@ export class Approvals {
       runnable = await this.#engine.prepare(tool, { renew: true });
       ({ outcome, error, evidence } = await this.#engine.runtime.commit(runnable, inputs));
     }
-    const runId = recordRun(db, {
+    const runId = await recordRun(db, {
       tool_id: tool.id,
       recipe_version: tool.version,
       strategy_used: tool.recipe.strategy,
@@ -219,7 +219,7 @@ export class Approvals {
       ...(error && { error_code: error.code }),
     });
     const kept = outcome && JSON.stringify(outcome.result ?? null).length <= MAX_KEPT_RESULT;
-    finishApproval(db, id, {
+    await finishApproval(db, id, {
       run_id: runId,
       after_screenshot_path: evidence.after ? this.#saveScreenshot(id, 'after', evidence.after) : null,
       outcome: error
@@ -242,16 +242,16 @@ export class Approvals {
     return { ...outcome, meta: { ...outcome.meta, approval_id: id } };
   }
 
-  #find(id: string, scopes: Scopes): ApprovalWithTool {
-    const approval = getApproval(this.#engine.db, id);
+  async #find(id: string, scopes: Scopes): Promise<ApprovalWithTool> {
+    const approval = await getApproval(this.#engine.db, id);
     if (!approval || !keyAllows(scopes, approval.tool)) {
       throw new ToolDropError('not_found', `no approval ${id}`);
     }
     return approval;
   }
 
-  #close(id: string, status: 'approved' | 'rejected', by: string): void {
-    if (!decideApproval(this.#engine.db, id, { status, decided_by: by, decided_at: new Date() })) {
+  async #close(id: string, status: 'approved' | 'rejected', by: string): Promise<void> {
+    if (!(await decideApproval(this.#engine.db, id, { status, decided_by: by, decided_at: new Date() }))) {
       throw new ToolDropError('conflict', `approval ${id} was decided at the same moment by someone else`);
     }
   }

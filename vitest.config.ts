@@ -13,6 +13,9 @@ export default defineConfig({
     exclude: ['**/node_modules/**', ...(llmOnly ? [] : [llmTestFiles])],
     passWithNoTests: llmOnly,
     testTimeout: llmOnly ? 300_000 : 15_000,
+    // Setup and cleanup start browsers, servers and in-memory Postgres; under a full run's load they
+    // can take longer than Vitest's 10 s, and a cleanup that times out keeps running into the next test.
+    hookTimeout: 60_000,
     // Many end-to-end files drive their own Chromium; half the cores keeps them from starving each other.
     maxWorkers: Math.max(2, Math.floor(availableParallelism() / 2)),
   },

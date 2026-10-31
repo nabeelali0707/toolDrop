@@ -23,7 +23,7 @@ export async function sms(args: string[]): Promise<number> {
     options: { port: { type: 'string', default: '3000' } },
   });
   if (positionals[0] !== 'enable') throw new ToolDropError('invalid_input', USAGE);
-  const { engine, close } = openEngine({ backgroundHeals: false });
+  const { engine, close } = await openEngine({ backgroundHeals: false });
   try {
     const secret = await engine.enableSms();
     const address = lanAddress() ?? "<this computer's address on your network>";

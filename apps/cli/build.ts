@@ -51,9 +51,11 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-// Files the package needs next to the bundle: the migrations, and the
-// dashboard's static pages, which `tooldrop serve` serves (apps/dashboard).
+// Files the package needs next to the bundle: the migrations for SQLite and
+// for Postgres, and the dashboard's static pages, which `tooldrop serve`
+// serves (apps/dashboard).
 cpSync(here('../../packages/db/migrations'), here('./migrations'), { recursive: true });
+cpSync(here('../../packages/db/migrations-pg'), here('./migrations-pg'), { recursive: true });
 pnpm(['--filter', '@tooldrop/dashboard', 'build']);
 rmSync(here('./dashboard'), { recursive: true, force: true });
 cpSync(here('../dashboard/out'), here('./dashboard'), { recursive: true });

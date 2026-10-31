@@ -3,5 +3,7 @@
 pnpm-lock.yaml
 packages/db/migrations/
 apps/cli/migrations/
+apps/cli/migrations-pg/
+packages/db/migrations-pg/
 docs/.vitepress/cache/
 docs/.vitepress/dist/

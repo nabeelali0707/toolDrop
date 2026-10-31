@@ -19,7 +19,7 @@ export function maskUsername(username: string): string {
   return `${username.slice(0, 2)}••••${username.slice(-2)}`;
 }
 
-export function addLogin(db: Queryable, vault: Vault, input: unknown): LoginView {
+export async function addLogin(db: Queryable, vault: Vault, input: unknown): Promise<LoginView> {
   const parsed = addLoginSchema.safeParse(input);
   if (!parsed.success) {
     // Never echo the values: the issues name the fields only.
@@ -34,7 +34,7 @@ export function addLogin(db: Queryable, vault: Vault, input: unknown): LoginView
     password: login.password,
     ...(login.totp_secret && { totp_secret: login.totp_secret.toUpperCase().replace(/=+$/, '') }),
   };
-  const created = createLogin(db, {
+  const created = await createLogin(db, {
     site: login.site,
     label: login.label ?? maskUsername(login.username),
     encrypted_secret: vault.sealJson(secret),
@@ -56,8 +56,12 @@ export function viewLogin(vault: Vault, { login, origin }: LoginWithSite): Login
   };
 }
 
-export function viewLogins(db: Queryable, vault: Vault, options: { site?: string } = {}): LoginView[] {
-  return listLogins(db, options).map((row) => viewLogin(vault, row));
+export async function viewLogins(
+  db: Queryable,
+  vault: Vault,
+  options: { site?: string } = {},
+): Promise<LoginView[]> {
+  return (await listLogins(db, options)).map((row) => viewLogin(vault, row));
 }
 
 const secretSchema = z.object({
@@ -76,8 +80,8 @@ export function loginSecret(vault: Vault, sealed: Uint8Array): LoginSecret {
   };
 }
 
-export function requireLogin(db: Queryable, id: string): LoginWithSite {
-  const login = getLogin(db, id);
+export async function requireLogin(db: Queryable, id: string): Promise<LoginWithSite> {
+  const login = await getLogin(db, id);
   if (!login) throw new ToolDropError('not_found', `no login ${id}`);
   return login;
 }

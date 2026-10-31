@@ -1,6 +1,7 @@
 # Build output and files copied in by the build
 dist/
 migrations/
+migrations-pg/
 dashboard/
 README.md
 LICENSE

@@ -28,7 +28,7 @@ export async function record(args: string[]): Promise<number> {
   }
 
   const terminal = createInterface({ input: process.stdin, output: process.stdout });
-  const { engine, close } = openEngine({ backgroundHeals: false });
+  const { engine, close } = await openEngine({ backgroundHeals: false });
   try {
     // A site with a saved login opens signed in, so the recording holds only the task.
     const signedIn = await engine.sessions.ensure(url, {

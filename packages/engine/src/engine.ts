@@ -149,23 +149,28 @@ export class Engine {
   /** Saved logins, masked (SPEC, list_logins). */
   async listLogins(scopes: Scopes = ALL, site?: string): Promise<LoginView[]> {
     requireFullAccess(scopes);
-    if (listLogins(this.db, site ? { site } : {}).length === 0) return [];
+    if ((await listLogins(this.db, site ? { site } : {})).length === 0) return [];
     return viewLogins(this.db, await this.vault(), site ? { site } : {});
   }
 
   /** Starts a build job (SPEC, build_tool and POST /v1/builds); poll it with getJob. */
-  startBuild(input: unknown, scopes: Scopes = ALL): JobView {
+  async startBuild(input: unknown, scopes: Scopes = ALL): Promise<JobView> {
     requireFullAccess(scopes);
     return this.builds.start(input);
   }
 
-  getJob(id: string, scopes: Scopes = ALL): JobView {
+  async getJob(id: string, scopes: Scopes = ALL): Promise<JobView> {
     requireFullAccess(scopes);
     return this.builds.view(id);
   }
 
   /** Answers a build's clarifying question (SPEC, answer_question). */
-  answerQuestion(jobId: string, questionId: string, answer: string, scopes: Scopes = ALL): JobView {
+  async answerQuestion(
+    jobId: string,
+    questionId: string,
+    answer: string,
+    scopes: Scopes = ALL,
+  ): Promise<JobView> {
     requireFullAccess(scopes);
     return this.builds.answer(jobId, questionId, answer);
   }
@@ -199,16 +204,16 @@ export class Engine {
     return readRecording(this.dataDir, id);
   }
 
-  listTools(scopes: Scopes = ALL): PublishedTool[] {
-    return listTools(this.db).filter((tool) => keyAllows(scopes, tool.name));
+  async listTools(scopes: Scopes = ALL): Promise<PublishedTool[]> {
+    return (await listTools(this.db)).filter((tool) => keyAllows(scopes, tool.name));
   }
 
-  findTools(query: { site?: string; task?: string }, scopes: Scopes = ALL): PublishedTool[] {
-    return findTools(this.db, query).filter((tool) => keyAllows(scopes, tool.name));
+  async findTools(query: { site?: string; task?: string }, scopes: Scopes = ALL): Promise<PublishedTool[]> {
+    return (await findTools(this.db, query)).filter((tool) => keyAllows(scopes, tool.name));
   }
 
   /** Publishes a tool file for a site, as a new tool or its next version. */
-  publish(
+  async publish(
     file: ToolFile,
     site: string,
     options: {
@@ -216,9 +221,9 @@ export class Engine {
       change_reason?: string;
       test_inputs?: Record<string, unknown>[];
     } = {},
-  ): PublishedTool {
+  ): Promise<PublishedTool> {
     const { recipe, ...definition } = file;
-    const published = publishTool(this.db, {
+    const published = await publishTool(this.db, {
       site,
       definition,
       recipe,
@@ -231,15 +236,15 @@ export class Engine {
   }
 
   /** A tool's versions, oldest first, with who made each and why: its history and heal log. */
-  versions(name: string, scopes: Scopes = ALL): VersionSummary[] {
+  async versions(name: string, scopes: Scopes = ALL): Promise<VersionSummary[]> {
     requireFullAccess(scopes);
     return listVersions(this.db, name);
   }
 
   /** Makes an earlier version current again, exactly as it was (SPEC, Rollback). */
-  rollback(name: string, version: number, scopes: Scopes = ALL): PublishedTool {
+  async rollback(name: string, version: number, scopes: Scopes = ALL): Promise<PublishedTool> {
     requireFullAccess(scopes);
-    const published = rollbackTool(this.db, name, version);
+    const published = await rollbackTool(this.db, name, version);
     for (const listener of this.#listeners) listener();
     return published;
   }
@@ -249,7 +254,7 @@ export class Engine {
    * stored, only the run's metadata.
    */
   async runTool(name: string, input: unknown, scopes: Scopes = ALL): Promise<RunOutcome> {
-    const tool = getTool(this.db, name);
+    const tool = await getTool(this.db, name);
     if (!tool || tool.status === 'disabled') throw new ToolDropError('not_found', `no tool named ${name}`);
     if (!keyAllows(scopes, name)) throw new ToolDropError('forbidden', `this API key may not run ${name}`);
     // A write previews and waits for an approval; it is never healed, since a repair replays it (SPEC, Safe mode).
@@ -261,7 +266,7 @@ export class Engine {
     } catch (error) {
       if (!(error instanceof ToolDropError && error.code === 'strategy_failed')) throw error;
       // Every strategy failed: repair the recipe while the call waits (SPEC, Runtime step 7).
-      const healJob = this.heals.start(tool, { kind: 'failure', error: error.toJSON() });
+      const healJob = await this.heals.start(tool, { kind: 'failure', error: error.toJSON() });
       const ended = healJob ? await this.heals.wait(healJob, this.#healHoldMs) : 'failed';
       // Only calls that reached the site are runs; bad input or a refused write is not.
       const failed = {
@@ -274,7 +279,7 @@ export class Engine {
         heal_job_id: healJob ?? null,
       };
       if (ended !== 'healed' || !healJob) {
-        recordRun(this.db, failed);
+        await recordRun(this.db, failed);
         if (ended === 'timeout' && healJob) {
           throw new ToolDropError(
             'heal_timeout',
@@ -292,11 +297,11 @@ export class Engine {
             )
           : error;
       }
-      const healed = getTool(this.db, name);
+      const healed = await getTool(this.db, name);
       if (!healed) throw error;
       outcome = await this.#run(healed, input);
       outcome.meta.healed = true;
-      recordRun(this.db, {
+      await recordRun(this.db, {
         tool_id: healed.id,
         recipe_version: healed.version,
         strategy_used: outcome.meta.strategy,
@@ -307,7 +312,7 @@ export class Engine {
       });
       return outcome;
     }
-    recordRun(this.db, {
+    await recordRun(this.db, {
       tool_id: tool.id,
       recipe_version: tool.version,
       strategy_used: outcome.meta.strategy,
@@ -315,12 +320,14 @@ export class Engine {
       ok: true,
     });
     // The call worked, but something wore out: repair it in the background (SPEC, Self-healing).
+    // A repair that cannot start never fails the call.
     const fastPath = outcome.attempts[0];
     if (!this.#backgroundHeals) return outcome;
     if (tool.recipe.fallback && fastPath && !fastPath.ok && outcome.meta.strategy === 'browser_script') {
-      this.heals.start(tool, { kind: 'fast_path', error: fastPath.error?.message ?? 'it failed' });
+      const error = fastPath.error?.message ?? 'it failed';
+      await this.heals.start(tool, { kind: 'fast_path', error }).catch(() => undefined);
     } else if (outcome.drift) {
-      this.heals.start(tool, { kind: 'drift', drift: outcome.drift });
+      await this.heals.start(tool, { kind: 'drift', drift: outcome.drift }).catch(() => undefined);
     }
     return outcome;
   }
@@ -364,8 +371,8 @@ export class Engine {
     requireFullAccess(scopes);
     const results: { tool: string; ok: boolean; healed: boolean; error?: string }[] = [];
     // Write tools are left out: running one, even as a test, asks for an approval.
-    for (const tool of this.listTools().filter((candidate) => candidate.authority === 'read')) {
-      const inputs = testInputs(this.db, tool.id, tool.version);
+    for (const tool of (await this.listTools()).filter((candidate) => candidate.authority === 'read')) {
+      const inputs = await testInputs(this.db, tool.id, tool.version);
       if (inputs.length === 0) continue;
       let healed = false;
       try {
@@ -388,12 +395,12 @@ export class Engine {
     return this.watches.create(input, scopes);
   }
 
-  listWatches(scopes: Scopes = ALL): WatchView[] {
+  listWatches(scopes: Scopes = ALL): Promise<WatchView[]> {
     return this.watches.list(scopes);
   }
 
-  deleteWatch(id: string, scopes: Scopes = ALL): void {
-    this.watches.delete(id, scopes);
+  deleteWatch(id: string, scopes: Scopes = ALL): Promise<void> {
+    return this.watches.delete(id, scopes);
   }
 
   /**
@@ -409,34 +416,38 @@ export class Engine {
     return this.approvals.decide(id, decision, scopes, by);
   }
 
-  getApproval(id: string, scopes: Scopes = ALL): ApprovalView {
+  getApproval(id: string, scopes: Scopes = ALL): Promise<ApprovalView> {
     return this.approvals.get(id, scopes);
   }
 
   /** The write audit log, newest first. */
-  listApprovals(scopes: Scopes = ALL, status?: ApprovalView['status']): ApprovalView[] {
+  listApprovals(scopes: Scopes = ALL, status?: ApprovalView['status']): Promise<ApprovalView[]> {
     return this.approvals.list(scopes, status ? { status } : {});
   }
 
-  approvalScreenshot(id: string, which: 'before' | 'after', scopes: Scopes = ALL): Buffer | undefined {
+  approvalScreenshot(
+    id: string,
+    which: 'before' | 'after',
+    scopes: Scopes = ALL,
+  ): Promise<Buffer | undefined> {
     return this.approvals.screenshot(id, which, scopes);
   }
 
-  createPolicy(input: unknown, scopes: Scopes = ALL): PolicyView {
+  createPolicy(input: unknown, scopes: Scopes = ALL): Promise<PolicyView> {
     return this.approvals.createPolicy(input, scopes);
   }
 
-  listPolicies(scopes: Scopes = ALL): PolicyView[] {
+  listPolicies(scopes: Scopes = ALL): Promise<PolicyView[]> {
     return this.approvals.listPolicies(scopes);
   }
 
-  deletePolicy(id: string, scopes: Scopes = ALL): void {
-    this.approvals.deletePolicy(id, scopes);
+  deletePolicy(id: string, scopes: Scopes = ALL): Promise<void> {
+    return this.approvals.deletePolicy(id, scopes);
   }
 
   /** One published tool, when the key may use it. */
-  getTool(name: string, scopes: Scopes = ALL): PublishedTool {
-    const tool = getTool(this.db, name);
+  async getTool(name: string, scopes: Scopes = ALL): Promise<PublishedTool> {
+    const tool = await getTool(this.db, name);
     if (!tool || tool.status === 'disabled' || !keyAllows(scopes, name)) {
       throw new ToolDropError('not_found', `no tool named ${name}`);
     }
@@ -444,8 +455,8 @@ export class Engine {
   }
 
   /** The run log, newest first: how each call went, never its result. */
-  listRuns(scopes: Scopes = ALL, options: { tool?: string; limit?: number } = {}): RunView[] {
-    return listRuns(this.db, options)
+  async listRuns(scopes: Scopes = ALL, options: { tool?: string; limit?: number } = {}): Promise<RunView[]> {
+    return (await listRuns(this.db, options))
       .filter((run) => keyAllows(scopes, run.tool))
       .map((run) => ({
         id: run.id,
@@ -462,12 +473,13 @@ export class Engine {
   }
 
   /** Recent jobs, newest first: builds and heals, e.g. those waiting for an answer. */
-  listJobs(
+  async listJobs(
     scopes: Scopes = ALL,
     options: { status?: JobStatus; kind?: JobKind; limit?: number } = {},
-  ): JobView[] {
+  ): Promise<JobView[]> {
     requireFullAccess(scopes);
-    return listJobs(this.db, options).map((job) => this.builds.view(job.id));
+    const jobs = await listJobs(this.db, options);
+    return Promise.all(jobs.map((job) => this.builds.view(job.id)));
   }
 
   /**

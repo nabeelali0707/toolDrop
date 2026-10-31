@@ -25,13 +25,13 @@ export async function build(args: string[]): Promise<number> {
   const [url] = positionals;
   if (!url || !values.task) throw new ToolDropError('invalid_input', USAGE);
 
-  const { engine, close } = openEngine();
+  const { engine, close } = await openEngine();
   const terminal = process.stdin.isTTY
     ? createInterface({ input: process.stdin, output: process.stderr })
     : undefined;
   try {
     const recordingId = values.recording ? recordingFor(engine, values.recording) : undefined;
-    let job = engine.startBuild({
+    let job = await engine.startBuild({
       url,
       task: values.task,
       authority: 'read',
@@ -56,11 +56,11 @@ export async function build(args: string[]): Promise<number> {
         console.error(`\n${open.text}`);
         open.options?.forEach((option, index) => console.error(`  ${index + 1}) ${option}`));
         const reply = (await terminal.question('> ')).trim();
-        job = engine.answerQuestion(job.id, open.id, open.options?.[Number(reply) - 1] ?? reply);
+        job = await engine.answerQuestion(job.id, open.id, open.options?.[Number(reply) - 1] ?? reply);
         continue;
       }
       await new Promise((resolve) => setTimeout(resolve, 500));
-      job = engine.getJob(job.id);
+      job = await engine.getJob(job.id);
     }
     return report(job);
   } finally {

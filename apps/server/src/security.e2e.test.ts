@@ -73,7 +73,7 @@ beforeAll(async () => {
   fixture = await startLoginTotpFixture();
   dataDir = mkdtempSync(join(tmpdir(), 'tooldrop-security-'));
   handle = openDatabase(join(dataDir, 'tooldrop.db'));
-  runMigrations(handle.db);
+  await runMigrations(handle.db);
   engine = new Engine({
     db: handle.db,
     dataDir,
@@ -86,7 +86,7 @@ beforeAll(async () => {
     },
   });
   app = createServer({ engine });
-  key = createApiKey(handle.db, { label: 'test' }).key;
+  key = (await createApiKey(handle.db, { label: 'test' })).key;
 });
 
 afterAll(async () => {
@@ -94,7 +94,7 @@ afterAll(async () => {
   await engine.heals.idle();
   await app.close();
   await engine.close();
-  handle.close();
+  await handle.close();
   await browser.close();
   await fixture.close();
   rmSync(dataDir, { recursive: true, force: true, maxRetries: 3 });

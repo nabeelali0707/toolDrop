@@ -17,7 +17,7 @@ let fixture: RunningFixture;
 
 beforeEach(async () => {
   handle = openDatabase(':memory:');
-  runMigrations(handle.db);
+  await runMigrations(handle.db);
   engine = new Engine({ db: handle.db });
   fixture = await startHtmlAppFixture();
 });
@@ -25,7 +25,7 @@ beforeEach(async () => {
 afterEach(async () => {
   await engine.close();
   await fixture.close();
-  handle.close();
+  await handle.close();
 });
 
 async function failure(promise: Promise<unknown>) {
@@ -42,22 +42,22 @@ describe('Engine', () => {
   it('publishes a tool file and runs it by name, recording the run', async () => {
     let changes = 0;
     engine.onToolsChanged(() => changes++);
-    engine.publish(readToolFile(searchInvoices), fixture.url);
+    await engine.publish(readToolFile(searchInvoices), fixture.url);
     expect(changes).toBe(1);
 
     const { result, meta } = await engine.runTool('search_invoices', { status: 'paid' });
     expect(meta).toMatchObject({ strategy: 'html_fetch', recipe_version: 1 });
     expect((result as { status: string }[]).every((invoice) => invoice.status === 'paid')).toBe(true);
 
-    const runs = handle.db.query.runs.findMany().sync();
+    const runs = await handle.db.query.runs.findMany();
     expect(runs).toMatchObject([{ ok: true, strategy_used: 'html_fetch', recipe_version: 1 }]);
   });
 
   it('reports unknown tools and keys without the scope', async () => {
-    engine.publish(readToolFile(searchInvoices), fixture.url);
+    await engine.publish(readToolFile(searchInvoices), fixture.url);
     expect((await failure(engine.runTool('nope', {}))).code).toBe('not_found');
     expect((await failure(engine.runTool('search_invoices', {}, ['list_orders']))).code).toBe('forbidden');
-    expect(engine.listTools(['list_orders'])).toEqual([]);
+    expect(await engine.listTools(['list_orders'])).toEqual([]);
   });
 
   it('explains what is wrong with a broken tool file', () => {

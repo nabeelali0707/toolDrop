@@ -34,8 +34,8 @@ const HEARTBEAT_MS = 10_000;
 export class Heals {
   readonly #engine: Engine;
   readonly #queue = new InProcessQueue(1);
-  /** The heal job running for each tool. */
-  readonly #running = new Map<string, string>();
+  /** The heal job starting or running for each tool. */
+  readonly #running = new Map<string, Promise<string>>();
   readonly #done = new Map<string, Promise<boolean>>();
   readonly #failedAt = new Map<string, number>();
 
@@ -48,16 +48,26 @@ export class Heals {
    * Undefined when no heal can start: no model for one that needs it, or a
    * recent heal of this tool failed.
    */
-  start(tool: PublishedTool, trigger: HealTrigger): string | undefined {
+  start(tool: PublishedTool, trigger: HealTrigger): Promise<string | undefined> {
     const running = this.#running.get(tool.name);
     if (running) return running;
-    if (Date.now() - (this.#failedAt.get(tool.name) ?? 0) < COOLDOWN_MS) return undefined;
-    if (trigger.kind !== 'drift' && !this.#engine.builds.llm) return undefined;
+    if (Date.now() - (this.#failedAt.get(tool.name) ?? 0) < COOLDOWN_MS) return Promise.resolve(undefined);
+    if (trigger.kind !== 'drift' && !this.#engine.builds.llm) return Promise.resolve(undefined);
 
+    // Taken before the job exists, so two calls at once start one heal.
+    const started = this.#begin(tool, trigger);
+    this.#running.set(tool.name, started);
+    started.catch(() => this.#running.delete(tool.name));
+    return started;
+  }
+
+  async #begin(tool: PublishedTool, trigger: HealTrigger): Promise<string> {
     const db = this.#engine.db;
-    const job = createJob(db, { kind: 'heal', input: { tool: tool.name, version: tool.version, trigger } });
-    this.#running.set(tool.name, job.id);
-    const heartbeat = setInterval(() => touchJob(db, job.id), HEARTBEAT_MS);
+    const job = await createJob(db, {
+      kind: 'heal',
+      input: { tool: tool.name, version: tool.version, trigger },
+    });
+    const heartbeat = setInterval(() => void touchJob(db, job.id).catch(() => undefined), HEARTBEAT_MS);
     heartbeat.unref();
     const done = new Promise<boolean>((resolve) => {
       this.#queue.enqueue(async () => {
@@ -96,7 +106,7 @@ export class Heals {
   async #run(jobId: string, tool: PublishedTool, trigger: HealTrigger): Promise<boolean> {
     const db = this.#engine.db;
     try {
-      setJobStatus(db, jobId, 'running', { step: 'diagnosing' });
+      await setJobStatus(db, jobId, 'running', { step: 'diagnosing' });
       const signedIn = await this.#engine.sessions.ensure(tool.site.origin);
       const llm = this.#engine.builds.llm;
       const browser = this.#engine.builds.browser;
@@ -107,7 +117,7 @@ export class Heals {
         recipe: tool.recipe,
         input_schema: tool.input_schema,
         output_schema: tool.output_schema,
-        test_inputs: testInputs(db, tool.id, tool.version),
+        test_inputs: await testInputs(db, tool.id, tool.version),
         rate_limit: tool.site.rate_limit,
       };
       const deps = {
@@ -123,7 +133,7 @@ export class Heals {
       else if (trigger.kind === 'fast_path') healed = await rebuildPrimary(target, trigger.error, deps);
       else healed = await healStep(target, failingStep(tool.recipe, trigger.error), deps);
 
-      const published = this.#engine.publish(
+      const published = await this.#engine.publish(
         {
           name: tool.name,
           description: tool.description,
@@ -135,7 +145,7 @@ export class Heals {
         tool.site.origin,
         { created_by: 'heal', change_reason: healed.reason, test_inputs: target.test_inputs },
       );
-      setJobStatus(db, jobId, 'succeeded', {
+      await setJobStatus(db, jobId, 'succeeded', {
         step: null,
         result: {
           tool: tool.name,
@@ -148,13 +158,13 @@ export class Heals {
       return true;
     } catch (error) {
       // A tool that does not work at all and could not be repaired is degraded (SPEC, Self-healing step 5).
-      if (trigger.kind === 'failure') setToolStatus(db, tool.name, 'degraded');
+      if (trigger.kind === 'failure') await setToolStatus(db, tool.name, 'degraded');
       this.#failedAt.set(tool.name, Date.now());
       const json =
         error instanceof ToolDropError
           ? error.toJSON()
           : { code: 'internal' as const, message: error instanceof Error ? error.message : String(error) };
-      setJobStatus(db, jobId, 'failed', { step: null, error: json });
+      await setJobStatus(db, jobId, 'failed', { step: null, error: json });
       return false;
     }
   }

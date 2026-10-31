@@ -1,7 +1,7 @@
 # Self-hosting
 
 ::: info Status
-`tooldrop serve` and the Docker image work today: the REST API, remote MCP and the [dashboard](./dashboard) on port 3000, with SQLite. Postgres and Valkey join the Compose stack with Phase 5.
+`tooldrop serve` and the Docker image work today: the REST API, remote MCP and the [dashboard](./dashboard) on port 3000, with SQLite or [Postgres](#postgres). Postgres and Valkey join the Compose stack with Phase 5.
 :::
 
 toolDrop is self-host only: there is no managed cloud version, and no setup uses a paid cloud service.
@@ -40,6 +40,18 @@ cosign verify ghcr.io/nabeelali0707/tooldrop:latest \
 With self-hosted mode (Phase 5), `postgres` and `valkey` join the stack, and the vault's master key comes from a file mounted at `/run/secrets/tooldrop_master_key`: 32 random bytes in base64, such as `openssl rand -base64 32` prints. `tooldrop init` will generate it. Keep it readable only by the toolDrop user, and never commit it.
 
 Until then, the app creates the master key in `/data/master.key` the first time it saves a login, in the same volume as the database. Anyone who can read that volume, or a backup of it, can open the saved logins, so keep both private.
+
+## Postgres
+
+toolDrop uses Postgres when `TOOLDROP_DATABASE_URL` holds a Postgres URL, for `tooldrop serve`, the Docker image and every other command:
+
+```sh
+TOOLDROP_DATABASE_URL=postgres://tooldrop:<password>@db.internal:5432/tooldrop tooldrop serve
+```
+
+It creates and updates its tables at start, so an empty database is enough. Without the variable, it keeps using SQLite. CI tests it on Postgres 18, and it needs no extension.
+
+Saved logins and sessions are sealed by the vault before they reach the database, as with SQLite, but the database still says which sites have logins. Give toolDrop a database and user of its own, and keep the URL out of shell history and logs, since it holds the password.
 
 ## Platform notes
 

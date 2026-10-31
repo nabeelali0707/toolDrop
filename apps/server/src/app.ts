@@ -63,17 +63,12 @@ export function createServer({ engine, version = '0.0.0', dashboardDir }: Server
   app.decorateRequest('by', '');
   keepRawJson(app);
 
-  app.addHook('onRequest', (request, _reply, done) => {
+  app.addHook('onRequest', async (request) => {
     // The dashboard's pages are the same for everyone; what they show comes from the API, with a key.
-    if (!needsKey(request.url)) return done();
-    try {
-      const key = authenticate(engine, request);
-      request.scopes = key.scopes;
-      request.by = `api-key:${key.label}`;
-      done();
-    } catch (error) {
-      done(error as Error);
-    }
+    if (!needsKey(request.url)) return;
+    const key = await authenticate(engine, request);
+    request.scopes = key.scopes;
+    request.by = `api-key:${key.label}`;
   });
 
   registerSmsRoute(app, engine);
@@ -112,21 +107,25 @@ export function createServer({ engine, version = '0.0.0', dashboardDir }: Server
           ),
   );
 
-  app.get('/v1/tools', (request) => ({ tools: engine.listTools(request.scopes).map(describeTool) }));
+  app.get('/v1/tools', async (request) => ({
+    tools: (await engine.listTools(request.scopes)).map(describeTool),
+  }));
 
-  app.get('/v1/tools/:name', (request) => {
+  app.get('/v1/tools/:name', async (request) => {
     const { name } = request.params as { name: string };
-    return { tool: describeTool(engine.getTool(name, request.scopes)) };
+    return { tool: describeTool(await engine.getTool(name, request.scopes)) };
   });
 
   // The run log: how each call went, never its result (SPEC, runs table).
-  app.get('/v1/runs', (request) => {
+  app.get('/v1/runs', async (request) => {
     const { tool, limit } = request.query as { tool?: string; limit?: string };
-    return { runs: engine.listRuns(request.scopes, { ...(tool && { tool }), limit: pageSize(limit) }) };
+    return {
+      runs: await engine.listRuns(request.scopes, { ...(tool && { tool }), limit: pageSize(limit) }),
+    };
   });
 
   // Builds and heals, e.g. those waiting for an answer, such as a 2FA code.
-  app.get('/v1/jobs', (request) => {
+  app.get('/v1/jobs', async (request) => {
     const { status, kind, limit } = request.query as { status?: string; kind?: string; limit?: string };
     if (status !== undefined && !(JOB_STATUSES as readonly string[]).includes(status)) {
       throw new ToolDropError('invalid_input', `status is one of ${JOB_STATUSES.join(', ')}`);
@@ -135,7 +134,7 @@ export function createServer({ engine, version = '0.0.0', dashboardDir }: Server
       throw new ToolDropError('invalid_input', `kind is one of ${JOB_KINDS.join(', ')}`);
     }
     return {
-      jobs: engine.listJobs(request.scopes, {
+      jobs: await engine.listJobs(request.scopes, {
         ...(status && { status: status as JobStatus }),
         ...(kind && { kind: kind as JobKind }),
         limit: pageSize(limit),
@@ -150,37 +149,37 @@ export function createServer({ engine, version = '0.0.0', dashboardDir }: Server
   });
 
   // A tool's history and heal log, and rollback (SPEC, Self-healing: versions kept for rollback).
-  app.get('/v1/tools/:name/versions', (request) => {
+  app.get('/v1/tools/:name/versions', async (request) => {
     const { name } = request.params as { name: string };
-    return { versions: engine.versions(name, request.scopes) };
+    return { versions: await engine.versions(name, request.scopes) };
   });
 
-  app.post('/v1/tools/:name/rollback', (request) => {
+  app.post('/v1/tools/:name/rollback', async (request) => {
     const { name } = request.params as { name: string };
     const { version } = (request.body ?? {}) as { version?: unknown };
     if (typeof version !== 'number' || !Number.isInteger(version)) {
       throw new ToolDropError('invalid_input', 'send {"version": <number>}');
     }
-    return { tool: describeTool(engine.rollback(name, version, request.scopes)) };
+    return { tool: describeTool(await engine.rollback(name, version, request.scopes)) };
   });
 
   // Builds run as jobs: start one, poll it, answer its questions (SPEC, REST API).
   app.post('/v1/builds', async (request, reply) =>
-    reply.code(202).send({ job: engine.startBuild(request.body ?? {}, request.scopes) }),
+    reply.code(202).send({ job: await engine.startBuild(request.body ?? {}, request.scopes) }),
   );
 
-  app.get('/v1/jobs/:id', (request) => {
+  app.get('/v1/jobs/:id', async (request) => {
     const { id } = request.params as { id: string };
-    return { job: engine.getJob(id, request.scopes) };
+    return { job: await engine.getJob(id, request.scopes) };
   });
 
-  app.post('/v1/jobs/:id/answers', (request) => {
+  app.post('/v1/jobs/:id/answers', async (request) => {
     const { id } = request.params as { id: string };
     const { question_id: questionId, answer } = (request.body ?? {}) as Record<string, unknown>;
     if (typeof questionId !== 'string' || typeof answer !== 'string' || answer === '') {
       throw new ToolDropError('invalid_input', 'send {"question_id": "...", "answer": "..."}');
     }
-    return { job: engine.answerQuestion(id, questionId, answer, request.scopes) };
+    return { job: await engine.answerQuestion(id, questionId, answer, request.scopes) };
   });
 
   // Saved logins: sealed in the vault, shown masked (SPEC, add_login and list_logins).
@@ -199,35 +198,37 @@ export function createServer({ engine, version = '0.0.0', dashboardDir }: Server
     reply.code(201).send(await engine.createWatch(request.body ?? {}, request.scopes)),
   );
 
-  app.get('/v1/watches', (request) => ({ watches: engine.listWatches(request.scopes) }));
+  app.get('/v1/watches', async (request) => ({ watches: await engine.listWatches(request.scopes) }));
 
-  app.delete('/v1/watches/:id', (request, reply) => {
+  app.delete('/v1/watches/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
-    engine.deleteWatch(id, request.scopes);
+    await engine.deleteWatch(id, request.scopes);
     return reply.code(204).send();
   });
 
   // Safe mode: writes waiting for approval, and the record of every decision (SPEC, approve_action).
-  app.get('/v1/approvals', (request) => {
+  app.get('/v1/approvals', async (request) => {
     const { status } = request.query as { status?: string };
     if (status !== undefined && !(APPROVAL_STATUSES as readonly string[]).includes(status)) {
       throw new ToolDropError('invalid_input', `status is one of ${APPROVAL_STATUSES.join(', ')}`);
     }
-    return { approvals: engine.listApprovals(request.scopes, status as ApprovalStatus | undefined) };
+    return {
+      approvals: await engine.listApprovals(request.scopes, status as ApprovalStatus | undefined),
+    };
   });
 
-  app.get('/v1/approvals/:id', (request) => {
+  app.get('/v1/approvals/:id', async (request) => {
     const { id } = request.params as { id: string };
-    return { approval: engine.getApproval(id, request.scopes) };
+    return { approval: await engine.getApproval(id, request.scopes) };
   });
 
-  app.get('/v1/approvals/:id/screenshot', (request, reply) => {
+  app.get('/v1/approvals/:id/screenshot', async (request, reply) => {
     const { id } = request.params as { id: string };
     const { which = 'before' } = request.query as { which?: string };
     if (which !== 'before' && which !== 'after') {
       throw new ToolDropError('invalid_input', 'which is "before" or "after"');
     }
-    const png = engine.approvalScreenshot(id, which, request.scopes);
+    const png = await engine.approvalScreenshot(id, which, request.scopes);
     if (!png) throw new ToolDropError('not_found', `approval ${id} has no ${which} screenshot`);
     return reply.type('image/png').send(png);
   });
@@ -239,15 +240,15 @@ export function createServer({ engine, version = '0.0.0', dashboardDir }: Server
   });
 
   // Policies approve a write tool's calls by themselves, so only full-access keys manage them.
-  app.post('/v1/policies', (request, reply) =>
-    reply.code(201).send({ policy: engine.createPolicy(request.body ?? {}, request.scopes) }),
+  app.post('/v1/policies', async (request, reply) =>
+    reply.code(201).send({ policy: await engine.createPolicy(request.body ?? {}, request.scopes) }),
   );
 
-  app.get('/v1/policies', (request) => ({ policies: engine.listPolicies(request.scopes) }));
+  app.get('/v1/policies', async (request) => ({ policies: await engine.listPolicies(request.scopes) }));
 
-  app.delete('/v1/policies/:id', (request, reply) => {
+  app.delete('/v1/policies/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
-    engine.deletePolicy(id, request.scopes);
+    await engine.deletePolicy(id, request.scopes);
     return reply.code(204).send();
   });
 
@@ -337,9 +338,12 @@ export function createSmsServer({ engine }: { engine: Engine }): FastifyInstance
   return app;
 }
 
-function authenticate(engine: Engine, request: FastifyRequest): { scopes: Scopes; label: string } {
+async function authenticate(
+  engine: Engine,
+  request: FastifyRequest,
+): Promise<{ scopes: Scopes; label: string }> {
   const key = /^Bearer\s+(\S+)$/i.exec(request.headers.authorization ?? '')?.[1];
-  const record = key ? verifyApiKey(engine.db, key) : undefined;
+  const record = key ? await verifyApiKey(engine.db, key) : undefined;
   if (!record) {
     throw new ToolDropError(
       'unauthorized',

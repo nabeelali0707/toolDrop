@@ -74,7 +74,7 @@ beforeAll(async () => {
 
   dataDir = mkdtempSync(join(tmpdir(), 'tooldrop-email-'));
   handle = openDatabase(join(dataDir, 'tooldrop.db'));
-  runMigrations(handle.db);
+  await runMigrations(handle.db);
   engine = new Engine({
     db: handle.db,
     dataDir,
@@ -86,7 +86,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await engine.close();
-  handle.close();
+  await handle.close();
   await browser.close();
   await fixture.close();
   await new Promise((resolve) => relay.close(resolve));

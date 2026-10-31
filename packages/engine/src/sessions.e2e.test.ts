@@ -64,14 +64,14 @@ afterAll(async () => {
   await browser.close();
   await fixture.close();
 });
-beforeEach(() => {
+beforeEach(async () => {
   handle = openDatabase(':memory:');
-  runMigrations(handle.db);
+  await runMigrations(handle.db);
   keyStore = memoryKeyStore();
 });
 afterEach(async () => {
   for (const engine of engines.splice(0)) await engine.close();
-  handle.close();
+  await handle.close();
   await fetch(`${fixture.url}/__fixture/reset`, { method: 'POST' });
 });
 
@@ -91,26 +91,26 @@ describe('signed-in sites', () => {
       password: FIXTURE_ACCOUNT.password,
       totp_secret: FIXTURE_ACCOUNT.totpSecret,
     });
-    engine.publish(protectedInvoices, fixture.url);
+    await engine.publish(protectedInvoices, fixture.url);
 
     const first = await engine.runTool('protected_invoices', {});
     expect(first.result).toHaveLength(10);
-    const [login] = listLogins(handle.db);
+    const [login] = await listLogins(handle.db);
     expect(login?.login.status).toBe('verified');
-    const session = latestSession(handle.db, login?.login.id ?? '');
+    const session = await latestSession(handle.db, login?.login.id ?? '');
     expect(session?.storage_state.toString('latin1')).not.toContain('session');
 
     // The site forgets every session; the next call signs in again and still answers.
     await fetch(`${fixture.url}/__fixture/expire-sessions`, { method: 'POST' });
     const second = await engine.runTool('protected_invoices', {});
     expect(second.result).toHaveLength(10);
-    expect(latestSession(handle.db, login?.login.id ?? '')?.id).not.toBe(session?.id);
+    expect((await latestSession(handle.db, login?.login.id ?? ''))?.id).not.toBe(session?.id);
 
     // After a restart, the saved session is used as it is.
-    const kept = latestSession(handle.db, login?.login.id ?? '')?.id;
+    const kept = (await latestSession(handle.db, login?.login.id ?? ''))?.id;
     const restarted = start();
     expect((await restarted.runTool('protected_invoices', {})).result).toHaveLength(10);
-    expect(latestSession(handle.db, login?.login.id ?? '')?.id).toBe(kept);
+    expect((await latestSession(handle.db, login?.login.id ?? ''))?.id).toBe(kept);
   }, 120_000);
 
   it('asks a person for the code when the login has no authenticator secret', async () => {
@@ -121,7 +121,7 @@ describe('signed-in sites', () => {
       password: FIXTURE_ACCOUNT.password,
       twofa: 'human',
     });
-    engine.publish(protectedInvoices, fixture.url);
+    await engine.publish(protectedInvoices, fixture.url);
     // Without a person to ask, a call cannot sign in.
     await expect(engine.runTool('protected_invoices', {})).rejects.toMatchObject({
       code: 'session_expired',
@@ -147,9 +147,9 @@ describe('signed-in sites', () => {
       password: 'wrong-password-not-real',
       totp_secret: FIXTURE_ACCOUNT.totpSecret,
     });
-    engine.publish(protectedInvoices, fixture.url);
+    await engine.publish(protectedInvoices, fixture.url);
     await expect(engine.runTool('protected_invoices', {})).rejects.toMatchObject({ code: 'session_expired' });
-    expect(listLogins(handle.db)[0]?.login.status).toBe('needs_attention');
+    expect((await listLogins(handle.db))[0]?.login.status).toBe('needs_attention');
   }, 60_000);
 
   it('asks once before typing the login on an identity provider, and remembers the answer', async () => {
@@ -175,11 +175,11 @@ describe('signed-in sites', () => {
     expect(questions).toEqual([
       `Signing in to ${fixture.url} goes through ${provider}, another site. Should toolDrop type the saved login there from now on?`,
     ]);
-    expect(approvedAuthOrigins(handle.db, fixture.url)).toEqual([provider]);
+    expect(await approvedAuthOrigins(handle.db, fixture.url)).toEqual([provider]);
 
     // Allowed once: the next sign-in asks nothing.
     expect(await engine.signIn(fixture.url)).toBe(true);
-    engine.publish(protectedInvoices, fixture.url);
+    await engine.publish(protectedInvoices, fixture.url);
     expect(((await engine.runTool('protected_invoices', {})).result as unknown[]).length).toBe(10);
   }, 120_000);
 
@@ -191,7 +191,7 @@ describe('signed-in sites', () => {
       username: FIXTURE_ACCOUNT.username,
       password: FIXTURE_ACCOUNT.password,
     });
-    engine.publish(protectedInvoices, fixture.url);
+    await engine.publish(protectedInvoices, fixture.url);
     await expect(engine.runTool('protected_invoices', {})).rejects.toMatchObject({
       code: 'human_needed',
       details: { by_hand: true },

@@ -253,23 +253,23 @@ export function createMcpServer(engine: Engine, options: McpOptions = {}): Serve
   const management = scopes.includes('*')
     ? [...MANAGEMENT_TOOLS, ...BUILD_TOOLS, ...LOGIN_TOOLS]
     : MANAGEMENT_TOOLS;
-  server.setRequestHandler(ListToolsRequestSchema, () => ({
-    tools: [...management, ...engine.listTools(scopes).map(toMcpTool)],
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: [...management, ...(await engine.listTools(scopes)).map(toMcpTool)],
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async ({ params }): Promise<CallToolResult> => {
     const args = params.arguments ?? {};
     try {
-      if (params.name === 'build_tool') return success({ job: engine.startBuild(args, scopes) });
+      if (params.name === 'build_tool') return success({ job: await engine.startBuild(args, scopes) });
       if (params.name === 'add_login') return success({ login: await engine.addLogin(args, scopes) });
       if (params.name === 'list_logins') {
         return success({ logins: await engine.listLogins(scopes, optionalString(args.site, 'site')) });
       }
       if (params.name === 'get_job') {
-        return success({ job: engine.getJob(requiredString(args.job_id, 'job_id'), scopes) });
+        return success({ job: await engine.getJob(requiredString(args.job_id, 'job_id'), scopes) });
       }
       if (params.name === 'answer_question') {
-        const job = engine.answerQuestion(
+        const job = await engine.answerQuestion(
           requiredString(args.job_id, 'job_id'),
           requiredString(args.question_id, 'question_id'),
           requiredString(args.answer, 'answer'),
@@ -282,15 +282,15 @@ export function createMcpServer(engine: Engine, options: McpOptions = {}): Serve
         return success(await engine.decideApproval(id, args.decision, scopes, by));
       }
       if (params.name === 'create_watch') return success(await engine.createWatch(args, scopes));
-      if (params.name === 'list_watches') return success({ watches: engine.listWatches(scopes) });
+      if (params.name === 'list_watches') return success({ watches: await engine.listWatches(scopes) });
       if (params.name === 'delete_watch') {
         const id = requiredString(args.watch_id, 'watch_id');
-        engine.deleteWatch(id, scopes);
+        await engine.deleteWatch(id, scopes);
         return success({ deleted: id });
       }
       if (params.name === 'find_tool') {
         const query = { site: optionalString(args.site, 'site'), task: optionalString(args.task, 'task') };
-        return success({ tools: engine.findTools(query, scopes).map(describeTool) });
+        return success({ tools: (await engine.findTools(query, scopes)).map(describeTool) });
       }
       if (params.name === 'run_tool') {
         if (typeof args.name !== 'string')
@@ -299,7 +299,7 @@ export function createMcpServer(engine: Engine, options: McpOptions = {}): Serve
       }
       return await run(engine, params.name, args, scopes);
     } catch (error) {
-      return failure(error, previewImage(engine, error, scopes));
+      return failure(error, await previewImage(engine, error, scopes));
     }
   });
 
@@ -356,14 +356,11 @@ async function run(engine: Engine, name: string, input: unknown, scopes: Scopes)
 }
 
 /** The filled form of a write waiting for approval, so the user sees what they approve. */
-function previewImage(engine: Engine, error: unknown, scopes: Scopes): Buffer | undefined {
+async function previewImage(engine: Engine, error: unknown, scopes: Scopes): Promise<Buffer | undefined> {
   if (!(error instanceof ToolDropError) || error.code !== 'approval_required') return undefined;
   const id = (error.details as { approval_id?: unknown } | undefined)?.approval_id;
-  try {
-    return typeof id === 'string' ? engine.approvalScreenshot(id, 'before', scopes) : undefined;
-  } catch {
-    return undefined;
-  }
+  if (typeof id !== 'string') return undefined;
+  return engine.approvalScreenshot(id, 'before', scopes).catch(() => undefined);
 }
 
 function toMcpTool(tool: PublishedTool): Tool {

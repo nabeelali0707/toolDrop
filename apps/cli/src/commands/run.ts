@@ -21,7 +21,7 @@ export async function run(args: string[]): Promise<number> {
   }
 
   // A one-shot command exits after printing, so it leaves background repairs to serve and mcp.
-  const { engine, close } = openEngine({ backgroundHeals: false });
+  const { engine, close } = await openEngine({ backgroundHeals: false });
   try {
     const { result, meta } = await engine.runTool(name, input);
     console.log(JSON.stringify({ result, meta }, null, 2));
@@ -31,7 +31,7 @@ export async function run(args: string[]): Promise<number> {
     if (!(error instanceof ToolDropError) || error.code !== 'approval_required') throw error;
     const id = (error.details as { approval_id?: string } | undefined)?.approval_id ?? '';
     console.log(`${name} changes the site, so it waits for your approval.\n`);
-    console.log(describeApproval(engine.getApproval(id)));
+    console.log(describeApproval(await engine.getApproval(id)));
     console.log(
       `\nApprove it:  tooldrop approvals approve ${id}\nReject it:   tooldrop approvals reject ${id}`,
     );
