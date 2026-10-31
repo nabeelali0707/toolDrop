@@ -1,6 +1,6 @@
 {
   "name": "tooldrop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Turn website tasks into fast, self-healing tools your AI agent can call. Free, local and open source.",
   "license": "Apache-2.0",
   "mcpName": "io.github.nabeelali0707/tooldrop",

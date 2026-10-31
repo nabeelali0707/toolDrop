@@ -77,7 +77,7 @@ Maintainers release from `main`:
    - creates the GitHub release with generated notes, the package tarball and, once it exists, the Chrome extension zip.
 5. Publish the new version to the MCP Registry (see [`listings/README.md`](listings/README.md)).
 
-The first npm release needs an `NPM_TOKEN` repository secret. After it, set up npm trusted publishing for the release workflow and delete the token.
+npm publishing uses npm trusted publishing for `release.yml`, so the repository has no npm token. Changing the workflow's filename breaks it until the trusted publisher on npm is updated to match.
 
 ## License
 

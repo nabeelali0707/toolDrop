@@ -6,6 +6,14 @@ This file covers the project as a whole. From the first release on, the publishe
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-31
+
+### Changed
+
+- Releases publish to npm with trusted publishing, so the repository holds no npm token.
+
+## [0.1.0] - 2026-10-31
+
 ### Added
 
 - The specification for a zero-cost, local-first toolDrop: local models through Ollama, SMS codes from your own phone, self-hosting with Docker Compose, and a rule that no feature may need a paid plan or paid API key ([SPEC.md](SPEC.md)).

@@ -8,12 +8,12 @@
     "source": "github"
   },
   "websiteUrl": "https://nabeelali0707.github.io/toolDrop/",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "tooldrop",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "transport": {
         "type": "stdio"
       },

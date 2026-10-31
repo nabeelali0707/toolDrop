@@ -60,11 +60,9 @@ jobs:
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
-      # NPM_TOKEN for the first release; afterwards npm trusted publishing needs no token.
+      # npm trusted publishing: npm trades the job's OIDC token for a publish token, so no secret.
       # "./" makes it a file: npm reads "release/x.tgz" as a GitHub user/repo and tries git.
       - run: npm publish ./release/tooldrop-*.tgz --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   docker:
     needs: verify
