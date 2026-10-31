@@ -334,3 +334,21 @@ Filled in at the end of each phase: what shipped, test results and the commit.
     - A write the site refused after the submit was reported as made. It now says the write was submitted and to check the site.
 - **Commits:** `6b2fe14` (watches), `b68bdb4` (safe mode), `debe52e` (extension), `1cd005e` (dashboard), plus the sign-in safeguards.
 - **Still open:** write builds from recordings (5.13); network capture in the extension, until builds can use it (D-046); and the store listing (R10).
+
+### Phase 5: Self-hosted mode and later features, done 2026-10-31 (but for the zero-cost run)
+
+- **Shipped:**
+  - More 2FA: SMS codes from the person's phone through a signed webhook, and email codes over IMAP.
+  - Self-hosted mode: Postgres (`TOOLDROP_DATABASE_URL`), the shared queue and SMS codes on Valkey (`TOOLDROP_VALKEY_URL`), and the Compose stack with both, the master key and the database password as Compose secrets.
+  - Users with viewer, editor and admin roles, checked on every REST route and remote MCP call, and an audit log of every change over the API.
+  - The transparency dashboard: per-tool calls, success rate, p50 and p95 latency, strategies, builds and repairs with their model use, and version diffs.
+  - URL-first discovery, multi-site workflows, code export, and write builds from recordings.
+- **Results:**
+  - The *SMS 2FA* criterion passes on the login fixture. The *Zero cost* criterion has its script and workflow (`scripts/zero-cost-e2e.ts`, `.github/workflows/zero-cost.yml`); it runs on GitHub, which needs you to start it once (5.4).
+  - 415 tests pass in 58 files, with the database tests also run on a real Postgres server, and the queue and SMS codes on Valkey, in CI's `servers` job. Format, lint and typecheck are clean. The license check passes for 620 packages.
+  - Found on the way:
+    - Drizzle runs SQLite migrations in one transaction, where foreign keys cannot be turned off, so rebuilding a table would cascade-delete the rows that reference it. The `workflows` migration keeps them aside, and a test upgrades a filled database (D-056).
+    - drizzle-kit dropped `ON DELETE cascade` from a column added in SQLite; the migration was fixed by hand.
+    - node-postgres lets the fields of a URL win over a separate password, so a password file's password goes into the URL.
+- **Commits:** `2f22394` (Postgres), `ae24a02` (Valkey, Compose), `9872a03` (transparency), `0cf1155` (code export), `fe1e006` (discovery), `a5a32cd` (workflows), `29fb0c5` (users, roles, audit), `fb8e2cb` (write builds), plus the SMS and email codes earlier.
+- **Still open:** the zero-cost run (5.4); the demo GIF (R9); the Chrome Web Store listing (R10).

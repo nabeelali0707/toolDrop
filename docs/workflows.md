@@ -30,11 +30,15 @@ A workflow chains published tools, on any sites, into one: `pay_newest_overdue` 
 }
 ```
 
+::: v-pre
+
 - **Steps** run in order. Each calls a published tool by name.
 - **Inputs** are plain values or templates: `{{input.amount}}` reads the workflow's input, and `{{steps.find.result.0.number}}` reads an earlier step's result, by dotted path. A template that is the whole value keeps its type; inside other text it becomes text.
 - **`retries`** (0 to 3) tries a failing step again, after 1, 2 and 4 seconds. A rejected write is never retried.
 - **`compensate`** names the tool that undoes a step, with its inputs, which may read that step's result. When a step fails for good, the steps already done are undone, newest first. One that cannot be undone is reported, and the others still run.
 - **`output`** is the workflow's result; without it, the last step's result.
+
+:::
 
 toolDrop checks a workflow before saving it: every tool must be published, and a step may only read steps before it.
 
