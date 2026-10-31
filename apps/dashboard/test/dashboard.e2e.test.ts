@@ -46,7 +46,16 @@ beforeAll(async () => {
     runtime: new Runtime({ browserWaitMs: 5_000 }),
     keyStore: () => Promise.resolve(memoryKeyStore()),
   });
-  await engine.publish(recipe('html-app.search_invoices.json'), fixture.url);
+  const search = recipe('html-app.search_invoices.json');
+  await engine.publish(search, fixture.url);
+  await engine.runTool('search_invoices', { status: 'paid' });
+  // A second version, as a repair makes one: the table found by its test id alone.
+  const repaired = structuredClone(search);
+  (repaired.recipe.steps[1] as { target: unknown[] }).target.splice(1);
+  await engine.publish(repaired, fixture.url, {
+    created_by: 'heal',
+    change_reason: 'The table is found by its test id alone.',
+  });
   await engine.publish(recipe('html-app.record_payment.json'), fixture.url);
   await engine.runTool('search_invoices', { status: 'paid' });
   await engine.runTool('record_payment', { invoice: 'INV-1057', amount: 100 }).catch(() => undefined);
@@ -85,6 +94,15 @@ describe('the dashboard', () => {
     await page.getByRole('heading', { name: 'search_invoices' }).waitFor();
     expect(await page.getByTestId('curl').textContent()).toContain(`${base}/v1/tools/search_invoices/run`);
     await page.getByText('current').first().waitFor();
+
+    // The transparency figures, and what changed between versions.
+    await page.getByTestId('call-figures').getByText('100%').waitFor();
+    expect(await page.getByTestId('call-figures').textContent()).toContain('Calls, last 30 days2');
+    await page.getByTestId('model-use').getByText('Repairs').waitFor();
+    await page.getByRole('button', { name: 'Compare with v2' }).click();
+    const diff = page.getByTestId('version-diff');
+    await diff.getByText('v1 → v2').waitFor();
+    expect(await diff.textContent()).toMatch(/- +"value": "#invoices"/);
 
     await page.getByRole('link', { name: 'Runs' }).click();
     await page.getByRole('heading', { name: 'Runs' }).waitFor();

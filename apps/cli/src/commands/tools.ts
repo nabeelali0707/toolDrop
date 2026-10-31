@@ -57,6 +57,31 @@ export async function tools(args: string[]): Promise<number> {
       return results.every((result) => result.ok) ? 0 : 1;
     }
 
+    if (action === 'stats' && path) {
+      const stats = await engine.toolStats(path);
+      const { runs, model } = stats;
+      const ms = (value: number | null) => (value === null ? '–' : `${value} ms`);
+      const rate = runs.success_rate === null ? '–' : `${Math.round(runs.success_rate * 1000) / 10}%`;
+      const strategies = Object.entries(runs.by_strategy)
+        .map(([strategy, count]) => `${strategy} ${count}`)
+        .join(', ');
+      console.log(`${path}, last ${stats.days} days:
+  calls ${runs.total}, worked ${rate}, repaired during the call ${runs.healed}
+  latency p50 ${ms(runs.p50_ms)}, p95 ${ms(runs.p95_ms)}${
+    strategies
+      ? `
+  answered by ${strategies}`
+      : ''
+  }
+Model use, all time:
+  builds: ${model.builds.jobs} jobs, ${model.builds.calls} calls, ${model.builds.prompt_tokens + model.builds.completion_tokens} tokens, ${Math.round(model.builds.duration_ms / 1000)} s
+  repairs: ${model.heals.jobs} jobs, ${model.heals.calls} calls, ${model.heals.prompt_tokens + model.heals.completion_tokens} tokens, ${Math.round(model.heals.duration_ms / 1000)} s`);
+      for (const job of stats.jobs.filter((entry) => entry.kind === 'heal').slice(0, 10)) {
+        console.log(`  ${job.created_at}  repair ${job.status}${job.reason ? `: ${job.reason}` : ''}`);
+      }
+      return 0;
+    }
+
     if (action === 'versions' && path) {
       for (const version of await engine.versions(path)) {
         const reason = version.change_reason ? `  ${version.change_reason}` : '';
@@ -79,7 +104,7 @@ export async function tools(args: string[]): Promise<number> {
 
     throw new ToolDropError(
       'invalid_input',
-      'usage: tooldrop tools list | tools add <path> [--site <url>] | tools check | tools versions <tool> | tools rollback <tool> <version>',
+      'usage: tooldrop tools list | tools add <path> [--site <url>] | tools check | tools stats <tool> | tools versions <tool> | tools rollback <tool> <version>',
     );
   } finally {
     await close();

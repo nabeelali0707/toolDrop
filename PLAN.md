@@ -201,7 +201,11 @@ Items marked "split first" are broken into day-sized tasks before work starts.
 
 **Later features** (split first)
 
-- [ ] **5.9 Transparency dashboard**
+- [x] **5.9 Transparency dashboard**, split into:
+  - [x] **5.9a Figures per tool.** `GET /v1/tools/:name/stats`: calls, success rate, p50 and p95 latency and strategies over a window, and the tool's builds and heals with their model use; `tooldrop tools stats`.
+  - [x] **5.9b Version recipes.** `GET /v1/tools/:name/versions/:version`, for comparing versions.
+  - [x] **5.9c Dashboard.** Call figures, builds and repairs, model use, and a line diff of any version against the current one, next to rollback.
+  Files: `packages/db/src/repos/{stats,tools}.ts`, `packages/engine/src/engine.ts`, `apps/server/src/app.ts`, `apps/dashboard/{components/transparency.tsx,lib/diff.ts,app/tool/page.tsx}`, `apps/cli/src/commands/tools.ts`, tests
 - [ ] **5.10 URL-first discovery**
 - [ ] **5.11 Multi-site workflows**
 - [ ] **5.12 Code export**

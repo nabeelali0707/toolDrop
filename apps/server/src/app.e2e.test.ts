@@ -114,6 +114,42 @@ describe('versions', () => {
     expect((await rollback({})).statusCode).toBe(400);
     expect((await rollback({ version: 7 })).statusCode).toBe(404);
   });
+
+  it("shows a version's recipe and the tool's transparency figures", async () => {
+    const one = await app.inject({ url: '/v1/tools/search_invoices/versions/1', headers: auth() });
+    expect(one.json()).toMatchObject({
+      version: { version: 1, current: true, recipe: { strategy: 'html_fetch' } },
+    });
+    expect(
+      (await app.inject({ url: '/v1/tools/search_invoices/versions/x', headers: auth() })).statusCode,
+    ).toBe(400);
+
+    const ran = await app.inject({
+      method: 'POST',
+      url: '/v1/tools/search_invoices/run',
+      headers: auth(),
+      payload: { status: 'paid' },
+    });
+    expect(ran.statusCode).toBe(200);
+    const stats = await app.inject({ url: '/v1/tools/search_invoices/stats?days=7', headers: auth() });
+    expect(stats.json()).toMatchObject({
+      stats: {
+        days: 7,
+        runs: { total: 1, ok: 1, success_rate: 1, by_strategy: { html_fetch: 1 } },
+        model: { builds: { jobs: 0, calls: 0 }, heals: { jobs: 0 } },
+        jobs: [],
+      },
+    });
+    expect(
+      (await app.inject({ url: '/v1/tools/search_invoices/stats?days=0', headers: auth() })).statusCode,
+    ).toBe(400);
+    const scoped = (await createApiKey(handle.db, { label: 'scoped', scopes: ['search_invoices'] })).key;
+    const forbidden = await app.inject({
+      url: '/v1/tools/search_invoices/stats',
+      headers: { authorization: `Bearer ${scoped}` },
+    });
+    expect(forbidden.statusCode).toBe(403);
+  });
 });
 
 describe('safe mode', () => {

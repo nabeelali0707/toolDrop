@@ -154,6 +154,19 @@ describe('self-healing', () => {
       healed: false,
       recipe_version: 2,
     });
+    // The transparency figures show the repair, why, and what it cost in model calls.
+    const stats = await healer.toolStats('invoices_since');
+    expect(stats.jobs).toMatchObject([
+      {
+        kind: 'heal',
+        status: 'succeeded',
+        trigger: 'failure',
+        version: 2,
+        reason: 'The date filter moved into a new Search options panel.',
+      },
+    ]);
+    expect(stats.model.heals).toMatchObject({ jobs: 1, calls: 2 });
+    expect(stats.runs).toMatchObject({ total: 2, ok: 2, healed: 1 });
   }, 120_000);
 
   it('rebuilds a fast path that broke in the background, while the browser answers', async () => {

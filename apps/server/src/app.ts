@@ -154,6 +154,23 @@ export function createServer({ engine, version = '0.0.0', dashboardDir }: Server
     return { versions: await engine.versions(name, request.scopes) };
   });
 
+  app.get('/v1/tools/:name/versions/:version', async (request) => {
+    const { name, version } = request.params as { name: string; version: string };
+    if (!/^\d+$/.test(version)) throw new ToolDropError('invalid_input', 'the version is a number');
+    return { version: await engine.version(name, Number(version), request.scopes) };
+  });
+
+  // The transparency figures: calls, latency, strategies, and builds and heals with their model use.
+  app.get('/v1/tools/:name/stats', async (request) => {
+    const { name } = request.params as { name: string };
+    const { days = '30' } = request.query as { days?: string };
+    const span = Number(days);
+    if (!Number.isInteger(span) || span < 1 || span > 365) {
+      throw new ToolDropError('invalid_input', 'days is a whole number from 1 to 365');
+    }
+    return { stats: await engine.toolStats(name, request.scopes, { days: span }) };
+  });
+
   app.post('/v1/tools/:name/rollback', async (request) => {
     const { name } = request.params as { name: string };
     const { version } = (request.body ?? {}) as { version?: unknown };

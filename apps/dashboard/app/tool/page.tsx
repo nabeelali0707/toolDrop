@@ -3,13 +3,14 @@
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { RunTable } from '../../components/runs';
+import { CallFigures, JobHistory, ModelUse, VersionDiff } from '../../components/transparency';
 import { PageTitle, Status } from '../../components/shell';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Card, CardTitle } from '../../components/ui/card';
 import { Table, Td, Th } from '../../components/ui/table';
 import { api, message, useApi } from '../../lib/api';
-import type { RunView, ToolSummary, VersionSummary } from '../../lib/types';
+import type { RunView, ToolStats, ToolSummary, VersionSummary } from '../../lib/types';
 import { when } from '../../lib/utils';
 
 export default function ToolPage() {
@@ -29,6 +30,7 @@ function ToolDetails() {
   const runs = useApi<{ runs: RunView[] }>(
     name ? `/v1/runs?tool=${encodeURIComponent(name)}&limit=20` : null,
   );
+  const stats = useApi<{ stats: ToolStats }>(name ? `${path}/stats` : null);
 
   if (!tool.data)
     return <Status loading={tool.loading} error={tool.error ?? (name ? undefined : 'No tool named.')} />;
@@ -43,6 +45,12 @@ function ToolDetails() {
         </Badge>
         <Badge>v{details.version}</Badge>
       </p>
+
+      <Card className="mb-4">
+        <CardTitle>How its calls went</CardTitle>
+        <Status loading={stats.loading} error={stats.error} />
+        {stats.data && <CallFigures stats={stats.data.stats} />}
+      </Card>
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
@@ -66,9 +74,29 @@ function ToolDetails() {
         <CardTitle>Versions and repairs</CardTitle>
         <Status loading={versions.loading} error={versions.error} />
         {versions.data && (
-          <Versions tool={details.name} versions={versions.data.versions} onChange={versions.reload} />
+          <Versions
+            tool={details.name}
+            versions={versions.data.versions}
+            onChange={() => {
+              versions.reload();
+              stats.reload();
+            }}
+          />
         )}
       </Card>
+
+      {stats.data && (
+        <div className="mt-4 grid gap-4">
+          <Card>
+            <CardTitle>Builds and repairs</CardTitle>
+            <JobHistory stats={stats.data.stats} />
+          </Card>
+          <Card>
+            <CardTitle>Model use</CardTitle>
+            <ModelUse stats={stats.data.stats} />
+          </Card>
+        </div>
+      )}
 
       <Card className="mt-4">
         <CardTitle>Recent runs</CardTitle>
@@ -94,7 +122,9 @@ function Versions({
 }) {
   // Rolling back asks twice, on the page itself: a click on "Roll back", then on "Confirm".
   const [confirming, setConfirming] = useState<number>();
+  const [comparing, setComparing] = useState<number>();
   const [error, setError] = useState<string>();
+  const current = versions.find((version) => version.current)?.version;
 
   async function rollback(version: number): Promise<void> {
     try {
@@ -132,7 +162,15 @@ function Versions({
               <Td>{version.created_by}</Td>
               <Td>{version.change_reason ?? '–'}</Td>
               <Td>{when(version.created_at)}</Td>
-              <Td className="text-right">
+              <Td className="space-x-2 text-right">
+                {!version.current && current !== undefined && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setComparing(comparing === version.version ? undefined : version.version)}
+                  >
+                    {comparing === version.version ? 'Hide changes' : `Compare with v${current}`}
+                  </Button>
+                )}
                 {!version.current &&
                   (confirming === version.version ? (
                     <Button variant="destructive" onClick={() => void rollback(version.version)}>
@@ -148,6 +186,9 @@ function Versions({
           ))}
         </tbody>
       </Table>
+      {comparing !== undefined && current !== undefined && (
+        <VersionDiff tool={tool} from={comparing} to={current} />
+      )}
       {error && (
         <p role="alert" className="mt-2 text-sm text-red-700 dark:text-red-400">
           {error}

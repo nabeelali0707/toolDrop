@@ -146,6 +146,37 @@ export async function listVersions(db: Queryable, name: string): Promise<Version
   }));
 }
 
+/** One version with its recipe, e.g. to compare it with another. */
+export async function getVersion(
+  db: Queryable,
+  name: string,
+  version: number,
+): Promise<VersionSummary & { recipe: Recipe }> {
+  const { recipe_versions, tools } = tablesOf(db);
+  const tool = first(await db.select().from(tools).where(eq(tools.name, name)));
+  if (!tool) throw new ToolDropError('not_found', `no tool named ${name}`);
+  const row = first(
+    await db
+      .select()
+      .from(recipe_versions)
+      .where(and(eq(recipe_versions.tool_id, tool.id), eq(recipe_versions.version, version))),
+  );
+  if (!row) throw new ToolDropError('not_found', `${name} has no version ${version}`);
+  return {
+    version: row.version,
+    strategy: row.strategy,
+    created_by: row.created_by,
+    change_reason: row.change_reason,
+    created_at: row.created_at.toISOString(),
+    current: row.version === tool.current_version,
+    recipe: {
+      strategy: row.strategy,
+      steps: row.steps,
+      ...(row.fallback && { fallback: row.fallback }),
+    },
+  };
+}
+
 /** Makes an earlier version current again, exactly as it was. Later versions stay in the history. */
 export async function rollbackTool(db: Queryable, name: string, version: number): Promise<PublishedTool> {
   const { recipe_versions, tools } = tablesOf(db);

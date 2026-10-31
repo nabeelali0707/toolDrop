@@ -9,6 +9,7 @@ import {
   type JobStatus,
   type LoginView,
   type PolicyView,
+  type Recipe,
   type RecipeOrigin,
   type Recording,
   type ToolFile,
@@ -17,6 +18,7 @@ import {
 import {
   findTools,
   getTool,
+  getVersion,
   keyAllows,
   listJobs,
   listLogins,
@@ -26,9 +28,14 @@ import {
   publishTool,
   recordRun,
   rollbackTool,
+  runStats,
   testInputs,
+  toolJobs,
+  usageByJob,
   type Db,
+  type JobUsage,
   type PublishedTool,
+  type RunStats,
   type VersionSummary,
 } from '@tooldrop/db';
 import {
@@ -73,6 +80,34 @@ export interface RunView {
   heal_job_id: string | null;
   created_at: string;
 }
+
+/** One build or heal in a tool's history, with what it cost in model time. */
+export interface ToolJobView {
+  id: string;
+  kind: 'build' | 'heal';
+  status: string;
+  /** For a heal: what started it (failure, fast_path or drift). */
+  trigger?: string;
+  /** The version it published, when it did. */
+  version?: number;
+  /** Why: a heal's reason, or a failed job's error. */
+  reason?: string;
+  usage: JobUsage;
+  created_at: string;
+}
+
+/** What the transparency dashboard shows for a tool (SPEC, Differentiating features). */
+export interface ToolStats {
+  /** The runs counted are from this many days back. */
+  days: number;
+  runs: RunStats;
+  /** Model use by the tool's builds and heals, all time. */
+  model: Record<'builds' | 'heals', JobUsage & { jobs: number }>;
+  /** Its builds and heals, newest first. */
+  jobs: ToolJobView[];
+}
+
+const NO_USAGE: JobUsage = { calls: 0, retries: 0, prompt_tokens: 0, completion_tokens: 0, duration_ms: 0 };
 
 /** Who is asking: the tools an API key may use. Local stdio clients get every tool. */
 export type Scopes = string[];
@@ -459,6 +494,56 @@ export class Engine {
       throw new ToolDropError('not_found', `no tool named ${name}`);
     }
     return tool;
+  }
+
+  /** One version of a tool with its recipe, to compare versions (SPEC, Transparency dashboard). */
+  async version(
+    name: string,
+    version: number,
+    scopes: Scopes = ALL,
+  ): Promise<VersionSummary & { recipe: Recipe }> {
+    requireFullAccess(scopes);
+    return getVersion(this.db, name, version);
+  }
+
+  /**
+   * A tool's transparency figures: how its calls went over the last `days`,
+   * and its builds and heals with their model use. Builds and heals are
+   * full-access information, like the versions.
+   */
+  async toolStats(name: string, scopes: Scopes = ALL, options: { days?: number } = {}): Promise<ToolStats> {
+    requireFullAccess(scopes);
+    const tool = await getTool(this.db, name);
+    if (!tool) throw new ToolDropError('not_found', `no tool named ${name}`);
+    const days = options.days ?? 30;
+    const runs = await runStats(this.db, tool.id, new Date(Date.now() - days * 86_400_000));
+    const jobs = await toolJobs(this.db, name);
+    const usage = await usageByJob(
+      this.db,
+      jobs.map((job) => job.id),
+    );
+    const model = { builds: { ...NO_USAGE, jobs: 0 }, heals: { ...NO_USAGE, jobs: 0 } };
+    const views = jobs.map((job): ToolJobView => {
+      const used = usage.get(job.id) ?? NO_USAGE;
+      const total = job.kind === 'heal' ? model.heals : model.builds;
+      total.jobs += 1;
+      for (const key of Object.keys(NO_USAGE) as (keyof JobUsage)[]) total[key] += used[key];
+      const result = (job.result ?? {}) as { version?: number; reason?: string };
+      const trigger = (job.input as { trigger?: { kind?: string } } | null)?.trigger?.kind;
+      const error = (job.error as { message?: string } | null)?.message;
+      const reason = result.reason ?? error;
+      return {
+        id: job.id,
+        kind: job.kind === 'heal' ? 'heal' : 'build',
+        status: job.status,
+        ...(trigger && { trigger }),
+        ...(result.version !== undefined && { version: result.version }),
+        ...(reason && { reason }),
+        usage: used,
+        created_at: job.created_at.toISOString(),
+      };
+    });
+    return { days, runs, model, jobs: views };
   }
 
   /** The run log, newest first: how each call went, never its result. */

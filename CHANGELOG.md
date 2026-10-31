@@ -43,6 +43,7 @@ This file covers the project as a whole. From the first release on, the publishe
   - A daily health check in `tooldrop serve`, and `tooldrop tools check` to run it now.
   - Version history and rollback: `GET /v1/tools/:name/versions` and `POST /v1/tools/:name/rollback`, and `tooldrop tools versions` and `tooldrop tools rollback`.
   - API keys for OpenAI-compatible endpoints, sealed in the vault.
+- The transparency dashboard (Phase 5): each tool's page shows its calls, success rate, p50 and p95 latency and strategies, its builds and repairs with their model time and tokens, and a diff of any version against the current one. Also `GET /v1/tools/:name/stats` and `tooldrop tools stats`.
 - Postgres (Phase 5): set `TOOLDROP_DATABASE_URL` to a Postgres URL and toolDrop keeps its data there instead of SQLite, creating its tables at start.
 - The self-hosted Compose stack (Phase 5): `compose.yaml` now runs toolDrop with Postgres, Valkey and Ollama, with the master key and the database password as Compose secrets.
 - A shared job queue (Phase 5): with `TOOLDROP_VALKEY_URL` set, builds and repairs wait on Valkey through BullMQ and run in whichever toolDrop server takes them, and SMS codes reach every process.
