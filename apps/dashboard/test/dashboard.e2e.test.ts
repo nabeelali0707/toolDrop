@@ -140,6 +140,11 @@ describe('the dashboard', () => {
     await page.getByRole('cell', { name: 'approved' }).waitFor();
     const payments = (await (await fetch(`${fixture.url}/__fixture/payments`)).json()) as unknown[];
     expect(payments).toHaveLength(1);
+
+    // A key of no user is an admin: the header says so, and the audit log shows the approval.
+    expect(await page.getByTestId('signed-in-as').textContent()).toBe('api-key:dashboard · admin');
+    await page.getByRole('link', { name: 'Audit log' }).click();
+    await page.getByTestId('audit-log').getByText('POST /v1/approvals/:id').waitFor();
     expect(errors).toEqual([]);
   }, 120_000);
 });

@@ -2,7 +2,7 @@ import type { JsonSchema } from '@tooldrop/core';
 
 // What the REST API answers, typed from toolDrop's own packages.
 
-export type { ApprovalView, LoginView, WatchView } from '@tooldrop/core';
+export type { ApprovalView, AuditEvent, LoginView, WatchView } from '@tooldrop/core';
 import type { VersionSummary } from '@tooldrop/db';
 import type { Recipe } from '@tooldrop/core';
 

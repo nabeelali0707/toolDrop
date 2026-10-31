@@ -8,3 +8,4 @@ export * from './watches.ts';
 export * from './approvals.ts';
 export * from './stats.ts';
 export * from './workflows.ts';
+export * from './users.ts';

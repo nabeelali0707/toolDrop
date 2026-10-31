@@ -15,6 +15,13 @@
       "when": 1793452338917,
       "tag": "0001_workflows",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793453529846,
+      "tag": "0002_users_and_audit",
+      "breakpoints": true
     }
   ]
 }

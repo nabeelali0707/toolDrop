@@ -15,3 +15,4 @@ export * from './run.ts';
 export * from './tool.ts';
 export * from './watch.ts';
 export * from './workflow.ts';
+export * from './users.ts';

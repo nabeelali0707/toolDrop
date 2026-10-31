@@ -14,14 +14,21 @@ const LINKS = [
   { href: '/approvals/', label: 'Approvals' },
   { href: '/jobs/', label: 'Questions and repairs' },
   { href: '/logins/', label: 'Logins' },
+  { href: '/audit/', label: 'Audit log', admin: true },
 ];
 
 /** Every page: asks for an API key once, then shows the navigation. */
 export function Shell({ children }: { children: ReactNode }) {
   // Undefined until the browser has been asked: the static page renders nothing before that.
   const [key, setKey] = useState<string | null>();
+  const [me, setMe] = useState<{ by: string; role: string }>();
   const path = usePathname();
   useEffect(() => setKey(savedKey()), []);
+  // Who is signed in, so the header says it and offers what the role allows (D-057).
+  useEffect(() => {
+    if (!key) return;
+    api<{ by: string; role: string }>('/v1/me').then(setMe, () => setMe(undefined));
+  }, [key]);
   if (key === undefined) return null;
   if (!key) return <SignIn onSignedIn={setKey} />;
   return (
@@ -29,7 +36,7 @@ export function Shell({ children }: { children: ReactNode }) {
       <header className="border-b border-slate-200 dark:border-slate-700">
         <nav className="mx-auto flex max-w-5xl flex-wrap items-center gap-1 px-4 py-2" aria-label="Main">
           <span className="mr-3 font-semibold">toolDrop</span>
-          {LINKS.map((link) => (
+          {LINKS.filter((link) => !link.admin || me?.role === 'admin').map((link) => (
             <Link
               key={link.href}
               href={link.href}
@@ -42,9 +49,14 @@ export function Shell({ children }: { children: ReactNode }) {
               {link.label}
             </Link>
           ))}
+          {me && (
+            <span data-testid="signed-in-as" className="ml-auto text-xs text-slate-500 dark:text-slate-400">
+              {me.by.replace(/^user:/, '')} · {me.role}
+            </span>
+          )}
           <Button
             variant="ghost"
-            className="ml-auto"
+            className={me ? '' : 'ml-auto'}
             onClick={() => {
               saveKey(null);
               setKey(null);

@@ -4,6 +4,11 @@ import type { DatabaseHandle } from '../client.ts';
 import { DIALECTS, openTestDatabase } from '../testing.ts';
 import {
   createApiKey,
+  createUser,
+  deleteUser,
+  listAudit,
+  recordAudit,
+  setUserRole,
   findTools,
   getTool,
   keyAllows,
@@ -137,6 +142,40 @@ describe.each(DIALECTS)('on %s', (dialect) => {
       expect(key).toMatch(/^td_/);
       expect(await verifyApiKey(handle.db, key)).toMatchObject({ label: 'laptop', scopes: ['*'] });
       expect(await verifyApiKey(handle.db, `${key}x`)).toBeUndefined();
+    });
+
+    it('knows whose a key is and what role they have; a key of no user has no user', async () => {
+      const alice = await createUser(handle.db, { name: 'alice', role: 'editor' });
+      await expect(createUser(handle.db, { name: 'alice', role: 'viewer' })).rejects.toThrow(
+        'already a user',
+      );
+      const { key } = await createApiKey(handle.db, { label: 'alice laptop', user_id: alice.id });
+      expect(await verifyApiKey(handle.db, key)).toMatchObject({ user: { name: 'alice', role: 'editor' } });
+      await setUserRole(handle.db, 'alice', 'viewer');
+      expect(await verifyApiKey(handle.db, key)).toMatchObject({ user: { role: 'viewer' } });
+      const { key: legacy } = await createApiKey(handle.db, { label: 'before users' });
+      expect(await verifyApiKey(handle.db, legacy)).toMatchObject({ user: null });
+
+      // Removing a user removes their keys.
+      expect(await deleteUser(handle.db, 'alice')).toBe(true);
+      expect(await verifyApiKey(handle.db, key)).toBeUndefined();
+      expect(await deleteUser(handle.db, 'alice')).toBe(false);
+    });
+
+    it('keeps an audit log, newest first', async () => {
+      await recordAudit(handle.db, { actor: 'user:alice', action: 'POST /v1/builds', status: 202 });
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      await recordAudit(handle.db, {
+        actor: 'user:bob',
+        action: 'POST /v1/tools/:name/rollback',
+        target: 'list_invoices',
+        status: 200,
+      });
+      expect(await listAudit(handle.db)).toMatchObject([
+        { actor: 'user:bob', target: 'list_invoices' },
+        { actor: 'user:alice', target: null, status: 202 },
+      ]);
+      expect(await listAudit(handle.db, { actor: 'user:alice' })).toHaveLength(1);
     });
 
     it('stops accepting a revoked key', async () => {

@@ -8,8 +8,14 @@ import {
   type CallToolResult,
   type Tool,
 } from '@modelcontextprotocol/sdk/types.js';
-import { ToolDropError, type ToolDropErrorJson, type WorkflowView } from '@tooldrop/core';
-import { keyAllows, type PublishedTool } from '@tooldrop/db';
+import {
+  roleAllows,
+  ToolDropError,
+  type Role,
+  type ToolDropErrorJson,
+  type WorkflowView,
+} from '@tooldrop/core';
+import { keyAllows, type PublishedTool, recordAudit } from '@tooldrop/db';
 import { callInputSchema, type Engine, type Scopes } from '@tooldrop/engine';
 
 // toolDrop's MCP server (SPEC, MCP and REST interfaces): fixed management
@@ -20,9 +26,28 @@ export interface McpOptions {
   scopes?: Scopes;
   /** toolDrop's version, reported to clients. */
   version?: string;
-  /** Who the client is, for the write audit log (default "mcp"). */
+  /** Who the client is, for the audit logs (default "mcp"). */
   by?: string;
+  /** What the client may do (D-057); local stdio clients are admins. */
+  role?: Role;
+  /** Log each call that does something to the audit log: remote clients, over HTTP. */
+  audit?: boolean;
 }
+
+/** The least role a management tool needs; the rest need a viewer, and runs check their tool. */
+const TOOL_ROLES: Record<string, Role> = {
+  build_tool: 'editor',
+  discover_tools: 'editor',
+  answer_question: 'editor',
+  approve_action: 'editor',
+  create_watch: 'editor',
+  delete_watch: 'editor',
+  list_logins: 'editor',
+  add_login: 'admin',
+};
+
+/** Calls that only look, kept out of the audit log. */
+const LOOKS = new Set(['find_tool', 'get_job', 'list_watches', 'list_logins']);
 
 const INSTRUCTIONS = `toolDrop turns tasks on websites into tools. Every published tool is listed as its own tool: call it directly with its inputs. Results are plain data, returned in a second or two without a model. Use find_tool to search published tools by site or task, and run_tool to run one by name. Use create_watch to be told when a read tool's result changes.
 A tool with authority "write" changes the site, so it never acts at once: a call returns a preview (the fields it will fill, the page, a screenshot) and an approval_id. Show the preview to the user and call approve_action only with their decision. Pass dry_run: true to see a preview without asking for approval.
@@ -282,19 +307,37 @@ export function createMcpServer(engine: Engine, options: McpOptions = {}): Serve
     ],
   }));
 
+  const role = options.role ?? 'admin';
   server.setRequestHandler(CallToolRequestSchema, async ({ params }): Promise<CallToolResult> => {
     const args = params.arguments ?? {};
+    const result = await call(params.name, args);
+    if (options.audit && !LOOKS.has(params.name)) {
+      const target = [args.name, args.job_id, args.approval_id, args.watch_id, args.url].find(
+        (value): value is string => typeof value === 'string',
+      );
+      await recordAudit(engine.db, {
+        actor: by,
+        action: `mcp ${params.name}`,
+        target: target ?? null,
+        status: result.isError ? 400 : 200,
+      }).catch(() => undefined);
+    }
+    return result;
+  });
+
+  async function call(name: string, args: Record<string, unknown>): Promise<CallToolResult> {
     try {
-      if (params.name === 'build_tool') return success({ job: await engine.startBuild(args, scopes) });
-      if (params.name === 'discover_tools') return success({ job: await engine.startDiscover(args, scopes) });
-      if (params.name === 'add_login') return success({ login: await engine.addLogin(args, scopes) });
-      if (params.name === 'list_logins') {
+      requireRole(role, TOOL_ROLES[name] ?? 'viewer', by);
+      if (name === 'build_tool') return success({ job: await engine.startBuild(args, scopes) });
+      if (name === 'discover_tools') return success({ job: await engine.startDiscover(args, scopes) });
+      if (name === 'add_login') return success({ login: await engine.addLogin(args, scopes) });
+      if (name === 'list_logins') {
         return success({ logins: await engine.listLogins(scopes, optionalString(args.site, 'site')) });
       }
-      if (params.name === 'get_job') {
+      if (name === 'get_job') {
         return success({ job: await engine.getJob(requiredString(args.job_id, 'job_id'), scopes) });
       }
-      if (params.name === 'answer_question') {
+      if (name === 'answer_question') {
         const job = await engine.answerQuestion(
           requiredString(args.job_id, 'job_id'),
           requiredString(args.question_id, 'question_id'),
@@ -303,31 +346,31 @@ export function createMcpServer(engine: Engine, options: McpOptions = {}): Serve
         );
         return success({ job });
       }
-      if (params.name === 'approve_action') {
+      if (name === 'approve_action') {
         const id = requiredString(args.approval_id, 'approval_id');
         return success(await engine.decideApproval(id, args.decision, scopes, by));
       }
-      if (params.name === 'create_watch') return success(await engine.createWatch(args, scopes));
-      if (params.name === 'list_watches') return success({ watches: await engine.listWatches(scopes) });
-      if (params.name === 'delete_watch') {
+      if (name === 'create_watch') return success(await engine.createWatch(args, scopes));
+      if (name === 'list_watches') return success({ watches: await engine.listWatches(scopes) });
+      if (name === 'delete_watch') {
         const id = requiredString(args.watch_id, 'watch_id');
         await engine.deleteWatch(id, scopes);
         return success({ deleted: id });
       }
-      if (params.name === 'find_tool') {
+      if (name === 'find_tool') {
         const query = { site: optionalString(args.site, 'site'), task: optionalString(args.task, 'task') };
         return success({ tools: (await engine.findTools(query, scopes)).map(describeTool) });
       }
-      if (params.name === 'run_tool') {
+      if (name === 'run_tool') {
         if (typeof args.name !== 'string')
           throw new ToolDropError('invalid_input', 'run_tool needs a "name"');
-        return await runOrStart(engine, args.name, args.input ?? {}, scopes);
+        return await runOrStart(engine, args.name, args.input ?? {}, scopes, role, by);
       }
-      return await runOrStart(engine, params.name, args, scopes);
+      return await runOrStart(engine, name, args, scopes, role, by);
     } catch (error) {
       return failure(error, await previewImage(engine, error, scopes));
     }
-  });
+  }
 
   const unsubscribe = engine.onToolsChanged(() => {
     server.sendToolListChanged().catch(() => undefined);
@@ -389,18 +432,30 @@ async function previewImage(engine: Engine, error: unknown, scopes: Scopes): Pro
   return engine.approvalScreenshot(id, 'before', scopes).catch(() => undefined);
 }
 
-/** A tool runs and answers; a workflow starts a run and answers with its job. */
+/** A tool runs and answers; a workflow starts a run and answers with its job. A write needs an editor. */
 async function runOrStart(
   engine: Engine,
   name: string,
   input: unknown,
   scopes: Scopes,
+  role: Role,
+  by: string,
 ): Promise<CallToolResult> {
-  const workflows = await engine.listWorkflows(scopes);
-  if (workflows.some((workflow) => workflow.name === name)) {
+  const workflow = (await engine.listWorkflows(scopes)).find((candidate) => candidate.name === name);
+  if (workflow) {
+    if (workflow.authority === 'write') requireRole(role, 'editor', by);
     return success({ job: await engine.runWorkflow(name, input, scopes) });
   }
+  // The run itself answers not_found or forbidden for a tool the key may not use.
+  const tool = await engine.getTool(name).catch(() => undefined);
+  if (tool?.authority === 'write') requireRole(role, 'editor', by);
   return run(engine, name, input, scopes);
+}
+
+function requireRole(role: Role, needed: Role, by: string): void {
+  if (!roleAllows(role, needed)) {
+    throw new ToolDropError('forbidden', `this needs the ${needed} role, and ${by} is a ${role}`);
+  }
 }
 
 /** A workflow as an MCP tool: calling it starts a run, a job the agent follows with get_job. */

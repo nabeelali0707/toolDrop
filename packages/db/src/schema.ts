@@ -8,6 +8,7 @@ import {
   LOGIN_STATUSES,
   POLICY_OPERATORS,
   RECIPE_ORIGINS,
+  ROLES,
   STRATEGIES,
   TOOL_STATUSES,
   TWOFA_METHODS,
@@ -341,9 +342,11 @@ export const api_keys = sqliteTable(
     scopes: text({ mode: 'json' }).$type<string[]>().notNull().default(['*']),
     last_used_at: integer({ mode: 'timestamp_ms' }),
     revoked_at: integer({ mode: 'timestamp_ms' }),
+    /** The user the key belongs to; a key of no user acts as an admin, as keys did before users. */
+    user_id: text().references(() => users.id, { onDelete: 'cascade' }),
     ...timestamps,
   },
-  (t) => [uniqueIndex('api_keys_key_hash_unique').on(t.key_hash)],
+  (t) => [uniqueIndex('api_keys_key_hash_unique').on(t.key_hash), index('api_keys_user_id').on(t.user_id)],
 );
 
 /**
@@ -402,4 +405,30 @@ export const workflows = sqliteTable(
     uniqueIndex('workflows_name_unique').on(t.name),
     oneOf('workflows_authority', t.authority, AUTHORITIES),
   ],
+);
+
+/** People who use a self-hosted toolDrop, each with a role (SPEC, Self-hosting). */
+export const users = sqliteTable(
+  'users',
+  {
+    id: text().primaryKey(),
+    name: text().notNull(),
+    role: text({ enum: ROLES }).notNull(),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex('users_name_unique').on(t.name), oneOf('users_role', t.role, ROLES)],
+);
+
+/** Who did what over the REST API and remote MCP: never a request's body. */
+export const audit_events = sqliteTable(
+  'audit_events',
+  {
+    id: text().primaryKey(),
+    actor: text().notNull(),
+    action: text().notNull(),
+    target: text(),
+    status: integer(),
+    ...timestamps,
+  },
+  (t) => [index('audit_events_created_at').on(t.created_at), index('audit_events_actor').on(t.actor)],
 );

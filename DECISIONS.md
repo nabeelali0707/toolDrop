@@ -597,3 +597,14 @@ SPEC's Security criterion: no API, log, error or model prompt ever holds a plain
 - **A run is a job** (the new `workflow` kind), followed with `get_job` like a build. It runs in the process that started it, outside the build queue, because a run can wait hours for an approval and must not hold up builds.
 - **Writes keep safe mode:** a write step calls its tool as any caller would, so a policy may approve it. Otherwise the run asks a question with the write's preview, and either answering it or deciding the approval itself (Approvals page, `approve_action`) lets the run go on. Every write keeps its approval row, decided by `job:<id>` when answered through the run. A workflow is a write workflow when any step or compensation writes.
 - **The SQLite migration rebuilds `jobs`** for the new kind's check. Migrations run in a transaction, where foreign keys cannot be switched off, so the rows that reference jobs (model calls, captures, runs' heal jobs) are kept aside and put back; a test upgrades a filled database from the previous version.
+
+### D-057 Users, roles and the audit log
+
+*Proposed · 2026-10-31*
+
+- **Three roles,** each allowing what the one before it does: `viewer` (read everything, run read tools), `editor` (build, discover, publish, roll back, run writes, decide approvals, answer questions, watches and workflows) and `admin` (also logins, approval policies and the audit log). Logins are credentials and policies bypass approvals, so both are an admin's.
+- **Keys belong to users.** A user's keys act with the user's role; scopes still limit tools. A key of no user acts as an admin, so the keys made before users, and the first key `tooldrop serve` prints, keep working. Removing a user removes their keys.
+- **Checked where people come in:** REST routes (a table of the least role per route: reads need a viewer, changes an editor) and each remote MCP call. A run checks its tool or workflow, so a viewer may run reads but not a write's preview. The terminal and stdio MCP are the machine's owner and stay outside roles, as before.
+- **Users are managed from the terminal** (`tooldrop users`, inside the container when self-hosted), not over the API: making keys stays with whoever runs the server.
+- **The audit log** keeps every change over REST and remote MCP: actor (`user:<name>`, or `api-key:<label>` for a key of no user), action (`POST /v1/builds`, `mcp build_tool`), target and status, refused attempts included. Reads are left out, and request bodies are never kept, since a login's holds a password. The approvals stay the fuller record of each write.
+- **The dashboard** shows who is signed in and their role, and an Audit log page for admins.

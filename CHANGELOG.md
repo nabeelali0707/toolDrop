@@ -43,6 +43,7 @@ This file covers the project as a whole. From the first release on, the publishe
   - A daily health check in `tooldrop serve`, and `tooldrop tools check` to run it now.
   - Version history and rollback: `GET /v1/tools/:name/versions` and `POST /v1/tools/:name/rollback`, and `tooldrop tools versions` and `tooldrop tools rollback`.
   - API keys for OpenAI-compatible endpoints, sealed in the vault.
+- Users, roles and an audit log (Phase 5): viewers, editors and admins, each with their own API keys (`tooldrop users`), checked on every REST route and remote MCP call; every change over the API is logged with who made it (`tooldrop audit`, the dashboard's Audit log page).
 - Multi-site workflows (Phase 5): chain tools on several sites into one, passing results between steps, with retries and compensating steps on failure. Writes still wait for approval. Workflows are MCP tools; also `/v1/workflows` and `tooldrop workflows`.
 - URL-first discovery (Phase 5): give a URL only, and toolDrop looks around the site, signed in, and proposes tools to build. `discover_tools` over MCP, `POST /v1/discover`, `tooldrop discover`, and a Discover box on the dashboard.
 - Code export (Phase 5): `tooldrop export <tool>` writes the tool as a standalone, typed npm package that runs without toolDrop, with toolDrop's runtime bundled in. A signed-in tool takes its login at call time; a write tool exports preview and commit.

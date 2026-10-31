@@ -5,7 +5,14 @@ import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { memoryKeyStore } from '@tooldrop/auth';
-import { createApiKey, openDatabase, runMigrations, type DatabaseHandle } from '@tooldrop/db';
+import {
+  createApiKey,
+  createUser,
+  listAudit,
+  openDatabase,
+  runMigrations,
+  type DatabaseHandle,
+} from '@tooldrop/db';
 import { Engine, readToolFile } from '@tooldrop/engine';
 import { startHtmlAppFixture } from '@tooldrop/fixture-html-app';
 import type { RunningFixture } from '@tooldrop/fixture-kit';
@@ -98,6 +105,73 @@ describe('REST API', () => {
 
     const scoped = (await createApiKey(handle.db, { label: 'scoped', scopes: ['list_orders'] })).key;
     expect((await run('search_invoices', {}, { authorization: `Bearer ${scoped}` })).statusCode).toBe(403);
+  });
+});
+
+describe('roles and the audit log', () => {
+  /** A user with a role, and a key of theirs, as `tooldrop users add` makes them. */
+  async function as(name: string, role: 'viewer' | 'editor' | 'admin') {
+    const user = await createUser(handle.db, { name, role });
+    const { key: userKey } = await createApiKey(handle.db, { label: name, user_id: user.id });
+    return (method: 'GET' | 'POST' | 'DELETE', url: string, payload?: object) =>
+      app.inject({
+        method,
+        url,
+        headers: { authorization: `Bearer ${userKey}` },
+        ...(payload && { payload }),
+      });
+  }
+
+  it('lets each role do what it may, and logs who changed what', async () => {
+    await engine.publish(
+      readToolFile(
+        fileURLToPath(new URL('../../../fixtures/recipes/html-app.record_payment.json', import.meta.url)),
+      ),
+      fixture.url,
+    );
+    const viewer = await as('vera', 'viewer');
+    const editor = await as('eddie', 'editor');
+    const admin = await as('ada', 'admin');
+
+    expect((await viewer('GET', '/v1/me')).json()).toMatchObject({ by: 'user:vera', role: 'viewer' });
+    expect((await viewer('GET', '/v1/tools')).statusCode).toBe(200);
+    expect((await viewer('POST', '/v1/tools/search_invoices/run', { status: 'paid' })).statusCode).toBe(200);
+    // A write, even its preview, and anything that changes toolDrop, needs an editor.
+    const write = await viewer('POST', '/v1/tools/record_payment/run', { invoice: 'INV-1057', amount: 1 });
+    expect(write.statusCode).toBe(403);
+    expect(write.json()).toMatchObject({
+      error: { message: 'this needs the editor role, and user:vera is a viewer' },
+    });
+    expect(
+      (await viewer('POST', '/v1/builds', { url: fixture.url, task: 'x', authority: 'read' })).statusCode,
+    ).toBe(403);
+    expect((await viewer('GET', '/v1/audit')).statusCode).toBe(403);
+
+    // Logins and policies are an admin's.
+    expect((await editor('GET', '/v1/logins')).statusCode).toBe(200);
+    expect(
+      (await editor('POST', '/v1/policies', { tool: 'record_payment', field: 'amount', op: '<', value: 5 }))
+        .statusCode,
+    ).toBe(403);
+    expect(
+      (await admin('POST', '/v1/policies', { tool: 'record_payment', field: 'amount', op: '<', value: 5 }))
+        .statusCode,
+    ).toBe(201);
+    // A key of no user, as keys were before users, is an admin.
+    expect((await app.inject({ url: '/v1/me', headers: auth() })).json()).toMatchObject({ role: 'admin' });
+
+    const events = (await admin('GET', '/v1/audit')).json<{
+      events: { actor: string; action: string; status: number }[];
+    }>().events;
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ actor: 'user:ada', action: 'POST /v1/policies', status: 201 }),
+        expect.objectContaining({ actor: 'user:eddie', action: 'POST /v1/policies', status: 403 }),
+        expect.objectContaining({ actor: 'user:vera', action: 'POST /v1/tools/:name/run', status: 403 }),
+      ]),
+    );
+    // Reads are not logged.
+    expect(events.some((event) => event.action.startsWith('GET'))).toBe(false);
   });
 });
 
@@ -487,6 +561,37 @@ describe('MCP over Streamable HTTP', () => {
     const response = await client.callTool({ name: 'search_invoices', arguments: { status: 'paid' } });
     expect(response.isError).toBeFalsy();
     await client.close();
+  });
+
+  it("checks a remote client's role on each call, and logs the calls that do something", async () => {
+    await app.listen({ host: '127.0.0.1', port: 0 });
+    const address = app.server.address();
+    const port = typeof address === 'object' && address ? address.port : 0;
+    const user = await createUser(handle.db, { name: 'vera', role: 'viewer' });
+    const viewerKey = (await createApiKey(handle.db, { label: 'vera', user_id: user.id })).key;
+
+    const client = new Client({ name: 'remote-client', version: '1.0.0' });
+    await client.connect(
+      new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`), {
+        requestInit: { headers: { authorization: `Bearer ${viewerKey}` } },
+      }),
+    );
+    expect(
+      (await client.callTool({ name: 'search_invoices', arguments: { status: 'paid' } })).isError,
+    ).toBeFalsy();
+    const build = await client.callTool({
+      name: 'build_tool',
+      arguments: { url: fixture.url, task: 'list suppliers', authority: 'read' },
+    });
+    expect(build.isError).toBe(true);
+    expect(JSON.stringify(build.content)).toContain('this needs the editor role');
+    await client.close();
+
+    const events = await listAudit(handle.db, { actor: 'user:vera' });
+    expect(events.map((event) => [event.action, event.status])).toEqual([
+      ['mcp build_tool', 400],
+      ['mcp search_invoices', 200],
+    ]);
   });
 
   it('refuses MCP requests without a key', async () => {

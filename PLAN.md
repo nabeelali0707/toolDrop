@@ -188,7 +188,11 @@ Items marked "split first" are broken into day-sized tasks before work starts.
   Files: `compose.yaml`, `.dockerignore`, `.gitignore`, `apps/cli/src/home.ts`, `packages/db/src/client.ts`, `scripts/zero-cost-e2e.ts`, docs
 - [ ] **5.4 Zero-cost check.** A script that, on a clean machine with no API keys, runs `docker compose up`, builds and runs a fixture tool.
   Files: `scripts/zero-cost-e2e.sh`
-- [ ] **5.5 Multi-user, roles, audit logs** (split first).
+- [x] **5.5 Multi-user, roles, audit logs**, split into:
+  - [x] **5.5a Users and roles.** A `users` table with viewer, editor and admin; API keys belong to a user, and a key of no user acts as an admin; `tooldrop users` and `keys create --user`.
+  - [x] **5.5b Enforcement.** Each REST route and remote MCP call checks the role; a viewer runs read tools only (D-057).
+  - [x] **5.5c Audit log.** Every change over REST and remote MCP, with its actor and outcome, never a body; `GET /v1/audit`, `tooldrop audit`, the dashboard's Audit log page, and who is signed in on the dashboard.
+  Files: `packages/core/src/users.ts`, `packages/db/{src/schema*.ts,src/repos/{users,api-keys}.ts,migrations*/}`, `apps/server/src/app.ts`, `apps/mcp/src/server.ts`, `apps/cli/src/commands/{users,keys}.ts`, `apps/dashboard`, tests
 
 **More 2FA methods**
 

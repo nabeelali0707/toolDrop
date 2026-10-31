@@ -2,14 +2,16 @@ import {
   APPROVAL_STATUSES,
   JOB_KINDS,
   JOB_STATUSES,
+  roleAllows,
   ToolDropError,
   type ApprovalStatus,
   type ErrorCode,
   type JobKind,
   type JobStatus,
+  type Role,
   type ToolDropErrorJson,
 } from '@tooldrop/core';
-import { verifyApiKey, type PublishedTool } from '@tooldrop/db';
+import { listAudit, recordAudit, verifyApiKey, type KeyHolder, type PublishedTool } from '@tooldrop/db';
 import { callInputSchema, type Engine, type Scopes } from '@tooldrop/engine';
 import { handleMcpHttp } from '@tooldrop/mcp';
 import fastifyStatic from '@fastify/static';
@@ -50,8 +52,10 @@ declare module 'fastify' {
   interface FastifyRequest {
     /** The tools the caller's API key may use. */
     scopes: Scopes;
-    /** Who is calling, for the write audit log: "api-key:<label>". */
+    /** Who is calling, for the audit logs: "user:<name>", or "api-key:<label>" for a key of no user. */
     by: string;
+    /** What the caller may do (D-057): a key of no user is an admin. */
+    role: Role;
     /** The body as sent, for routes that check a signature over it. */
     rawBody?: string;
   }
@@ -61,6 +65,7 @@ export function createServer({ engine, version = '0.0.0', dashboardDir }: Server
   const app = Fastify({ logger: false });
   app.decorateRequest('scopes', null as unknown as Scopes);
   app.decorateRequest('by', '');
+  app.decorateRequest('role', 'viewer' as Role);
   keepRawJson(app);
 
   app.addHook('onRequest', async (request) => {
@@ -68,7 +73,24 @@ export function createServer({ engine, version = '0.0.0', dashboardDir }: Server
     if (!needsKey(request.url)) return;
     const key = await authenticate(engine, request);
     request.scopes = key.scopes;
-    request.by = `api-key:${key.label}`;
+    request.role = key.user?.role ?? 'admin';
+    request.by = key.user ? `user:${key.user.name}` : `api-key:${key.label}`;
+    requireRole(request, routeRole(request.method, request.routeOptions.url ?? ''));
+  });
+
+  // The audit log (D-057): every change over the API, who made it and how it went. Reads are not
+  // logged, MCP logs its own calls, and a request's body is never kept: a login's would hold a password.
+  app.addHook('onResponse', async (request, reply) => {
+    const route = request.routeOptions.url;
+    if (request.method === 'GET' || !route || route === '/mcp' || !request.by || !needsKey(request.url))
+      return;
+    const params = (request.params ?? {}) as Record<string, string | undefined>;
+    await recordAudit(engine.db, {
+      actor: request.by,
+      action: `${request.method} ${route}`,
+      target: params.name ?? params.id ?? null,
+      status: reply.statusCode,
+    }).catch(() => undefined);
   });
 
   registerSmsRoute(app, engine);
@@ -144,6 +166,10 @@ export function createServer({ engine, version = '0.0.0', dashboardDir }: Server
 
   app.post('/v1/tools/:name/run', async (request) => {
     const { name } = request.params as { name: string };
+    // A viewer runs read tools; a write, even its preview, needs an editor.
+    // The run itself answers not_found or forbidden for a tool the key may not use.
+    const tool = await engine.getTool(name).catch(() => undefined);
+    if (tool?.authority === 'write') requireRole(request, 'editor');
     const { result, meta } = await engine.runTool(name, request.body ?? {}, request.scopes);
     return { result, meta };
   });
@@ -211,6 +237,8 @@ export function createServer({ engine, version = '0.0.0', dashboardDir }: Server
 
   app.post('/v1/workflows/:name/run', async (request, reply) => {
     const { name } = request.params as { name: string };
+    if ((await engine.getWorkflow(name, request.scopes)).authority === 'write')
+      requireRole(request, 'editor');
     return reply.code(202).send({ job: await engine.runWorkflow(name, request.body ?? {}, request.scopes) });
   });
 
@@ -309,11 +337,39 @@ export function createServer({ engine, version = '0.0.0', dashboardDir }: Server
     return reply.code(201).send({ id });
   });
 
+  // Who is calling: the dashboard shows it, and offers what the role allows.
+  app.get('/v1/me', (request) => ({ by: request.by, role: request.role, scopes: request.scopes }));
+
+  // The audit log, newest first: for admins (D-057).
+  app.get('/v1/audit', async (request) => {
+    const { actor, before, limit } = request.query as { actor?: string; before?: string; limit?: string };
+    const until = before === undefined ? undefined : new Date(before);
+    if (until && Number.isNaN(until.getTime()))
+      throw new ToolDropError('invalid_input', 'before is a date and time');
+    const events = await listAudit(engine.db, {
+      ...(actor && { actor }),
+      ...(until && { before: until }),
+      limit: pageSize(limit),
+    });
+    return {
+      events: events.map((event) => ({
+        id: event.id,
+        actor: event.actor,
+        action: event.action,
+        target: event.target,
+        status: event.status,
+        created_at: event.created_at.toISOString(),
+      })),
+    };
+  });
+
   app.post('/mcp', async (request, reply) => {
     reply.hijack();
     await handleMcpHttp(engine, request.raw, reply.raw, request.body, {
       scopes: request.scopes,
       by: request.by,
+      role: request.role,
+      audit: true,
       version,
     });
   });
@@ -389,10 +445,39 @@ export function createSmsServer({ engine }: { engine: Engine }): FastifyInstance
   return app;
 }
 
-async function authenticate(
-  engine: Engine,
-  request: FastifyRequest,
-): Promise<{ scopes: Scopes; label: string }> {
+/**
+ * The least role each route needs (D-057). Routes not listed need a viewer to
+ * read and an editor to change anything. Runs check their tool or workflow:
+ * a viewer may run reads. MCP checks each call.
+ */
+const ROUTE_ROLES: Record<string, Role> = {
+  'GET /v1/audit': 'admin',
+  'POST /v1/logins': 'admin',
+  'POST /v1/policies': 'admin',
+  'DELETE /v1/policies/:id': 'admin',
+  'GET /v1/logins': 'editor',
+  'GET /v1/tools/:name/export': 'editor',
+  'POST /v1/tools/:name/run': 'viewer',
+  'POST /v1/workflows/:name/run': 'viewer',
+  'POST /mcp': 'viewer',
+  'GET /mcp': 'viewer',
+  'DELETE /mcp': 'viewer',
+};
+
+function routeRole(method: string, route: string): Role {
+  return ROUTE_ROLES[`${method} ${route}`] ?? (method === 'GET' || method === 'HEAD' ? 'viewer' : 'editor');
+}
+
+function requireRole(request: FastifyRequest, needed: Role): void {
+  if (!roleAllows(request.role, needed)) {
+    throw new ToolDropError(
+      'forbidden',
+      `this needs the ${needed} role, and ${request.by} is a ${request.role}`,
+    );
+  }
+}
+
+async function authenticate(engine: Engine, request: FastifyRequest): Promise<KeyHolder> {
   const key = /^Bearer\s+(\S+)$/i.exec(request.headers.authorization ?? '')?.[1];
   const record = key ? await verifyApiKey(engine.db, key) : undefined;
   if (!record) {

@@ -49,6 +49,26 @@ cosign verify ghcr.io/nabeelali0707/tooldrop:latest   --certificate-identity-reg
 
 The image also runs on its own, without the stack: `docker run -p 127.0.0.1:3000:3000 -v tooldrop-data:/data ghcr.io/nabeelali0707/tooldrop:latest`. It keeps its data in SQLite and creates the master key in `/data/master.key`, in the same volume as the database, so anyone who can read that volume, or a backup of it, can open the saved logins.
 
+## Users and roles
+
+Each person gets a user with a role, and API keys of their own. Run the commands inside the app's container:
+
+```sh
+docker compose exec app tooldrop users add alice --role editor
+```
+
+| Role | May |
+| --- | --- |
+| `viewer` | See tools, runs, jobs, approvals, watches and workflows, and run read tools |
+| `editor` | Also build and discover tools, publish and roll back, run write tools and approve writes, answer questions, and manage watches and workflows |
+| `admin` | Also save logins, set approval policies, and read the audit log |
+
+A key's scopes still limit which tools it may use. A key of no user, such as the first one `tooldrop serve` prints, acts as an admin. `tooldrop users list`, `tooldrop users role <name> <role>` and `tooldrop users remove <name>` (which removes their keys too) manage them; `tooldrop keys create --user <name>` gives someone another key.
+
+**The audit log** records every change made over the REST API and remote MCP: who, what, on which tool or job, and the outcome, including refused attempts. Reads are not logged, and a request's body never is. Admins read it on the dashboard's Audit log page, with `GET /v1/audit`, or with `tooldrop audit`. Writes keep their own, fuller record in the approvals: inputs, preview, screenshots and outcome.
+
+The terminal and local MCP clients act as the machine's owner, outside roles.
+
 ## Postgres
 
 toolDrop uses Postgres when `TOOLDROP_DATABASE_URL` holds a Postgres URL, for `tooldrop serve`, the Docker image and every other command:

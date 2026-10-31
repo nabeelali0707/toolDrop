@@ -13,6 +13,7 @@ import { run } from './commands/run.ts';
 import { serve } from './commands/serve.ts';
 import { sms } from './commands/sms.ts';
 import { tools } from './commands/tools.ts';
+import { audit, users } from './commands/users.ts';
 import { workflows } from './commands/workflows.ts';
 import { version } from './home.ts';
 
@@ -34,6 +35,8 @@ Usage: tooldrop <command> [options]
   keys create            Create an API key for REST and remote MCP (--label, --scopes a,b)
   keys list              List API keys
   keys revoke <id>       Revoke an API key
+  users add <name>       Add a person with a role and their API key (--role viewer|editor|admin; then list, role, remove)
+  audit                  What was changed over the API, by whom (--actor user:<name>, --limit)
   logins add <site>      Save a login, sealed in the vault (--username, --totp, --human, --sms or --email <sender>, --password-stdin)
   logins list            List saved logins, masked
   logins verify <site>   Sign in now and keep the session, asking for a code when needed
@@ -68,6 +71,8 @@ const COMMANDS: Record<string, (args: string[]) => Promise<number>> = {
   export: exportTool,
   discover,
   workflows,
+  users,
+  audit,
 };
 
 async function main(argv: string[]): Promise<number> {
