@@ -18,6 +18,7 @@ import {
   type LoginRecipe,
   type Step,
   type TwofaConfig,
+  type WorkflowStep,
   type WritePreview,
 } from '@tooldrop/core';
 import { sql } from 'drizzle-orm';
@@ -382,4 +383,23 @@ export const captures = sqliteTable(
     ...timestamps,
   },
   (t) => [index('captures_job_id').on(t.job_id)],
+);
+
+/** Multi-site workflows: published tools chained into one (SPEC, Differentiating features). */
+export const workflows = sqliteTable(
+  'workflows',
+  {
+    id: text().primaryKey(),
+    name: text().notNull(),
+    description: text().notNull(),
+    authority: text({ enum: AUTHORITIES }).notNull(),
+    input_schema: text({ mode: 'json' }).$type<JsonSchema>().notNull(),
+    steps: text({ mode: 'json' }).$type<WorkflowStep[]>().notNull(),
+    output: text({ mode: 'json' }).$type<unknown>(),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('workflows_name_unique').on(t.name),
+    oneOf('workflows_authority', t.authority, AUTHORITIES),
+  ],
 );

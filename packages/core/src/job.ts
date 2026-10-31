@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { authoritySchema, idSchema } from './common.ts';
 
-export const JOB_KINDS = ['build', 'heal', 'discover'] as const;
+export const JOB_KINDS = ['build', 'heal', 'discover', 'workflow'] as const;
 export const jobKindSchema = z.enum(JOB_KINDS);
 export type JobKind = z.infer<typeof jobKindSchema>;
 

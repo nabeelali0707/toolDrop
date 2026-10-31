@@ -7,3 +7,4 @@ export * from './tools.ts';
 export * from './watches.ts';
 export * from './approvals.ts';
 export * from './stats.ts';
+export * from './workflows.ts';

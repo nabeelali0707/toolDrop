@@ -211,7 +211,11 @@ Items marked "split first" are broken into day-sized tasks before work starts.
   - [x] **5.10b Propose.** The reasoning model turns the notes into a catalog of tools (name, description, task, start page, authority, inputs), checked by schema and kept on the site.
   - [x] **5.10c Interfaces.** Discover jobs on the build queue; `discover_tools`, `POST /v1/discover`, `tooldrop discover`, and the dashboard's Discover box with one-click builds (D-055).
   Files: `packages/compiler/src/discover/{crawl,propose}.ts`, `packages/core/src/job.ts`, `packages/engine/src/{builds,engine}.ts`, `apps/{mcp,server,cli,dashboard}`, `fixtures/html-app/src/server.ts`, tests
-- [ ] **5.11 Multi-site workflows**
+- [x] **5.11 Multi-site workflows**, split into:
+  - [x] **5.11a The workflow file.** Steps that call published tools, templates from the workflow's inputs and earlier results, retries, compensations and an output; checked before saving (`core`, the `workflows` table and its migrations on both databases, the `workflow` job kind).
+  - [x] **5.11b Runs.** A run is a job: steps in order with retries, compensations newest first on failure; writes through safe mode, approved by a policy or a person through the job's question or the approval (D-056).
+  - [x] **5.11c Interfaces.** Workflows as MCP tools that start runs; `/v1/workflows`; `tooldrop workflows`.
+  Files: `packages/core/src/workflow.ts`, `packages/db/{src/schema*.ts,src/repos/workflows.ts,migrations*/}`, `packages/engine/src/workflows.ts`, `apps/{mcp,server,cli}`, docs, tests
 - [x] **5.12 Code export**, split into:
   - [x] **5.12a The runtime an export carries.** toolDrop's runtime and a small entry, bundled into one file at build time (from source on first use), with third-party packages as the export's dependencies.
   - [x] **5.12b The package.** `tool.json`, typed `index.js` and `index.d.ts` from the schemas, a README and the license; write tools as preview and commit; signed-in sites get their login recipe, never the login (D-054).

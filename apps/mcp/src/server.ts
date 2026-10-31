@@ -8,7 +8,7 @@ import {
   type CallToolResult,
   type Tool,
 } from '@modelcontextprotocol/sdk/types.js';
-import { ToolDropError, type ToolDropErrorJson } from '@tooldrop/core';
+import { ToolDropError, type ToolDropErrorJson, type WorkflowView } from '@tooldrop/core';
 import { keyAllows, type PublishedTool } from '@tooldrop/db';
 import { callInputSchema, type Engine, type Scopes } from '@tooldrop/engine';
 
@@ -275,7 +275,11 @@ export function createMcpServer(engine: Engine, options: McpOptions = {}): Serve
     ? [...MANAGEMENT_TOOLS, ...BUILD_TOOLS, ...LOGIN_TOOLS]
     : MANAGEMENT_TOOLS;
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [...management, ...(await engine.listTools(scopes)).map(toMcpTool)],
+    tools: [
+      ...management,
+      ...(await engine.listTools(scopes)).map(toMcpTool),
+      ...(await engine.listWorkflows(scopes)).map(toMcpWorkflow),
+    ],
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async ({ params }): Promise<CallToolResult> => {
@@ -317,9 +321,9 @@ export function createMcpServer(engine: Engine, options: McpOptions = {}): Serve
       if (params.name === 'run_tool') {
         if (typeof args.name !== 'string')
           throw new ToolDropError('invalid_input', 'run_tool needs a "name"');
-        return await run(engine, args.name, args.input ?? {}, scopes);
+        return await runOrStart(engine, args.name, args.input ?? {}, scopes);
       }
-      return await run(engine, params.name, args, scopes);
+      return await runOrStart(engine, params.name, args, scopes);
     } catch (error) {
       return failure(error, await previewImage(engine, error, scopes));
     }
@@ -383,6 +387,35 @@ async function previewImage(engine: Engine, error: unknown, scopes: Scopes): Pro
   const id = (error.details as { approval_id?: unknown } | undefined)?.approval_id;
   if (typeof id !== 'string') return undefined;
   return engine.approvalScreenshot(id, 'before', scopes).catch(() => undefined);
+}
+
+/** A tool runs and answers; a workflow starts a run and answers with its job. */
+async function runOrStart(
+  engine: Engine,
+  name: string,
+  input: unknown,
+  scopes: Scopes,
+): Promise<CallToolResult> {
+  const workflows = await engine.listWorkflows(scopes);
+  if (workflows.some((workflow) => workflow.name === name)) {
+    return success({ job: await engine.runWorkflow(name, input, scopes) });
+  }
+  return run(engine, name, input, scopes);
+}
+
+/** A workflow as an MCP tool: calling it starts a run, a job the agent follows with get_job. */
+function toMcpWorkflow(workflow: WorkflowView): Tool {
+  const read = workflow.authority === 'read';
+  return {
+    name: workflow.name,
+    description: `${workflow.description} A workflow across sites: a call starts a run and returns its job; follow it with get_job.${
+      read
+        ? ''
+        : " Its writes wait for approval: answer the job's question with answer_question, or use approve_action."
+    }`,
+    inputSchema: workflow.input_schema as Tool['inputSchema'],
+    annotations: { readOnlyHint: read, openWorldHint: true },
+  };
 }
 
 function toMcpTool(tool: PublishedTool): Tool {

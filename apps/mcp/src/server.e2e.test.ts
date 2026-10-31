@@ -115,6 +115,28 @@ describe('MCP server', () => {
     });
   });
 
+  it('lists a workflow as a tool, whose call starts a run', async () => {
+    await engine.saveWorkflow({
+      name: 'first_paid_invoice',
+      description: 'The number of the newest paid invoice.',
+      input_schema: { type: 'object', properties: {} },
+      steps: [{ id: 'paid', tool: 'search_invoices', inputs: { status: 'paid' } }],
+      output: '{{steps.paid.result.0.number}}',
+    });
+    const { client, call } = await connect();
+    const listed = (await client.listTools()).tools.find((tool) => tool.name === 'first_paid_invoice');
+    expect(listed?.description).toContain('starts a run and returns its job');
+    expect(listed?.annotations).toMatchObject({ readOnlyHint: true });
+    const started = (await call('first_paid_invoice')).structuredContent as {
+      job: { id: string; kind: string };
+    };
+    expect(started.job.kind).toBe('workflow');
+    await engine.workflows.idle();
+    expect((await engine.getJob(started.job.id)).result).toMatchObject({
+      output: expect.stringMatching(/^INV-/) as string,
+    });
+  });
+
   it('tells clients when the tool list changes', async () => {
     const { client } = await connect();
     const changed = new Promise<void>((resolve) => {

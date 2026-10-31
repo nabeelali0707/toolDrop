@@ -191,6 +191,29 @@ export function createServer({ engine, version = '0.0.0', dashboardDir }: Server
     reply.code(202).send({ job: await engine.startBuild(request.body ?? {}, request.scopes) }),
   );
 
+  // Multi-site workflows: tools chained into one, run as jobs (SPEC, Differentiating features).
+  app.post('/v1/workflows', async (request, reply) =>
+    reply.code(201).send({ workflow: await engine.saveWorkflow(request.body ?? {}, request.scopes) }),
+  );
+
+  app.get('/v1/workflows', async (request) => ({ workflows: await engine.listWorkflows(request.scopes) }));
+
+  app.get('/v1/workflows/:name', async (request) => {
+    const { name } = request.params as { name: string };
+    return { workflow: await engine.getWorkflow(name, request.scopes) };
+  });
+
+  app.delete('/v1/workflows/:name', async (request, reply) => {
+    const { name } = request.params as { name: string };
+    await engine.deleteWorkflow(name, request.scopes);
+    return reply.code(204).send();
+  });
+
+  app.post('/v1/workflows/:name/run', async (request, reply) => {
+    const { name } = request.params as { name: string };
+    return reply.code(202).send({ job: await engine.runWorkflow(name, request.body ?? {}, request.scopes) });
+  });
+
   // URL-first discovery: a URL only; the job proposes tools to build (SPEC, Differentiating features).
   app.post('/v1/discover', async (request, reply) =>
     reply.code(202).send({ job: await engine.startDiscover(request.body ?? {}, request.scopes) }),

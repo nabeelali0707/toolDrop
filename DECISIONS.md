@@ -587,3 +587,13 @@ SPEC's Security criterion: no API, log, error or model prompt ever holds a plain
 - **Proposals are suggestions:** each has a name, a description, the task and start page that `build_tool` takes, its authority and its likely inputs. Proposals off the site or with a repeated name are dropped, and one whose name a published tool on the site already has says so. Building stays a separate, deliberate step. Builds make read tools, so a proposed write points to a tool file with a commit step until write builds arrive (5.13).
 - **Jobs:** discover jobs (the `discover` kind SPEC's data model has) wait in the build queue, since they drive a browser and a model too, and can ask questions, such as a 2FA code while signing in.
 - **The HTML fixture links its payment form** from the invoice list, as real sites link their forms, so the crawl test finds the site's write side.
+
+### D-056 How multi-site workflows work
+
+*Proposed · 2026-10-31*
+
+- **A workflow is its own record, not a tool.** Tools belong to one site, and a workflow spans several, so workflows have their own table. A tool and a workflow cannot share a name, since MCP lists both side by side.
+- **Steps, templates, retries, compensations:** steps call published tools in order. Inputs are values or `{{input.x}}` and `{{steps.id.result...}}` templates read by dotted path; a whole-value template keeps its type. A step is retried up to 3 times with backoff; a rejected write is not retried. When a step fails for good, the compensations of the steps done run newest first, and the job's error says what was and was not undone. Templates may only read steps that come before, checked when the workflow is saved.
+- **A run is a job** (the new `workflow` kind), followed with `get_job` like a build. It runs in the process that started it, outside the build queue, because a run can wait hours for an approval and must not hold up builds.
+- **Writes keep safe mode:** a write step calls its tool as any caller would, so a policy may approve it. Otherwise the run asks a question with the write's preview, and either answering it or deciding the approval itself (Approvals page, `approve_action`) lets the run go on. Every write keeps its approval row, decided by `job:<id>` when answered through the run. A workflow is a write workflow when any step or compensation writes.
+- **The SQLite migration rebuilds `jobs`** for the new kind's check. Migrations run in a transaction, where foreign keys cannot be switched off, so the rows that reference jobs (model calls, captures, runs' heal jobs) are kept aside and put back; a test upgrades a filled database from the previous version.

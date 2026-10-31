@@ -43,6 +43,13 @@
       "when": 1793179861651,
       "tag": "0005_safe_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1793452336911,
+      "tag": "0006_workflows",
+      "breakpoints": true
     }
   ]
 }

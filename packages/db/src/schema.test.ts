@@ -1,10 +1,14 @@
-import { readFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { newId } from '@tooldrop/core';
 import { eq, getTableName, sql, type SQL, type Table } from 'drizzle-orm';
 import { getTableConfig as pgTableConfig } from 'drizzle-orm/pg-core';
+import { migrate as migrateSqlite } from 'drizzle-orm/better-sqlite3/migrator';
 import { getTableConfig as sqliteTableConfig } from 'drizzle-orm/sqlite-core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { first, one, tablesOf, type Db, type DatabaseHandle } from './client.ts';
+import { first, one, openDatabase, tablesOf, type Db, type DatabaseHandle } from './client.ts';
+import { MIGRATIONS_FOLDER, runMigrations } from './migrate.ts';
 import * as pgTables from './schema.pg.ts';
 import * as sqliteTables from './schema.ts';
 import { DIALECTS, openTestDatabase } from './testing.ts';
@@ -388,6 +392,40 @@ describe('Postgres tables', () => {
     for (const [name, table] of Object.entries(sqliteTables)) {
       const pgTable = pgTables[name as keyof typeof pgTables];
       expect(shapeOf(pgTableConfig(pgTable)), name).toEqual(shapeOf(sqliteTableConfig(table)));
+    }
+  });
+});
+
+describe('the SQLite upgrade that adds workflows (0006)', () => {
+  it("keeps every job's model calls, captures and heal links while jobs is rebuilt", async () => {
+    // A database as the version before had it: every migration up to 0005.
+    const folder = mkdtempSync(join(tmpdir(), 'tooldrop-migrations-'));
+    cpSync(MIGRATIONS_FOLDER, folder, { recursive: true });
+    const journalPath = join(folder, 'meta', '_journal.json');
+    const journal = JSON.parse(readFileSync(journalPath, 'utf8')) as { entries: { tag: string }[] };
+    journal.entries = journal.entries.filter((entry) => entry.tag < '0006');
+    writeFileSync(journalPath, JSON.stringify(journal));
+    const handle = openDatabase(':memory:');
+    try {
+      migrateSqlite(handle.db, { migrationsFolder: folder });
+      const rows = await seed(handle.db);
+
+      await runMigrations(handle.db);
+      const t = tablesOf(handle.db);
+      expect(await handle.db.select().from(t.llm_calls)).toHaveLength(1);
+      expect(await handle.db.select().from(t.captures)).toHaveLength(1);
+      const run = first(await handle.db.select().from(t.runs).where(eq(t.runs.id, rows.run.id)));
+      expect(run?.heal_job_id).toBe(rows.job.id);
+      // The new kind, and the foreign keys still checked.
+      await handle.db.insert(t.jobs).values({ id: newId(), kind: 'workflow', input: {} });
+      expect(
+        await databaseError(() =>
+          handle.db.insert(t.llm_calls).values({ ...rows.llmCall, id: newId(), job_id: newId() }),
+        ),
+      ).toBe('FOREIGN KEY constraint failed');
+    } finally {
+      await handle.close();
+      rmSync(folder, { recursive: true, force: true });
     }
   });
 });

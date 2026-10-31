@@ -18,6 +18,7 @@ import {
   type LoginRecipe,
   type Step,
   type TwofaConfig,
+  type WorkflowStep,
   type WritePreview,
 } from '@tooldrop/core';
 import { sql } from 'drizzle-orm';
@@ -345,4 +346,22 @@ export const captures = pgTable(
     ...timestamps,
   },
   (t) => [index('captures_job_id').on(t.job_id)],
+);
+
+export const workflows = pgTable(
+  'workflows',
+  {
+    id: text().primaryKey(),
+    name: text().notNull(),
+    description: text().notNull(),
+    authority: text({ enum: AUTHORITIES }).notNull(),
+    input_schema: jsonb().$type<JsonSchema>().notNull(),
+    steps: jsonb().$type<WorkflowStep[]>().notNull(),
+    output: jsonb().$type<unknown>(),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('workflows_name_unique').on(t.name),
+    oneOf('workflows_authority', t.authority, AUTHORITIES),
+  ],
 );

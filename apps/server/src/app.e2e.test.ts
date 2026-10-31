@@ -101,6 +101,57 @@ describe('REST API', () => {
   });
 });
 
+describe('workflows', () => {
+  it('saves, lists, runs and removes a workflow', async () => {
+    const workflow = {
+      name: 'first_paid_invoice',
+      description: 'The number of the newest paid invoice.',
+      input_schema: { type: 'object', properties: {} },
+      steps: [{ id: 'paid', tool: 'search_invoices', inputs: { status: 'paid' } }],
+      output: '{{steps.paid.result.0.number}}',
+    };
+    const saved = await app.inject({
+      method: 'POST',
+      url: '/v1/workflows',
+      headers: auth(),
+      payload: workflow,
+    });
+    expect(saved.statusCode).toBe(201);
+    expect(saved.json()).toMatchObject({ workflow: { name: 'first_paid_invoice', authority: 'read' } });
+    expect((await app.inject({ url: '/v1/workflows', headers: auth() })).json()).toMatchObject({
+      workflows: [{ name: 'first_paid_invoice' }],
+    });
+
+    const run = await app.inject({
+      method: 'POST',
+      url: '/v1/workflows/first_paid_invoice/run',
+      headers: auth(),
+      payload: {},
+    });
+    expect(run.statusCode).toBe(202);
+    const { job } = run.json<{ job: { id: string } }>();
+    let current: { status: string; result?: { output?: string } } = { status: 'queued' };
+    for (let i = 0; i < 200 && !['succeeded', 'failed'].includes(current.status); i++) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      current = (await app.inject({ url: `/v1/jobs/${job.id}`, headers: auth() })).json<{
+        job: typeof current;
+      }>().job;
+    }
+    expect(current.status).toBe('succeeded');
+    expect(current.result?.output).toMatch(/^INV-\d+$/);
+
+    const removed = await app.inject({
+      method: 'DELETE',
+      url: '/v1/workflows/first_paid_invoice',
+      headers: auth(),
+    });
+    expect(removed.statusCode).toBe(204);
+    expect((await app.inject({ url: '/v1/workflows/first_paid_invoice', headers: auth() })).statusCode).toBe(
+      404,
+    );
+  });
+});
+
 describe('versions', () => {
   it("lists a tool's versions and rolls back", async () => {
     const versions = await app.inject({ url: '/v1/tools/search_invoices/versions', headers: auth() });

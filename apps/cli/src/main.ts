@@ -13,6 +13,7 @@ import { run } from './commands/run.ts';
 import { serve } from './commands/serve.ts';
 import { sms } from './commands/sms.ts';
 import { tools } from './commands/tools.ts';
+import { workflows } from './commands/workflows.ts';
 import { version } from './home.ts';
 
 const HELP = `toolDrop ${version()}: turn website tasks into tools your AI agent can call.
@@ -44,6 +45,7 @@ Usage: tooldrop <command> [options]
   email connect <host>   Connect the inbox email codes are read from (--user, --port, --password-stdin)
   build <url> --task     Build a tool for a task (--recording <id or file>, --hint)
   discover <url>         Look around a site from one URL and propose tools to build (--max-pages)
+  workflows add <file>   Chain tools on several sites into one workflow (then: list, show, run <name> --input, remove)
   record <url>           Do a task once in a browser, for the most reliable builds (--task, --out)
 
 Data lives in ~/.tooldrop; set TOOLDROP_HOME to use another folder.
@@ -65,6 +67,7 @@ const COMMANDS: Record<string, (args: string[]) => Promise<number>> = {
   email,
   export: exportTool,
   discover,
+  workflows,
 };
 
 async function main(argv: string[]): Promise<number> {

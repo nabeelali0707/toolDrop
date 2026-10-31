@@ -14,3 +14,4 @@ export * from './recording.ts';
 export * from './run.ts';
 export * from './tool.ts';
 export * from './watch.ts';
+export * from './workflow.ts';

@@ -13,6 +13,7 @@ import {
   type RecipeOrigin,
   type Recording,
   type ToolFile,
+  type WorkflowView,
   type WatchView,
 } from '@tooldrop/core';
 import {
@@ -20,6 +21,7 @@ import {
   getTool,
   getLoginRecipe,
   getVersion,
+  getWorkflow,
   keyAllows,
   listJobs,
   listLogins,
@@ -63,6 +65,7 @@ import { Heals } from './heals.ts';
 import type { JobQueue } from './queue.ts';
 import { Sessions, type SignInOptions } from './sessions.ts';
 import { Watches, type WatchOptions } from './watches.ts';
+import { Workflows } from './workflows.ts';
 
 /** How long a failed call waits for its repair (SPEC, Runtime execution cascade step 7). */
 export const HEAL_HOLD_MS = 5 * 60_000;
@@ -154,6 +157,7 @@ export class Engine {
   readonly heals: Heals;
   readonly watches: Watches;
   readonly approvals: Approvals;
+  readonly workflows: Workflows;
   /** SMS codes forwarded from the person's phone, for logins waiting on one (SPEC, SMS codes). */
   readonly sms: SmsCodes;
   readonly #healHoldMs: number;
@@ -176,6 +180,7 @@ export class Engine {
     this.heals = new Heals(this, options.heals);
     this.watches = new Watches(this, options.watches);
     this.approvals = new Approvals(this);
+    this.workflows = new Workflows(this);
     this.#healHoldMs = options.healHoldMs ?? HEAL_HOLD_MS;
     this.#backgroundHeals = options.backgroundHeals ?? true;
   }
@@ -281,6 +286,12 @@ export class Engine {
     } = {},
   ): Promise<PublishedTool> {
     const { recipe, ...definition } = file;
+    if (await getWorkflow(this.db, definition.name)) {
+      throw new ToolDropError(
+        'invalid_input',
+        `a workflow is named ${definition.name}; give the tool another name`,
+      );
+    }
     const published = await publishTool(this.db, {
       site,
       definition,
@@ -289,7 +300,7 @@ export class Engine {
       ...(options.change_reason !== undefined && { change_reason: options.change_reason }),
       ...(options.test_inputs && { test_inputs: options.test_inputs }),
     });
-    for (const listener of this.#listeners) listener();
+    this.toolsChanged();
     return published;
   }
 
@@ -303,7 +314,7 @@ export class Engine {
   async rollback(name: string, version: number, scopes: Scopes = ALL): Promise<PublishedTool> {
     requireFullAccess(scopes);
     const published = await rollbackTool(this.db, name, version);
-    for (const listener of this.#listeners) listener();
+    this.toolsChanged();
     return published;
   }
 
@@ -687,6 +698,33 @@ export class Engine {
 
   #smsSecretPath(): string {
     return join(this.dataDir, 'secrets', 'sms-secret');
+  }
+
+  /** Tells every listener that the tools changed: a publish, a rollback, a workflow saved or removed. */
+  toolsChanged(): void {
+    for (const listener of this.#listeners) listener();
+  }
+
+  /** Saves a workflow file: tools on any sites chained into one (SPEC, Multi-site workflows). */
+  saveWorkflow(input: unknown, scopes: Scopes = ALL): Promise<WorkflowView> {
+    return this.workflows.save(input, scopes);
+  }
+
+  listWorkflows(scopes: Scopes = ALL): Promise<WorkflowView[]> {
+    return this.workflows.list(scopes);
+  }
+
+  getWorkflow(name: string, scopes: Scopes = ALL): Promise<WorkflowView> {
+    return this.workflows.get(name, scopes);
+  }
+
+  deleteWorkflow(name: string, scopes: Scopes = ALL): Promise<void> {
+    return this.workflows.delete(name, scopes);
+  }
+
+  /** Starts a workflow run, a job: poll it with getJob, and answer it when a write asks for approval. */
+  runWorkflow(name: string, input: unknown, scopes: Scopes = ALL): Promise<JobView> {
+    return this.workflows.start(name, input, scopes);
   }
 
   /** Calls `listener` whenever the published tools change, e.g. to send MCP's list_changed. */

@@ -33,6 +33,7 @@ export default defineConfig({
           { text: 'Watches and webhooks', link: '/watches-and-webhooks' },
           { text: 'Safe mode', link: '/safe-mode' },
           { text: 'Auth and 2FA', link: '/auth-and-2fa' },
+          { text: 'Multi-site workflows', link: '/workflows' },
           { text: 'Code export', link: '/code-export' },
         ],
       },
