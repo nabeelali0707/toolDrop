@@ -8,7 +8,14 @@ import {
   type JobQuestion,
   type ToolDropErrorJson,
 } from '@tooldrop/core';
-import { buildTool, crawlSite, proposeTools, writeCapture, type BuildDeps } from '@tooldrop/compiler';
+import {
+  buildTool,
+  buildWriteTool,
+  crawlSite,
+  proposeTools,
+  writeCapture,
+  type BuildDeps,
+} from '@tooldrop/compiler';
 import {
   addJobAnswer,
   addJobQuestion,
@@ -119,6 +126,13 @@ export class Builds {
     }
     const request = parsed.data;
     if (request.recording_id) this.#engine.getRecording(request.recording_id);
+    // A write is built from a person's recording only: exploring could submit a form (D-058).
+    if (request.authority === 'write' && !request.recording_id) {
+      throw new ToolDropError(
+        'invalid_input',
+        'a write tool is built from a recording: do the task once with `tooldrop record <url>` or the Chrome extension, then build with its recording_id',
+      );
+    }
 
     const db = this.#engine.db;
     const job = await createJob(db, { kind: 'build', input: request });
@@ -312,33 +326,47 @@ export class Builds {
         ask: (question) => this.#ask(jobId, question),
       });
 
-      const result = await buildTool(
-        {
-          url: request.url,
-          task: request.task,
-          authority: request.authority,
-          ...(request.inputs_hint !== undefined && { inputs_hint: request.inputs_hint }),
-          ...(request.recording_id && { recording: this.#engine.getRecording(request.recording_id) }),
-        },
-        {
-          llm,
-          runtime: this.#engine.runtime,
-          jobId,
-          nameTaken: async (name) => (await getTool(db, name)) !== undefined,
-          ...(signedIn && { signedIn, secrets: await this.#engine.sessions.secretsFor(request.url) }),
-          ...(this.#options.browser && { browser: this.#options.browser }),
-          ...this.#options.compiler,
-        },
-        {
-          step: (name) => setJobStep(db, jobId, name),
-          ask: (question) => this.#ask(jobId, question),
-          recording: (id) => this.#engine.getRecording(id),
-          captured: async (capture, masker) => {
-            const stored = writeCapture(capture, this.#engine.dataDir, { masker });
-            await saveCapture(db, { job_id: jobId, ...stored });
-          },
-        },
-      );
+      const deps: BuildDeps = {
+        llm,
+        runtime: this.#engine.runtime,
+        jobId,
+        nameTaken: async (name) => (await getTool(db, name)) !== undefined,
+        ...(signedIn && { signedIn, secrets: await this.#engine.sessions.secretsFor(request.url) }),
+        ...(this.#options.browser && { browser: this.#options.browser }),
+        ...this.#options.compiler,
+      };
+      const step = (name: string) => setJobStep(db, jobId, name);
+      const result =
+        request.authority === 'write' && request.recording_id
+          ? // Assembled from the recording and checked by preview: the build never submits (D-058).
+            await buildWriteTool(
+              {
+                url: request.url,
+                task: request.task,
+                recording: this.#engine.getRecording(request.recording_id),
+              },
+              deps,
+              { step },
+            )
+          : await buildTool(
+              {
+                url: request.url,
+                task: request.task,
+                authority: request.authority,
+                ...(request.inputs_hint !== undefined && { inputs_hint: request.inputs_hint }),
+                ...(request.recording_id && { recording: this.#engine.getRecording(request.recording_id) }),
+              },
+              deps,
+              {
+                step,
+                ask: (question) => this.#ask(jobId, question),
+                recording: (id) => this.#engine.getRecording(id),
+                captured: async (capture, masker) => {
+                  const stored = writeCapture(capture, this.#engine.dataDir, { masker });
+                  await saveCapture(db, { job_id: jobId, ...stored });
+                },
+              },
+            );
       const published = await this.#engine.publish(result.tool, result.site, {
         created_by: 'build',
         change_reason: `built for: ${request.task}`,

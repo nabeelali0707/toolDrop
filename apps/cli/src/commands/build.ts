@@ -6,7 +6,7 @@ import type { Engine, JobView } from '@tooldrop/engine';
 import { openEngine } from '../home.ts';
 
 const USAGE =
-  'usage: tooldrop build <url> --task "what the tool does" [--recording <id or file>] [--hint "about the inputs"]';
+  'usage: tooldrop build <url> --task "what the tool does" [--recording <id or file>] [--hint "about the inputs"] [--write]';
 
 /**
  * `tooldrop build`: builds a tool in this process (SPEC, Build pipeline),
@@ -19,6 +19,7 @@ export async function build(args: string[]): Promise<number> {
     options: {
       task: { type: 'string' },
       recording: { type: 'string' },
+      write: { type: 'boolean', default: false },
       hint: { type: 'string' },
     },
   });
@@ -34,7 +35,8 @@ export async function build(args: string[]): Promise<number> {
     let job = await engine.startBuild({
       url,
       task: values.task,
-      authority: 'read',
+      // A write is built from a recording of the submission, and runs through safe mode.
+      authority: values.write ? 'write' : 'read',
       ...(values.hint !== undefined && { inputs_hint: values.hint }),
       ...(recordingId && { recording_id: recordingId }),
     });

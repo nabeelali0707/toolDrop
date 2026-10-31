@@ -161,7 +161,7 @@ const BUILD_TOOLS: Tool[] = [
     name: 'build_tool',
     title: 'Build a tool',
     description:
-      'Build a new tool for a task on a website. Starts a build job and returns it at once; poll get_job until it finishes. Ask the user before building with authority "write".',
+      'Build a new tool for a task on a website. Starts a build job and returns it at once; poll get_job until it finishes. Ask the user before building with authority "write", which needs a recording_id: a recording of the person doing the submission once.',
     inputSchema: {
       type: 'object',
       properties: {

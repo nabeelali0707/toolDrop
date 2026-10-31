@@ -608,3 +608,13 @@ SPEC's Security criterion: no API, log, error or model prompt ever holds a plain
 - **Users are managed from the terminal** (`tooldrop users`, inside the container when self-hosted), not over the API: making keys stays with whoever runs the server.
 - **The audit log** keeps every change over REST and remote MCP: actor (`user:<name>`, or `api-key:<label>` for a key of no user), action (`POST /v1/builds`, `mcp build_tool`), target and status, refused attempts included. Reads are left out, and request bodies are never kept, since a login's holds a password. The approvals stay the fuller record of each write.
 - **The dashboard** shows who is signed in and their role, and an Audit log page for admins.
+
+### D-058 How write tools are built
+
+*Proposed · 2026-10-31*
+
+- **From a recording only.** A build with `authority: "write"` needs a `recording_id`. Exploring could submit a form, so a write is never built that way. Recording the task does it for real once, as the person would by hand.
+- **Read from the recording, not replayed.** The last click is the submit and becomes the commit step. Earlier steps keep the recorded selectors; values the person marked become inputs (numbers stay numbers, a select's choices become an enum), and others stay fixed. The confirmation the person marked after the submit becomes an `extract_text` step and the tool's result. A recording that types a password is refused (signing in belongs to login recipes), and so is one without a marked confirmation.
+- **Checked without submitting.** Safe mode's preview runs every step before the commit, with the recorded values, and stops. The confirmation's selector cannot be checked that way, since it appears only after a real submit; it is the one the person marked.
+- **The model only names it:** the reasoning model writes the name, the description and the inputs' descriptions from the task and the form's labels, with the login's values masked.
+- **After the build, writes stay as they were:** one plan, no browser fallback, previews and approvals on every call, and no healing.

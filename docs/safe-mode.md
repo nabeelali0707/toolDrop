@@ -1,7 +1,7 @@
 # Safe mode
 
 ::: info Status
-Since Phase 4, for write tools from tool files and community recipes. Building write tools from a recording comes later; until then, builds make read tools.
+Since Phase 4, for write tools from tool files and community recipes; since Phase 5, also for write tools built from a recording.
 :::
 
 Tools that change something (submit a form, approve an invoice, cancel an order) have `write` authority. toolDrop never lets one act on its own: every call shows you what it will do first.
@@ -33,6 +33,17 @@ tooldrop policies add record_payment --when "amount < 100"
 ```
 
 The operators are `<`, `<=`, `>`, `>=`, `==` and `!=`. Over REST, policies live at `/v1/policies` and need an API key with access to every tool. Agents cannot set policies over MCP, so they cannot approve their own writes. Writes approved by a policy are recorded like any other, with the policy as the decider.
+
+## Building a write tool
+
+Do the submission once while recording, mark the confirmation the site shows after it with **Mark data**, then build with `--write`:
+
+```sh
+tooldrop record http://127.0.0.1:4102/payments/new --task "Record a payment" --out payment.json
+tooldrop build http://127.0.0.1:4102/payments/new --task "Record a payment" --recording payment.json --write
+```
+
+Recording it does the task for real once, as you would by hand. The build then never submits: it turns the recording into steps, with the values you marked as inputs, the last click as the commit step, and the confirmation as the result. It checks every step before the submit with a preview, and the model only names and describes the tool. Over MCP and REST, a build with `"authority": "write"` needs a `recording_id`; a write is never built by exploring, since exploring could submit a form.
 
 ## Writing a write recipe
 

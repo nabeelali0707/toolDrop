@@ -89,8 +89,11 @@ function report(job: JobView): number {
       continue;
     }
     if (tool.authority === 'write') {
-      // Builds make read tools; a write tool is a tool file with a commit step (docs: Safe mode).
-      console.log(`  A write: make it as a tool file with a commit step, starting from ${tool.url}\n`);
+      // A write is built from a recording of the submission, never by exploring (D-058).
+      const task = JSON.stringify(tool.task);
+      console.log(
+        `  A write: record it once, then build from the recording:\n  tooldrop record ${tool.url} --task ${task} --out record.json\n  tooldrop build ${tool.url} --task ${task} --recording record.json --write\n`,
+      );
       continue;
     }
     console.log(`  tooldrop build ${tool.url} --task ${JSON.stringify(tool.task)}\n`);

@@ -225,8 +225,11 @@ Items marked "split first" are broken into day-sized tasks before work starts.
   - [x] **5.12b The package.** `tool.json`, typed `index.js` and `index.d.ts` from the schemas, a README and the license; write tools as preview and commit; signed-in sites get their login recipe, never the login (D-054).
   - [x] **5.12c Interfaces.** `tooldrop export <tool>` and `GET /v1/tools/:name/export`.
   Files: `packages/engine/src/export.ts`, `apps/cli/src/{export/entry,export-runtime,commands/export}.ts`, `apps/cli/build.ts`, `apps/server/src/app.ts`, tests
-- [ ] **5.13 Write builds from recordings** (split first; moved from Phase 4, whose gate does not need it). Compile a recorded form submission into a write recipe whose submit is the commit step. Captures, validation and heals must stop before the submit, since replaying it would make the write.
-  Files: `packages/compiler/src/{build,capture/capture}.ts`, `packages/compiler/src/recording/replay.ts`, `packages/compiler/src/generate/draft.ts`, tests
+- [x] **5.13 Write builds from recordings**, split into:
+  - [x] **5.13a Plan.** A recorded submission read as a write: steps up to the last click, that click as the commit step, the marked confirmation as the result, marked values as typed inputs; no password typed, a confirmation marked (D-058).
+  - [x] **5.13b Build without submitting.** The recipe is assembled from the recording, never replayed past the submit; safe mode's preview checks every step before the commit, and the model names and describes the tool. Write tools are never healed, as before.
+  - [x] **5.13c Interfaces.** `authority: "write"` builds need a `recording_id`; `tooldrop build --write`; discovery's write proposals point to recording and building.
+  Files: `packages/compiler/src/write/build-write.ts`, `packages/engine/src/builds.ts`, `apps/cli/src/commands/{build,discover}.ts`, `apps/{mcp,dashboard}`, docs, tests
 
 **Gate:** *SMS 2FA* and *Zero cost* criteria, plus each feature's own tests.
 

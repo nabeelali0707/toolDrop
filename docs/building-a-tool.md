@@ -1,7 +1,7 @@
 # Building a tool
 
 ::: info Status
-Works since Phase 2, and on sites that need a sign-in since Phase 3: save the site's login first (see [Auth and 2FA](./auth-and-2fa)). Builds make read tools; `write` tools wait for [safe mode](./safe-mode) in Phase 4.
+Works since Phase 2, and on sites that need a sign-in since Phase 3: save the site's login first (see [Auth and 2FA](./auth-and-2fa)). Builds make read tools, and, from a recording, `write` tools that run through [safe mode](./safe-mode).
 :::
 
 Ask your agent to build a tool, or call `build_tool` yourself. A build is a background job: it may pause to ask you a question, and it ends with a published, tested tool.
@@ -61,7 +61,7 @@ Give toolDrop a URL only, and it proposes tools:
 tooldrop discover https://portal.example.com
 ```
 
-It opens the site, signed in when it has a saved login, and follows its links, at most 12 pages by default (`--max-pages`). It never clicks a button, sends a form, or follows a sign-out or delete link. For each page it notes the tables' columns, the forms' fields, and the keys and types of the JSON the page loads, never the data in them, and your reasoning model proposes tools from those notes. Each proposal comes with its `tooldrop build` command. A proposal that changes data is marked as a write: make it as a tool file with a commit step ([Safe mode](./safe-mode)).
+It opens the site, signed in when it has a saved login, and follows its links, at most 12 pages by default (`--max-pages`). It never clicks a button, sends a form, or follows a sign-out or delete link. For each page it notes the tables' columns, the forms' fields, and the keys and types of the JSON the page loads, never the data in them, and your reasoning model proposes tools from those notes. Each proposal comes with its `tooldrop build` command. A proposal that changes data is marked as a write, with the commands that record it once and build it from the recording ([Safe mode](./safe-mode#building-a-write-tool)).
 
 The same comes from `discover_tools` over MCP, `POST /v1/discover` over REST (then poll `GET /v1/jobs/:id`), and the **Discover tools** box on the dashboard's Tools page, which builds a proposal with one click.
 

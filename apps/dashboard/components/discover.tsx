@@ -133,7 +133,7 @@ export function Discover() {
                     <Badge tone="good">building, as job {built[proposal.name]}</Badge>
                   ) : proposal.authority === 'write' ? (
                     <span className="text-xs text-slate-500">
-                      A write: make it as a tool file with a commit step.
+                      A write: record it once with tooldrop record, then build it from the recording.
                     </span>
                   ) : (
                     <Button variant="outline" onClick={() => void build(proposal)}>
