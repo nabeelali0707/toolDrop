@@ -18,6 +18,7 @@ import {
 import {
   findTools,
   getTool,
+  getLoginRecipe,
   getVersion,
   keyAllows,
   listJobs,
@@ -29,6 +30,7 @@ import {
   recordRun,
   rollbackTool,
   runStats,
+  siteLogin,
   testInputs,
   toolJobs,
   usageByJob,
@@ -54,6 +56,7 @@ import {
 } from '@tooldrop/auth';
 import { Runtime, type RunnableTool, type RunOutcome } from '@tooldrop/runtime';
 import { Approvals } from './approvals.ts';
+import { exportFiles, type ExportRuntime } from './export.ts';
 import { Builds, type BuildOptions, type JobView } from './builds.ts';
 import { readRecording, writeRecording } from './recordings.ts';
 import { Heals } from './heals.ts';
@@ -139,6 +142,8 @@ export interface EngineOptions {
   watches?: WatchOptions;
   /** Where forwarded SMS codes wait: in this process (the default), or on Valkey when self-hosted. */
   sms?: SmsCodes;
+  /** The bundled runtime that code exports carry; without it, this engine cannot export tools. */
+  exportRuntime?: () => Promise<ExportRuntime>;
 }
 
 export class Engine {
@@ -155,6 +160,7 @@ export class Engine {
   readonly #backgroundHeals: boolean;
   readonly #dataDir: string | undefined;
   readonly #keyStore: (() => Promise<KeyStore>) | undefined;
+  readonly #exportRuntime: (() => Promise<ExportRuntime>) | undefined;
   #vault: Promise<Vault> | undefined;
   readonly #listeners = new Set<() => void>();
 
@@ -163,6 +169,7 @@ export class Engine {
     this.runtime = options.runtime ?? new Runtime();
     this.#dataDir = options.dataDir;
     this.#keyStore = options.keyStore;
+    this.#exportRuntime = options.exportRuntime;
     this.sms = options.sms ?? new SmsInbox();
     this.builds = new Builds(this, options.builds);
     this.sessions = new Sessions(this, options.builds?.browser ? { browser: options.builds.browser } : {});
@@ -494,6 +501,26 @@ export class Engine {
       throw new ToolDropError('not_found', `no tool named ${name}`);
     }
     return tool;
+  }
+
+  /**
+   * A tool as a standalone npm package, by file path (SPEC, Code export). A
+   * signed-in site's package gets the steps that sign in, never the login.
+   */
+  async exportTool(name: string, scopes: Scopes = ALL): Promise<Record<string, string>> {
+    requireFullAccess(scopes);
+    const tool = await this.getTool(name, scopes);
+    if (!this.#exportRuntime) throw new ToolDropError('internal', 'this toolDrop cannot export tools');
+    const origin = tool.site.origin;
+    const login = await siteLogin(this.db, origin);
+    const loginRecipe = login ? await getLoginRecipe(this.db, origin) : undefined;
+    if (login && !loginRecipe) {
+      throw new ToolDropError(
+        'invalid_input',
+        `${name} signs in to ${origin}, and toolDrop has not signed in there yet; run \`tooldrop logins verify ${origin}\` first`,
+      );
+    }
+    return exportFiles(tool, loginRecipe, await this.#exportRuntime());
   }
 
   /** One version of a tool with its recipe, to compare versions (SPEC, Transparency dashboard). */

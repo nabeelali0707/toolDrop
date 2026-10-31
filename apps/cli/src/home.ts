@@ -9,6 +9,7 @@ import { openDatabase, runMigrations } from '@tooldrop/db';
 import { Engine, type EngineOptions } from '@tooldrop/engine';
 import { defaultSettings, llmSettingsSchema, modelSetup, type LlmSettings } from '@tooldrop/llm';
 import { BullMqQueue, ValkeySmsCodes } from '@tooldrop/server';
+import { loadExportRuntime } from './export-runtime.ts';
 
 // Where toolDrop keeps its data: ~/.tooldrop, or TOOLDROP_HOME (DECISIONS.md, D-022).
 
@@ -159,6 +160,7 @@ export async function openEngine(options: { backgroundHeals?: boolean; worker?: 
       ...(buildQueue && { queue: buildQueue }),
     },
     keyStore: () => findKeyStore({ home: homeDir() }),
+    exportRuntime: loadExportRuntime,
     ...(options.backgroundHeals === false && { backgroundHeals: false }),
     ...parts,
   });

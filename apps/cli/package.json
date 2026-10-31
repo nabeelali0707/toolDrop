@@ -73,6 +73,7 @@
     "@tooldrop/engine": "workspace:*",
     "@tooldrop/fixture-html-app": "workspace:*",
     "@tooldrop/fixture-kit": "workspace:*",
+    "@tooldrop/fixture-login-totp": "workspace:*",
     "@tooldrop/llm": "workspace:*",
     "@tooldrop/mcp": "workspace:*",
     "@tooldrop/runtime": "workspace:*",

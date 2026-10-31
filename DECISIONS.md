@@ -565,3 +565,14 @@ SPEC's Security criterion: no API, log, error or model prompt ever holds a plain
 - **Volumes:** `tooldrop-data` (recordings, captures, screenshots), `postgres-data`, `valkey-data` (Valkey saves to it, so waiting jobs survive a restart) and `ollama-models`. The master key is in none of them, so a backup of the volumes cannot open the saved logins.
 - **The image is unchanged** (D-033): the same image runs alone with SQLite, as CI checks on every push, and in the stack with Postgres and Valkey.
 - **The zero-cost check** makes the two secrets the way the guide does before `docker compose up`, and removes them afterwards.
+
+### D-054 How code export works
+
+*Proposed · 2026-10-31*
+
+- **What "without toolDrop" means:** the exported package needs no toolDrop server, database, vault or model, and no toolDrop npm package. toolDrop's runtime is bundled into its `runtime.js` (Apache-2.0, with the license file), so it behaves as toolDrop's runtime does: input and output validation, strategies, the browser fallback and rate limits. Third-party packages stay ordinary npm dependencies, at the versions toolDrop uses.
+- **Built once, at build time:** the CLI's build bundles the runtime with esbuild and ships it in `dist/`, so `tooldrop export` needs no bundler. A source checkout bundles it on first use.
+- **Typed from the schemas:** `index.d.ts` turns the input and output JSON Schemas into TypeScript types (objects, arrays, enums, unions, descriptions as comments). The package ships JavaScript, since Node does not strip types inside `node_modules`.
+- **No login in the package:** a signed-in site's package holds the login recipe (the steps) only. The caller passes the login when calling, with a TOTP secret or a function for the code. Exporting such a tool needs a login recipe, so toolDrop must have signed in once.
+- **Writes:** a write tool exports `preview()` and `commit()`. Safe mode's approvals and policies stay in toolDrop; the caller's code decides when to commit.
+- **No healing:** an export is a snapshot of one version. When it breaks, export again from toolDrop.

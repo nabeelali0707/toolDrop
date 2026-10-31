@@ -208,7 +208,11 @@ Items marked "split first" are broken into day-sized tasks before work starts.
   Files: `packages/db/src/repos/{stats,tools}.ts`, `packages/engine/src/engine.ts`, `apps/server/src/app.ts`, `apps/dashboard/{components/transparency.tsx,lib/diff.ts,app/tool/page.tsx}`, `apps/cli/src/commands/tools.ts`, tests
 - [ ] **5.10 URL-first discovery**
 - [ ] **5.11 Multi-site workflows**
-- [ ] **5.12 Code export**
+- [x] **5.12 Code export**, split into:
+  - [x] **5.12a The runtime an export carries.** toolDrop's runtime and a small entry, bundled into one file at build time (from source on first use), with third-party packages as the export's dependencies.
+  - [x] **5.12b The package.** `tool.json`, typed `index.js` and `index.d.ts` from the schemas, a README and the license; write tools as preview and commit; signed-in sites get their login recipe, never the login (D-054).
+  - [x] **5.12c Interfaces.** `tooldrop export <tool>` and `GET /v1/tools/:name/export`.
+  Files: `packages/engine/src/export.ts`, `apps/cli/src/{export/entry,export-runtime,commands/export}.ts`, `apps/cli/build.ts`, `apps/server/src/app.ts`, tests
 - [ ] **5.13 Write builds from recordings** (split first; moved from Phase 4, whose gate does not need it). Compile a recorded form submission into a write recipe whose submit is the commit step. Captures, validation and heals must stop before the submit, since replaying it would make the write.
   Files: `packages/compiler/src/{build,capture/capture}.ts`, `packages/compiler/src/recording/replay.ts`, `packages/compiler/src/generate/draft.ts`, tests
 

@@ -160,6 +160,12 @@ export function createServer({ engine, version = '0.0.0', dashboardDir }: Server
     return { version: await engine.version(name, Number(version), request.scopes) };
   });
 
+  // Code export: the tool as a standalone npm package, as a map of file paths to contents.
+  app.get('/v1/tools/:name/export', async (request) => {
+    const { name } = request.params as { name: string };
+    return { files: await engine.exportTool(name, request.scopes) };
+  });
+
   // The transparency figures: calls, latency, strategies, and builds and heals with their model use.
   app.get('/v1/tools/:name/stats', async (request) => {
     const { name } = request.params as { name: string };

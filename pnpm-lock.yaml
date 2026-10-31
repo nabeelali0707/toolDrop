@@ -157,6 +157,9 @@ importers:
       '@tooldrop/fixture-kit':
         specifier: workspace:*
         version: link:../../fixtures/kit
+      '@tooldrop/fixture-login-totp':
+        specifier: workspace:*
+        version: link:../../fixtures/login-totp
       '@tooldrop/llm':
         specifier: workspace:*
         version: link:../../packages/llm

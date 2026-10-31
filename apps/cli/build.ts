@@ -3,16 +3,19 @@
 // regular npm dependencies. Node does not strip types inside node_modules,
 // so the package must ship plain JavaScript (DECISIONS.md, D-032).
 import { execFileSync } from 'node:child_process';
-import { cpSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { builtinModules } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
+import { bundleExportRuntime } from './src/export-runtime.ts';
 
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 const pkg = JSON.parse(readFileSync(here('./package.json'), 'utf8')) as {
   dependencies?: Record<string, string>;
 };
 const dependencies = Object.keys(pkg.dependencies ?? {});
+/** Packages the bundle refers to but never loads once installed (see the export runtime below). */
+const SOURCE_ONLY = ['esbuild'];
 
 rmSync(here('./dist'), { recursive: true, force: true });
 const result = await build({
@@ -23,7 +26,8 @@ const result = await build({
   format: 'esm',
   target: 'node24',
   banner: { js: '#!/usr/bin/env node' },
-  external: dependencies.flatMap((name) => [name, `${name}/*`]),
+  // esbuild is loaded only in a source checkout, to bundle the export runtime that dist/ has prebuilt.
+  external: [...dependencies.flatMap((name) => [name, `${name}/*`]), ...SOURCE_ONLY],
   metafile: true,
   logLevel: 'warning',
 });
@@ -42,7 +46,11 @@ const imported = new Set(
 );
 const builtins = new Set(builtinModules);
 const missing = [...imported].filter(
-  (name) => !name.startsWith('node:') && !builtins.has(name) && !dependencies.includes(name),
+  (name) =>
+    !name.startsWith('node:') &&
+    !builtins.has(name) &&
+    !dependencies.includes(name) &&
+    !SOURCE_ONLY.includes(name),
 );
 if (missing.length > 0) {
   console.error(
@@ -50,6 +58,12 @@ if (missing.length > 0) {
   );
   process.exit(1);
 }
+
+// The runtime `tooldrop export` puts in each exported package, prebuilt, so
+// the installed CLI needs no bundler (src/export-runtime.ts).
+const { source, ...exportMeta } = await bundleExportRuntime();
+writeFileSync(here('./dist/export-runtime.js'), source);
+writeFileSync(here('./dist/export-runtime.json'), `${JSON.stringify(exportMeta)}\n`);
 
 // Files the package needs next to the bundle: the migrations for SQLite and
 // for Postgres, and the dashboard's static pages, which `tooldrop serve`

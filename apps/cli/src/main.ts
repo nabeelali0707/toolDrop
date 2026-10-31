@@ -2,6 +2,7 @@ import { isToolDropError } from '@tooldrop/core';
 import { approvals, policies } from './commands/approvals.ts';
 import { build } from './commands/build.ts';
 import { email } from './commands/email.ts';
+import { exportTool } from './commands/export.ts';
 import { init } from './commands/init.ts';
 import { keys } from './commands/keys.ts';
 import { logins } from './commands/logins.ts';
@@ -26,6 +27,8 @@ Usage: tooldrop <command> [options]
   tools check            Run every tool's saved test inputs; repair what fails
   tools versions <tool>  A tool's versions and heal log
   tools rollback <tool> <version>  Make an earlier version current again
+  tools stats <tool>     How a tool's calls went, and its builds and repairs
+  export <tool>          Write a tool as a standalone npm package that runs without toolDrop (--out <folder>)
   keys create            Create an API key for REST and remote MCP (--label, --scopes a,b)
   keys list              List API keys
   keys revoke <id>       Revoke an API key
@@ -58,6 +61,7 @@ const COMMANDS: Record<string, (args: string[]) => Promise<number>> = {
   policies,
   sms,
   email,
+  export: exportTool,
 };
 
 async function main(argv: string[]): Promise<number> {
