@@ -49,7 +49,7 @@ toolDrop tries these in order:
 4. Set the sender filter so only your 2FA senders are forwarded.
 5. Save the login with its sender: `tooldrop logins add https://shop.example --sms "+1 555 555 0100"`.
 
-The message text is never logged or stored. toolDrop keeps only the extracted code, for at most 5 minutes. Messages older than 5 minutes, duplicates and unsigned requests are rejected. Your phone needs to be on the same network as your computer, or reach it through your own VPN. A forwarder that cannot sign may send the secret as a bearer token instead. Codes reach the sign-ins of the process running `tooldrop serve`.
+The message text is never logged or stored. toolDrop keeps only the extracted code, for at most 5 minutes. Messages older than 5 minutes, duplicates and unsigned requests are rejected. Your phone needs to be on the same network as your computer, or reach it through your own VPN. A forwarder that cannot sign may send the secret as a bearer token instead. Codes reach the sign-ins of the process running `tooldrop serve`; self-hosted with [Valkey](./self-hosting#valkey), they reach every toolDrop process.
 
 ## Captchas
 

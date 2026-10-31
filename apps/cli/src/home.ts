@@ -6,8 +6,9 @@ import { fileURLToPath } from 'node:url';
 import { findKeyStore, readSealed, Vault } from '@tooldrop/auth';
 import { ToolDropError } from '@tooldrop/core';
 import { openDatabase, runMigrations } from '@tooldrop/db';
-import { Engine } from '@tooldrop/engine';
+import { Engine, type EngineOptions } from '@tooldrop/engine';
 import { defaultSettings, llmSettingsSchema, modelSetup, type LlmSettings } from '@tooldrop/llm';
+import { BullMqQueue, ValkeySmsCodes } from '@tooldrop/server';
 
 // Where toolDrop keeps its data: ~/.tooldrop, or TOOLDROP_HOME (DECISIONS.md, D-022).
 
@@ -74,37 +75,92 @@ async function llmApiKey(baseUrl: string): Promise<string | undefined> {
 /**
  * The database: Postgres when TOOLDROP_DATABASE_URL is set, as self-hosted
  * toolDrop does (DECISIONS.md, D-051), or else the SQLite file in the home
- * directory. The URL may hold a password, so errors never repeat it.
+ * directory. The password may come from TOOLDROP_DATABASE_PASSWORD_FILE, as
+ * the Compose stack's secret does (D-053). The URL may hold a password, so
+ * errors never repeat it.
  */
-export function databaseTarget(env: NodeJS.ProcessEnv = process.env): string {
+export function databaseTarget(env: NodeJS.ProcessEnv = process.env): { target: string; password?: string } {
   const url = env.TOOLDROP_DATABASE_URL;
-  if (!url) return join(homeDir(), 'tooldrop.db');
+  if (!url) return { target: join(homeDir(), 'tooldrop.db') };
   if (!/^postgres(ql)?:\/\//.test(url)) {
     throw new ToolDropError('invalid_input', 'TOOLDROP_DATABASE_URL must be a postgres:// URL');
+  }
+  const file = env.TOOLDROP_DATABASE_PASSWORD_FILE;
+  if (!file) return { target: url };
+  try {
+    return { target: url, password: readFileSync(file, 'utf8').trim() };
+  } catch {
+    throw new ToolDropError(
+      'invalid_input',
+      `cannot read TOOLDROP_DATABASE_PASSWORD_FILE (${file}); it must be readable by the user toolDrop runs as`,
+    );
+  }
+}
+
+/**
+ * Valkey, when TOOLDROP_VALKEY_URL is set, as self-hosted toolDrop does
+ * (DECISIONS.md, D-052): the job queues and SMS codes every process shares.
+ * The URL may hold a password, so errors never repeat it.
+ */
+export function valkeyUrl(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  const url = env.TOOLDROP_VALKEY_URL;
+  if (!url) return undefined;
+  if (!/^rediss?:\/\//.test(url)) {
+    throw new ToolDropError('invalid_input', 'TOOLDROP_VALKEY_URL must be a redis:// or rediss:// URL');
   }
   return url;
 }
 
-/** Opens the database, applies migrations and starts an engine. */
-export async function openEngine(options: { backgroundHeals?: boolean } = {}): Promise<{
+/**
+ * The shared queues and SMS codes on Valkey, or nothing locally, where each
+ * process keeps its own. Only `worker` processes take jobs from the queues:
+ * one-shot commands add jobs for `tooldrop serve` to run.
+ */
+async function sharedParts(
+  worker: boolean,
+): Promise<Pick<EngineOptions, 'heals' | 'sms'> & { builds?: BullMqQueue }> {
+  const url = valkeyUrl();
+  if (!url) return {};
+  const builds = await BullMqQueue.connect('builds', { url, worker });
+  const heals = await BullMqQueue.connect('heals', { url, worker }).catch(async (error: unknown) => {
+    await builds.close();
+    throw error;
+  });
+  return { builds, heals: { queue: heals }, sms: new ValkeySmsCodes({ url }) };
+}
+
+/**
+ * Opens the database, applies migrations and starts an engine. `worker` is
+ * for the processes that keep running (`serve` and `mcp`), which take jobs
+ * from a shared queue.
+ */
+export async function openEngine(options: { backgroundHeals?: boolean; worker?: boolean } = {}): Promise<{
   engine: Engine;
   close: () => Promise<void>;
 }> {
   mkdirSync(homeDir(), { recursive: true });
-  const handle = openDatabase(databaseTarget());
+  const database = databaseTarget();
+  const handle = openDatabase(database.target, database);
+  let shared: Awaited<ReturnType<typeof sharedParts>>;
   try {
     await runMigrations(handle.db);
+    shared = await sharedParts(options.worker === true);
   } catch (error) {
     await handle.close();
     throw error;
   }
   const settings = modelSettings();
+  const { builds: buildQueue, ...parts } = shared;
   const engine = new Engine({
     db: handle.db,
     dataDir: homeDir(),
-    builds: { models: modelSetup(settings, { apiKey: () => llmApiKey(settings.base_url) }) },
+    builds: {
+      models: modelSetup(settings, { apiKey: () => llmApiKey(settings.base_url) }),
+      ...(buildQueue && { queue: buildQueue }),
+    },
     keyStore: () => findKeyStore({ home: homeDir() }),
     ...(options.backgroundHeals === false && { backgroundHeals: false }),
+    ...parts,
   });
   return {
     engine,

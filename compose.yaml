@@ -1,13 +1,22 @@
 # toolDrop, self-hosted: docker compose up
 # Guide: https://nabeelali0707.github.io/toolDrop/self-hosting
 #
-# - toolDrop listens on http://127.0.0.1:3000 (REST, and MCP at /mcp). Its first API
-#   key is printed once at first start: docker compose logs app
+# Before the first start, create the two secrets this file mounts (Linux; see the guide
+# for others). toolDrop runs as uid 10001 in its container and reads both:
+#
+#   mkdir -p secrets
+#   openssl rand -base64 32 > secrets/tooldrop_master_key
+#   openssl rand -hex 24 > secrets/postgres_password
+#   chmod 600 secrets/*
+#   sudo chown 10001 secrets/*
+#
+# - toolDrop listens on http://127.0.0.1:3000 (REST, the dashboard, and MCP at /mcp). Its
+#   first API key is printed once at first start: docker compose logs app
+# - Postgres keeps the data and Valkey the job queue; neither is reachable from outside
+#   this stack.
 # - Ollama runs next to it, and the `models` service downloads the models on first
 #   start. On macOS, run Ollama natively instead (Docker cannot use the Apple GPU):
-#   docker compose up app, with OLLAMA_HOST=http://host.docker.internal:11434
-# - Postgres and Valkey join this file with self-hosted mode (PLAN.md, Phase 5). Until
-#   then toolDrop keeps its data in SQLite on the tooldrop-data volume.
+#   OLLAMA_HOST=http://host.docker.internal:11434 docker compose up app
 name: tooldrop
 
 services:
@@ -17,16 +26,57 @@ services:
     ports:
       - 127.0.0.1:3000:3000
     volumes:
+      # Recordings, captures and screenshots.
       - tooldrop-data:/data
     environment:
+      TOOLDROP_DATABASE_URL: postgres://tooldrop@postgres:5432/tooldrop
+      TOOLDROP_DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
+      TOOLDROP_VALKEY_URL: redis://valkey:6379
       OLLAMA_HOST: ${OLLAMA_HOST:-http://ollama:11434}
       # The models the `models` service downloads, so the app uses the same ones.
       TOOLDROP_CODE_MODEL: ${TOOLDROP_CODE_MODEL:-qwen2.5-coder:7b}
       TOOLDROP_REASONING_MODEL: ${TOOLDROP_REASONING_MODEL:-llama3.1:8b}
+    secrets:
+      # The vault's master key, at /run/secrets/tooldrop_master_key (D-009).
+      - tooldrop_master_key
+      - postgres_password
     depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
       ollama:
         condition: service_started
         required: false
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: tooldrop
+      POSTGRES_DB: tooldrop
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U tooldrop -d tooldrop']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  # Saves to its volume, so jobs waiting in the queue survive a restart.
+  valkey:
+    image: valkey/valkey:8.1
+    volumes:
+      - valkey-data:/data
+    healthcheck:
+      test: ['CMD', 'valkey-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 30
     restart: unless-stopped
 
   ollama:
@@ -51,6 +101,14 @@ services:
         ollama pull ${TOOLDROP_REASONING_MODEL:-llama3.1:8b}
     restart: 'no'
 
+secrets:
+  tooldrop_master_key:
+    file: ./secrets/tooldrop_master_key
+  postgres_password:
+    file: ./secrets/postgres_password
+
 volumes:
   tooldrop-data:
+  postgres-data:
+  valkey-data:
   ollama-models:

@@ -76,6 +76,16 @@ describe('key files', () => {
     chmodSync(path, 0o644);
     await expect(Vault.open(keyFile(path, { creatable: false }))).rejects.toThrow(/chmod 600/);
   });
+
+  // As a Compose secret still owned by the host user looks from inside the container.
+  it.runIf(posix && process.getuid?.() !== 0)('says when toolDrop cannot read its key file', async () => {
+    const path = join(dir, 'unreadable.key');
+    writeFileSync(path, `${Buffer.alloc(32, 7).toString('base64')}\n`, { mode: 0o600 });
+    chmodSync(path, 0o000);
+    await expect(Vault.open(keyFile(path, { creatable: false }))).rejects.toThrow(
+      /cannot read .*unreadable\.key/,
+    );
+  });
 });
 
 describe('findKeyStore', () => {

@@ -13,7 +13,7 @@ export async function serve(args: string[]): Promise<number> {
     options: { port: { type: 'string', default: '3000' }, host: { type: 'string', default: '127.0.0.1' } },
   });
   const port = Number(values.port);
-  const { engine, close } = await openEngine();
+  const { engine, close } = await openEngine({ worker: true });
 
   // First run: make a key, since every route needs one.
   if (!(await listApiKeys(engine.db)).some((key) => !key.revoked_at)) {

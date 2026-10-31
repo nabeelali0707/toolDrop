@@ -20,18 +20,19 @@ import {
   saveCapture,
   setJobStatus,
   setJobStep,
-  touchJob,
   type JobRow,
   type JobUsage,
 } from '@tooldrop/db';
 import { formatIssues, Llm, type ModelSetup } from '@tooldrop/llm';
 import type { Browser } from 'playwright';
 import type { Engine } from './engine.ts';
+import { JobHolds } from './job-holds.ts';
 import { InProcessQueue, type JobQueue } from './queue.ts';
 
 // Build jobs (SPEC, Build pipeline): start, ask, answer and publish. The
 // compiler does the work; this keeps the job in the database, so get_job and
-// answers work from any process that shares it.
+// answers work from any process that shares it, and any process that shares
+// the queue can run it.
 
 /** A job as callers see it: get_job, GET /v1/jobs/:id and `tooldrop build`. */
 export interface JobView {
@@ -56,6 +57,7 @@ export interface BuildOptions {
   models?: ModelSetup;
   /** A running browser for captures; one is launched per build when absent. */
   browser?: Browser;
+  /** Where build jobs wait: in this process (the default), or on Valkey when self-hosted. */
   queue?: JobQueue;
   /** How long an unfinished job may go untouched before it counts as abandoned (default 60 s). */
   staleMs?: number;
@@ -63,7 +65,6 @@ export interface BuildOptions {
   compiler?: Pick<BuildDeps, 'rateLimit' | 'waitMs' | 'actionBudget'>;
 }
 
-const HEARTBEAT_MS = 10_000;
 /** An unfinished job nobody has touched for this long belongs to a process that stopped. */
 const STALE_MS = 60_000;
 const ANSWER_POLL_MS = 500;
@@ -74,14 +75,16 @@ export class Builds {
   readonly #options: BuildOptions;
   readonly #queue: JobQueue;
   readonly #llm: Llm | undefined;
-  /** Jobs this process runs, so it never takes them for stale. */
-  readonly #active = new Set<string>();
+  /** Jobs this process answers for, so it never takes them for stale. */
+  readonly #holds: JobHolds;
   readonly #answered = new Map<string, () => void>();
 
   constructor(engine: Engine, options: BuildOptions = {}) {
     this.#engine = engine;
     this.#options = options;
+    this.#holds = new JobHolds(engine.db);
     this.#queue = options.queue ?? new InProcessQueue(1);
+    this.#queue.process((job) => this.#take(job.id));
     this.#llm = options.models
       ? new Llm({
           ...options.models,
@@ -127,17 +130,9 @@ export class Builds {
       return this.view(job.id);
     }
 
-    this.#active.add(job.id);
-    const heartbeat = setInterval(() => void touchJob(db, job.id).catch(() => undefined), HEARTBEAT_MS);
-    heartbeat.unref();
-    this.#queue.enqueue(async () => {
-      try {
-        await this.#run(job.id, request);
-      } finally {
-        clearInterval(heartbeat);
-        this.#active.delete(job.id);
-      }
-    });
+    // A job waiting in this process's own queue is alive as long as this process is.
+    if (!this.#queue.durable) this.#holds.hold(job.id);
+    await this.#queue.enqueue({ id: job.id, kind: 'build' });
     return this.view(job.id);
   }
 
@@ -147,7 +142,9 @@ export class Builds {
     if (!job) throw new ToolDropError('not_found', `no job ${id}`);
     if (
       UNFINISHED.has(job.status) &&
-      !this.#active.has(id) &&
+      !this.#holds.has(id) &&
+      // A job waiting in a shared queue belongs to the queue, not to a process.
+      !(job.status === 'queued' && this.#queue.durable) &&
       Date.now() - job.updated_at.getTime() > (this.#options.staleMs ?? STALE_MS)
     ) {
       job = await setJobStatus(db, id, 'failed', {
@@ -188,6 +185,24 @@ export class Builds {
   /** Waits until every build of this process has finished, e.g. before exit. */
   idle(): Promise<void> {
     return this.#queue.idle();
+  }
+
+  /** Stops taking builds from the queue. */
+  close(): Promise<void> {
+    return this.#queue.close();
+  }
+
+  /** Runs a job this process took from the queue. */
+  async #take(id: string): Promise<void> {
+    this.#holds.hold(id);
+    try {
+      const job = await getJob(this.#engine.db, id);
+      // Only a job that still waits: one failed meanwhile, or taken before, is left alone.
+      if (job?.status !== 'queued') return;
+      await this.#run(id, buildInputSchema.parse(job.input));
+    } finally {
+      this.#holds.release(id);
+    }
   }
 
   async #existingTool(request: BuildInput): Promise<string | undefined> {

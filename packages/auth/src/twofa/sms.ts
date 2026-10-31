@@ -59,7 +59,7 @@ export function verifySmsRequest(
 }
 
 /** Phone numbers and sender names compare without spacing, signs and a country code's lead. */
-function sameSender(expected: string, actual: string): boolean {
+export function sameSender(expected: string, actual: string): boolean {
   const clean = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
   const a = clean(expected);
   const b = clean(actual);
@@ -80,7 +80,41 @@ interface Waiter {
 }
 
 /** Codes from forwarded messages, waiting for the logins that asked for them. */
-export class SmsInbox {
+/** What a login waiting for a code asks for. */
+export interface SmsWait {
+  sender?: string | undefined;
+  pattern?: string | undefined;
+  /** Only messages that arrived after this, in milliseconds. */
+  after: number;
+  timeoutMs?: number;
+}
+
+/**
+ * Where forwarded codes wait for logins: in memory in one process
+ * (SmsInbox), or on Valkey, shared by every process, when self-hosted.
+ */
+export interface SmsCodes {
+  /** Takes a forwarded message in, unless it is stale or seen before. */
+  accept(
+    message: InboundSms,
+  ): 'accepted' | 'stale' | 'duplicate' | Promise<'accepted' | 'stale' | 'duplicate'>;
+  /** The code for a login: the first message from its sender that arrived after `after`. */
+  waitForCode(options: SmsWait): Promise<string>;
+  close?(): Promise<void>;
+}
+
+/** How long a login waits for its code by default. */
+export const SMS_WAIT_MS = 3 * 60_000;
+
+/** The error when no code came: the phone's forwarder is the usual reason. */
+export function noSmsInTime(): ToolDropError {
+  return new ToolDropError(
+    'session_expired',
+    'no SMS code arrived in time; check that the forwarder on your phone is on and points at toolDrop',
+  );
+}
+
+export class SmsInbox implements SmsCodes {
   /** Messages no login has taken yet: who sent them, when, and their code. Never their text. */
   readonly #codes: { from: string; arrived: number; code: string }[] = [];
   /** Hashes of messages already taken in, to drop a forwarder's retries. */
@@ -120,12 +154,7 @@ export class SmsInbox {
    * The code for a login: the first message from its sender that arrived
    * after `after`, now or within `timeoutMs`.
    */
-  waitForCode(options: {
-    sender?: string;
-    pattern?: string;
-    after: number;
-    timeoutMs?: number;
-  }): Promise<string> {
+  waitForCode(options: SmsWait): Promise<string> {
     this.#prune(this.#now());
     const index = this.#codes.findIndex(
       (entry) =>
@@ -137,18 +166,10 @@ export class SmsInbox {
       return Promise.resolve(found.code);
     }
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(
-        () => {
-          this.#waiters.delete(waiter);
-          reject(
-            new ToolDropError(
-              'session_expired',
-              'no SMS code arrived in time; check that the forwarder on your phone is on and points at toolDrop',
-            ),
-          );
-        },
-        options.timeoutMs ?? 3 * 60_000,
-      );
+      const timer = setTimeout(() => {
+        this.#waiters.delete(waiter);
+        reject(noSmsInTime());
+      }, options.timeoutMs ?? SMS_WAIT_MS);
       const waiter: Waiter = {
         sender: options.sender,
         pattern: options.pattern,

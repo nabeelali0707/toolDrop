@@ -24,3 +24,6 @@ docs/.vitepress/dist/
 apps/dashboard/out/
 apps/dashboard/next-env.d.ts
 apps/cli/dashboard/
+
+# The Compose stack's secrets (compose.yaml): never committed or copied into an image
+/secrets/

@@ -37,6 +37,7 @@ import {
   parseInboundSms,
   readSealed,
   SmsInbox,
+  type SmsCodes,
   Vault,
   verifySmsRequest,
   viewLogins,
@@ -49,6 +50,7 @@ import { Approvals } from './approvals.ts';
 import { Builds, type BuildOptions, type JobView } from './builds.ts';
 import { readRecording, writeRecording } from './recordings.ts';
 import { Heals } from './heals.ts';
+import type { JobQueue } from './queue.ts';
 import { Sessions, type SignInOptions } from './sessions.ts';
 import { Watches, type WatchOptions } from './watches.ts';
 
@@ -88,8 +90,10 @@ export interface EngineOptions {
   runtime?: Runtime;
   /** Where recordings and captures are kept: ~/.tooldrop locally, /data in the image. */
   dataDir?: string;
-  /** Models and browser for builds. */
+  /** Models, browser and queue for builds. */
   builds?: BuildOptions;
+  /** Where heal jobs wait: in this process (the default), or on Valkey when self-hosted. */
+  heals?: { queue?: JobQueue };
   /** How long a failed call waits for its repair (default 5 minutes, SPEC Runtime step 7). */
   healHoldMs?: number;
   /** Repair worn tools after calls that still worked (default true); off for one-shot commands. */
@@ -98,6 +102,8 @@ export interface EngineOptions {
   keyStore?: () => Promise<KeyStore>;
   /** The watch scheduler's clock and webhook delivery; tests set them. */
   watches?: WatchOptions;
+  /** Where forwarded SMS codes wait: in this process (the default), or on Valkey when self-hosted. */
+  sms?: SmsCodes;
 }
 
 export class Engine {
@@ -109,7 +115,7 @@ export class Engine {
   readonly watches: Watches;
   readonly approvals: Approvals;
   /** SMS codes forwarded from the person's phone, for logins waiting on one (SPEC, SMS codes). */
-  readonly sms = new SmsInbox();
+  readonly sms: SmsCodes;
   readonly #healHoldMs: number;
   readonly #backgroundHeals: boolean;
   readonly #dataDir: string | undefined;
@@ -122,9 +128,10 @@ export class Engine {
     this.runtime = options.runtime ?? new Runtime();
     this.#dataDir = options.dataDir;
     this.#keyStore = options.keyStore;
+    this.sms = options.sms ?? new SmsInbox();
     this.builds = new Builds(this, options.builds);
     this.sessions = new Sessions(this, options.builds?.browser ? { browser: options.builds.browser } : {});
-    this.heals = new Heals(this);
+    this.heals = new Heals(this, options.heals);
     this.watches = new Watches(this, options.watches);
     this.approvals = new Approvals(this);
     this.#healHoldMs = options.healHoldMs ?? HEAL_HOLD_MS;
@@ -550,7 +557,7 @@ export class Engine {
     }
     const message = parseInboundSms(body);
     if (!message) throw new ToolDropError('invalid_input', 'the body has no "from" and "text"');
-    const outcome = this.sms.accept(message);
+    const outcome = await this.sms.accept(message);
     if (outcome === 'stale')
       throw new ToolDropError('invalid_input', 'the message is more than 5 minutes old');
     if (outcome === 'duplicate') throw new ToolDropError('conflict', 'this message was received already');
@@ -569,6 +576,9 @@ export class Engine {
 
   async close(): Promise<void> {
     await this.watches.stop();
+    await this.builds.close();
+    await this.heals.close();
+    await this.sms.close?.();
     await this.runtime.close();
   }
 }

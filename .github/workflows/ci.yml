@@ -41,9 +41,10 @@ jobs:
       # Bundles the published package and fails if it imports an undeclared dependency.
       - run: pnpm build
 
-  postgres:
-    # The database tests again, on a real Postgres server through the driver
-    # self-hosted toolDrop uses; the main job runs them on PGlite (D-051).
+  servers:
+    # The tests that need real servers: the database tests on Postgres,
+    # through the driver self-hosted toolDrop uses (the main job runs them on
+    # PGlite), and the shared queue and SMS codes on Valkey (D-051, D-052).
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -59,8 +60,18 @@ jobs:
           --health-interval 2s
           --health-timeout 5s
           --health-retries 30
+      valkey:
+        image: valkey/valkey:8.1
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
     env:
       TOOLDROP_TEST_POSTGRES_URL: postgres://postgres@127.0.0.1:5432/postgres
+      TOOLDROP_TEST_VALKEY_URL: redis://127.0.0.1:6379
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -69,7 +80,7 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec vitest run packages/db
+      - run: pnpm exec vitest run packages/db apps/server/src/valkey.e2e.test.ts
 
   docker:
     # Builds the app image and checks that it serves, as `docker compose up` would.

@@ -182,10 +182,10 @@ Items marked "split first" are broken into day-sized tasks before work starts.
 
 - [x] **5.1 `db`: Postgres.** The Postgres side of the database layer (D-015, D-051): the Postgres schema and its migrations, one set of async queries for both databases, `TOOLDROP_DATABASE_URL`, a parity test, and the database tests on both, with PGlite in the main job and a Postgres 18 service in CI.
   Files: `packages/db/src/*`, `packages/db/migrations-pg/*`, `apps/cli/src/home.ts`, `.github/workflows/ci.yml`, and every caller, now awaiting the database
-- [ ] **5.2 Queue on Valkey.** A BullMQ implementation of the queue interface; CI runs the queue tests against a Valkey 8.1 service (D-010).
-  Files: `apps/server/src/jobs/bullmq-queue.ts`, `.github/workflows/ci.yml`, tests
-- [ ] **5.3 Compose stack.** App image on the Playwright base image, `compose.yaml` with `app`, `postgres`, `valkey` and `ollama` (behind a profile), the master key as a Compose secret, volumes, model pull on first start, telemetry off.
-  Files: `Dockerfile`, `compose.yaml`, `.dockerignore`
+- [x] **5.2 Queue on Valkey.** A BullMQ implementation of the queue interface, which now carries job IDs so any process can run a job; SMS codes on Valkey too; `TOOLDROP_VALKEY_URL`; CI runs the Valkey tests against a Valkey 8.1 service (D-010, D-052).
+  Files: `packages/engine/src/{queue,job-holds,builds,heals,engine}.ts`, `packages/auth/src/twofa/sms.ts`, `apps/server/src/{jobs/bullmq-queue,valkey-sms}.ts`, `apps/cli/src/home.ts`, `.github/workflows/ci.yml`, tests
+- [x] **5.3 Compose stack.** `compose.yaml` with `app`, `postgres`, `valkey`, `ollama` and the model download (Ollama by default, D-012), the master key and the database password as Compose secrets, volumes, health checks, telemetry off (D-053). The image stays as D-033 built it.
+  Files: `compose.yaml`, `.dockerignore`, `.gitignore`, `apps/cli/src/home.ts`, `packages/db/src/client.ts`, `scripts/zero-cost-e2e.ts`, docs
 - [ ] **5.4 Zero-cost check.** A script that, on a clean machine with no API keys, runs `docker compose up`, builds and runs a fixture tool.
   Files: `scripts/zero-cost-e2e.sh`
 - [ ] **5.5 Multi-user, roles, audit logs** (split first).
@@ -220,7 +220,7 @@ From your release plan (2026-10-26). It runs alongside the phases: each item nee
 - [x] **R4 MCP directory listings.** `server.json` (validated), `glama.json`, `smithery.yaml`, `listings/README.md`; not submitted.
 - [x] **R5 Install path A (npx), C (global CLI) and D (from source).** Tested from clean folders with the packed package.
 - [x] **R6 Release automation.** Changesets; a tag-triggered workflow with npm provenance, a multi-arch image on ghcr.io signed with cosign, and a GitHub release (D-033). Runs for the first time at your first tag.
-- [ ] **R7 Install path B (Docker Compose).** The image and `compose.yaml` (app, Ollama, model download) are built and checked in CI, with the dashboard on port 3000. Still needed: Postgres and Valkey (Phase 5).
+- [x] **R7 Install path B (Docker Compose).** The image and `compose.yaml` (app, Postgres, Valkey, Ollama, model download), with the dashboard on port 3000. CI builds and runs the image on every push; the zero-cost workflow runs the whole stack (5.4).
 - [x] **R8 Bring your own model.** `tooldrop init` sizes and pulls Ollama models, and accepts any OpenAI-compatible endpoint; a key is sealed in the vault.
 - [ ] **R9 Main use case: the Demo Shop.** Steps 1 to 4 pass end to end with a scripted model (`apps/server/src/demo-shop.e2e.test.ts`): save the login, build `list_orders` from the shop's own API behind sign-in and TOTP, and answer which orders have not arrived in under 2 seconds. The watch, the dashboard and the demo GIF need Phase 4.
 - [ ] **R10 Chrome extension release zip and store listing.** The extension, its icons and its privacy policy (`docs/privacy.md`) are done, and the release workflow zips it at your first tag. Still needed: store screenshots and the listing, which you submit.

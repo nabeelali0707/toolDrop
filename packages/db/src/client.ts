@@ -125,10 +125,14 @@ export async function lockKey(tx: Queryable, key: string): Promise<void> {
 /**
  * Opens a database: a Postgres URL (postgres://...) when self-hosted, or
  * else a SQLite file, created when missing. Pass ":memory:" in tests.
+ * `password` is Postgres's, for a URL without one, such as from a secret file.
  */
-export function openDatabase(target: string): DatabaseHandle {
+export function openDatabase(target: string, options: { password?: string } = {}): DatabaseHandle {
   if (/^postgres(ql)?:\/\//.test(target)) {
-    const pool = new pg.Pool({ connectionString: target });
+    // In the URL, since node-postgres lets the URL's fields win over a separate password.
+    const url = new URL(target);
+    if (options.password !== undefined) url.password = options.password;
+    const pool = new pg.Pool({ connectionString: url.toString() });
     return {
       db: markDatabase(pgDrizzle({ client: pool, schema: pgSchema }), 'postgres'),
       dialect: 'postgres',

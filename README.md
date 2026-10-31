@@ -74,10 +74,14 @@ On Windows, if your client cannot find `npx`, use `"command": "cmd"` with `"args
 
 ```sh
 curl -O https://raw.githubusercontent.com/nabeelali0707/toolDrop/main/compose.yaml
+mkdir secrets
+openssl rand -base64 32 > secrets/tooldrop_master_key
+openssl rand -hex 24 > secrets/postgres_password
+chmod 600 secrets/* && sudo chown 10001 secrets/*
 docker compose up
 ```
 
-This starts toolDrop, Postgres, Valkey and Ollama, and downloads a model on first start. Docker Desktop is not required: Docker Engine or Podman work too. See [self-hosting](https://nabeelali0707.github.io/toolDrop/self-hosting).
+This starts toolDrop, Postgres, Valkey and Ollama, and downloads a model on first start. The two secrets are the vault's master key and the database password, readable only by toolDrop's user in its container. Docker Desktop is not required: Docker Engine or Podman work too. See [self-hosting](https://nabeelali0707.github.io/toolDrop/self-hosting).
 
 ## Choose a model
 

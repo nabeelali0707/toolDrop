@@ -8,6 +8,8 @@
 // call, so CI runs this on demand and weekly (.github/workflows/zero-cost.yml),
 // not on every change. Nothing here uses a key or an account.
 import { execFileSync, spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createHtmlAppFixture } from '../fixtures/html-app/src/server.ts';
 
 const APP = 'http://127.0.0.1:3000';
@@ -26,6 +28,30 @@ function docker(args: string[]): string {
   });
 }
 
+/**
+ * The stack's two secrets, as its guide has you make them: readable only by
+ * toolDrop's user in the container (uid 10001). Returns whether they were made
+ * here, so they are removed afterwards. Linux only, as CI runs it.
+ */
+function makeSecrets(): boolean {
+  if (existsSync('secrets/tooldrop_master_key')) return false;
+  mkdirSync('secrets', { recursive: true });
+  writeFileSync(
+    'secrets/tooldrop_master_key',
+    `${randomBytes(32).toString('base64')}
+`,
+    { mode: 0o600 },
+  );
+  writeFileSync(
+    'secrets/postgres_password',
+    `${randomBytes(24).toString('hex')}
+`,
+    { mode: 0o600 },
+  );
+  execFileSync('sudo', ['chown', '10001', 'secrets/tooldrop_master_key', 'secrets/postgres_password']);
+  return true;
+}
+
 function step(text: string): void {
   console.log(`\n[${new Date().toISOString().slice(11, 19)}] ${text}`);
 }
@@ -40,6 +66,7 @@ async function until<T>(what: string, minutes: number, check: () => Promise<T | 
   }
 }
 
+const madeSecrets = makeSecrets();
 const fixture = createHtmlAppFixture();
 // On all addresses, so the app container reaches it through the Docker host.
 await fixture.listen({ host: '0.0.0.0', port: 4102 });
@@ -131,5 +158,7 @@ try {
 } finally {
   if (!process.env.KEEP_STACK) docker(['down', '--volumes']);
   await fixture.close();
+  // The folder is the runner's, so its files can go though uid 10001 owns them.
+  if (madeSecrets && !process.env.KEEP_STACK) rmSync('secrets', { recursive: true, force: true });
 }
 process.exitCode = failed ? 1 : 0;

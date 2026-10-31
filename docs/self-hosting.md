@@ -1,7 +1,7 @@
 # Self-hosting
 
 ::: info Status
-`tooldrop serve` and the Docker image work today: the REST API, remote MCP and the [dashboard](./dashboard) on port 3000, with SQLite or [Postgres](#postgres). Postgres and Valkey join the Compose stack with Phase 5.
+Self-hosted mode works: `docker compose up` starts toolDrop with Postgres, Valkey and Ollama. `tooldrop serve` works on its own too, with SQLite or [Postgres](#postgres), and optionally [Valkey](#valkey).
 :::
 
 toolDrop is self-host only: there is no managed cloud version, and no setup uses a paid cloud service.
@@ -16,30 +16,38 @@ toolDrop is self-host only: there is no managed cloud version, and no setup uses
 
 ## Docker Compose
 
+Get the stack and make its two secrets: the vault's master key, and the database password. toolDrop runs as uid 10001 in its container, so the files belong to that user and nobody else can read them:
+
 ```sh
+mkdir tooldrop && cd tooldrop
 curl -O https://raw.githubusercontent.com/nabeelali0707/toolDrop/main/compose.yaml
+mkdir secrets
+openssl rand -base64 32 > secrets/tooldrop_master_key
+openssl rand -hex 24 > secrets/postgres_password
+chmod 600 secrets/*
+sudo chown 10001 secrets/*
 docker compose up
 ```
 
-Today this starts:
+This starts:
 
-- **`app`**: the REST API and remote MCP on http://localhost:3000, published on the loopback address only. Its data, in SQLite, lives on the `tooldrop-data` volume.
+- **`app`**: the REST API, the dashboard and remote MCP on http://localhost:3000, published on the loopback address only. Recordings and captures live on the `tooldrop-data` volume.
+- **`postgres`**: the database, on the `postgres-data` volume.
+- **`valkey`**: the job queue and SMS codes, on the `valkey-data` volume, so jobs waiting in the queue survive a restart.
 - **`ollama`**, with its models on the `ollama-models` volume.
 - **`models`**: a one-off service that downloads `qwen2.5-coder:7b` and `llama3.1:8b` on first start, then exits. With 16 GB of RAM or more, set `TOOLDROP_CODE_MODEL=qwen2.5-coder:14b`. Weights are never baked into an image.
 
-On first start, the app creates an API key and prints it once; read it with `docker compose logs app`. Make more with `docker compose exec app tooldrop keys create`.
+Postgres and Valkey are reachable only inside the stack. On first start, the app creates an API key and prints it once; read it with `docker compose logs app`. Make more with `docker compose exec app tooldrop keys create`.
+
+The master key seals every saved login, and nothing can open them without it. Back it up apart from the volumes, never commit it, and never reuse it elsewhere. The vault refuses a key file that other users can read. On macOS and Windows, keep the stack's folder where Docker sees Linux file permissions: inside WSL2 on Windows.
 
 The app image is signed with [cosign](https://docs.sigstore.dev/) (keyless, with GitHub's identity). To verify it:
 
 ```sh
-cosign verify ghcr.io/nabeelali0707/tooldrop:latest \
-  --certificate-identity-regexp '^https://github.com/nabeelali0707/toolDrop/' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+cosign verify ghcr.io/nabeelali0707/tooldrop:latest   --certificate-identity-regexp '^https://github.com/nabeelali0707/toolDrop/'   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
-With self-hosted mode (Phase 5), `postgres` and `valkey` join the stack, and the vault's master key comes from a file mounted at `/run/secrets/tooldrop_master_key`: 32 random bytes in base64, such as `openssl rand -base64 32` prints. `tooldrop init` will generate it. Keep it readable only by the toolDrop user, and never commit it.
-
-Until then, the app creates the master key in `/data/master.key` the first time it saves a login, in the same volume as the database. Anyone who can read that volume, or a backup of it, can open the saved logins, so keep both private.
+The image also runs on its own, without the stack: `docker run -p 127.0.0.1:3000:3000 -v tooldrop-data:/data ghcr.io/nabeelali0707/tooldrop:latest`. It keeps its data in SQLite and creates the master key in `/data/master.key`, in the same volume as the database, so anyone who can read that volume, or a backup of it, can open the saved logins.
 
 ## Postgres
 
@@ -49,9 +57,25 @@ toolDrop uses Postgres when `TOOLDROP_DATABASE_URL` holds a Postgres URL, for `t
 TOOLDROP_DATABASE_URL=postgres://tooldrop:<password>@db.internal:5432/tooldrop tooldrop serve
 ```
 
+The password may instead come from a file, as the Compose stack does: `TOOLDROP_DATABASE_PASSWORD_FILE=/run/secrets/postgres_password`, with the URL left without one.
+
 It creates and updates its tables at start, so an empty database is enough. Without the variable, it keeps using SQLite. CI tests it on Postgres 18, and it needs no extension.
 
 Saved logins and sessions are sealed by the vault before they reach the database, as with SQLite, but the database still says which sites have logins. Give toolDrop a database and user of its own, and keep the URL out of shell history and logs, since it holds the password.
+
+## Valkey
+
+With `TOOLDROP_VALKEY_URL` set to a Valkey (or Redis-compatible) server, every toolDrop process shares one job queue and the SMS codes:
+
+```sh
+TOOLDROP_VALKEY_URL=redis://valkey.internal:6379 tooldrop serve
+```
+
+- Builds and repairs wait in the queue, and `tooldrop serve` (or `tooldrop mcp`) runs them; a build asked for from any process may run in another. Other commands, such as `tooldrop build`, only add jobs and follow them, so keep a server running.
+- An SMS code forwarded to any process reaches the sign-in waiting for it in another. Only the code goes to Valkey, never the message, and it expires after 5 minutes.
+- Every process needs the same data directory (`TOOLDROP_HOME`), where recordings and captures are kept.
+
+Valkey 8.1 is what CI tests. Without the variable, each process keeps its own queue and codes in memory.
 
 ## Platform notes
 

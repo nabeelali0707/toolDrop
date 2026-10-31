@@ -541,3 +541,27 @@ SPEC's Security criterion: no API, log, error or model prompt ever holds a plain
 - **Transactions:** Postgres runs each on a connection of its own. better-sqlite3's transactions are synchronous, so on SQLite toolDrop begins one, awaits the work and commits, and the transactions of a process take turns. Read-then-write steps, such as numbering a tool's next version, also take an advisory lock on Postgres, where two requests can run them at once.
 - **Tests run on PGlite** (Apache-2.0), Postgres compiled to WebAssembly, in memory, so they need no server. D-015 rejected PGlite for local mode, where several processes share one database; a test has one process. A CI job runs the database tests again on a real Postgres server.
 - **Counts and sums** arrive from Postgres as strings (bigint and numeric), so those queries map them to numbers.
+
+### D-052 How the shared queue and SMS codes work
+
+*Proposed · 2026-10-31*
+
+- **Chosen with `TOOLDROP_VALKEY_URL`:** a `redis://` or `rediss://` URL puts build and heal jobs on BullMQ (6.3.15, MIT) and SMS codes on that Valkey server, shared by every process. Without it, each process keeps its own, as before. Errors never repeat the URL.
+- **The queue carries job IDs only.** A job's input and progress stay in the jobs table, so whichever process takes a job loads it from there and runs it. Ended jobs are removed from Valkey; how they went is in the database.
+- **Only `tooldrop serve` and `tooldrop mcp` take jobs.** One-shot commands add jobs and follow them in the database, so `tooldrop build` inside the container is run by the server, and a command that exits never strands a job it took.
+- **Abandoned jobs:** the process running a job touches it every 10 seconds, as before. A job still waiting in the shared queue belongs to the queue, so no process takes it for abandoned; one cut short when its process ends is failed after a minute.
+- **Heals may run in another process.** A call waiting for its repair watches the heal job's row. A heal checks that its tool still has the version it was asked to repair, since a repair of an older version would undo whatever replaced it.
+- **SMS codes keep D-049's rules across processes:** only codes reach Valkey, never a message's text, and every key expires after 5 minutes. A waiting login leaves its sender and pattern in Valkey; the process that receives a message reads the code with them and publishes it to that login. Removing an entry is the claim, so a code goes to one login.
+- **Every process must share the data directory** (recordings and captures), as the Compose stack's one volume does.
+- **Tests:** the queue and the codes run against a Valkey 8.1 service in CI, and locally when `TOOLDROP_TEST_VALKEY_URL` is set. An engine test runs a build across two engines on one database with a shared queue in memory, in every run.
+
+### D-053 The self-hosted Compose stack
+
+*Proposed · 2026-10-31*
+
+- **Services:** `app`, `postgres` (18), `valkey` (8.1, D-010), `ollama` and the one-off `models` download, as D-012 has it: Ollama runs by default, not behind a profile. The app starts once Postgres and Valkey answer their health checks.
+- **Only the app is published,** on the host's loopback address. Postgres and Valkey are reachable inside the stack alone, so Valkey needs no password.
+- **Two Compose secrets,** made by the operator before the first start: the master key (D-009) and the Postgres password. Postgres reads its password as root when it starts; toolDrop reads both as its own user, uid 10001, through `TOOLDROP_DATABASE_PASSWORD_FILE` and the secret's mount point. D-009's rule stands: the vault refuses a key file other users can read, so the files are `chmod 600` and owned by uid 10001. That needs `sudo chown` once on Linux, which the guide shows.
+- **Volumes:** `tooldrop-data` (recordings, captures, screenshots), `postgres-data`, `valkey-data` (Valkey saves to it, so waiting jobs survive a restart) and `ollama-models`. The master key is in none of them, so a backup of the volumes cannot open the saved logins.
+- **The image is unchanged** (D-033): the same image runs alone with SQLite, as CI checks on every push, and in the stack with Postgres and Valkey.
+- **The zero-cost check** makes the two secrets the way the guide does before `docker compose up`, and removes them afterwards.

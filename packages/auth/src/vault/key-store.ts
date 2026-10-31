@@ -61,7 +61,18 @@ export function keyFile(path: string, options: { creatable: boolean }): KeyStore
             `${path} can be read by other users; run \`chmod 600 ${path}\` and start toolDrop again`,
           );
         }
-        resolve(readFileSync(path, 'utf8').trim());
+        let encoded: string;
+        try {
+          encoded = readFileSync(path, 'utf8').trim();
+        } catch {
+          // Most often a Compose secret still owned by the host user (D-053).
+          const user = process.getuid ? ` (uid ${process.getuid()})` : '';
+          throw new ToolDropError(
+            'vault_unavailable',
+            `the user toolDrop runs as${user} cannot read ${path}; give the file to that user, keeping it private`,
+          );
+        }
+        resolve(encoded);
       }),
     // `wx` never overwrites: a second key would lock out everything sealed with the first.
     write: (encoded) =>

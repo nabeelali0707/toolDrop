@@ -5,7 +5,7 @@ import { openEngine, version } from '../home.ts';
 export async function mcp(): Promise<number> {
   // Builds run in this process; a library that prints would break the protocol, so logs go to stderr.
   console.log = console.info = console.debug = console.error;
-  const { engine, close } = await openEngine();
+  const { engine, close } = await openEngine({ worker: true });
   const server = await serveStdio(engine, { version: version() });
   // Watches run while the client keeps toolDrop running, and report changes to it as well.
   engine.watches.start();
