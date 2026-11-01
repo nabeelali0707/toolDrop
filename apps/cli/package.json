@@ -54,7 +54,7 @@
     "got-scraping": "^4.2.2",
     "imapflow": "2.4.0",
     "ioredis": "6.0.0",
-    "jsonpath-plus": "^11.2.1",
+    "jsonpath-plus": "^11.2.2",
     "libsodium-wrappers": "^0.8.4",
     "mailparser": "3.9.38",
     "ollama": "^0.6.4",
