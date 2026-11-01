@@ -12,7 +12,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@fastify/static": "10.1.6",
+    "@fastify/static": "10.1.8",
     "@tooldrop/auth": "workspace:*",
     "@tooldrop/core": "workspace:*",
     "@tooldrop/db": "workspace:*",

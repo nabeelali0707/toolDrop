@@ -67,8 +67,8 @@ importers:
   apps/cli:
     dependencies:
       '@fastify/static':
-        specifier: 10.1.6
-        version: 10.1.6
+        specifier: 10.1.8
+        version: 10.1.8
       '@modelcontextprotocol/sdk':
         specifier: ^1.32.2
         version: 1.32.2(zod@4.6.7)
@@ -307,8 +307,8 @@ importers:
   apps/server:
     dependencies:
       '@fastify/static':
-        specifier: 10.1.6
-        version: 10.1.6
+        specifier: 10.1.8
+        version: 10.1.8
       '@tooldrop/auth':
         specifier: workspace:*
         version: link:../../packages/auth
@@ -1533,8 +1533,8 @@ packages:
   '@fastify/send@4.2.0':
     resolution: {integrity: sha512-B5Hr+IFsPbqJJQu6FHE2MFpnHfbPlCOVQUPTdm6PxCcilYGrEQsulbO0z9blgbjndIyLJwa2NWFIIjXpPhbwUg==}
 
-  '@fastify/static@10.1.6':
-    resolution: {integrity: sha512-f3x9XisI+y6AIhIfA/+Q3SFsuXeqNNk5HQh5htgHsPxmMLb4pLFskV6eFaLSW3IbI4azrS5np+/tkzXNH99LyQ==}
+  '@fastify/static@10.1.8':
+    resolution: {integrity: sha512-3CbgWOXJX8f46xxsuOgQl9h0lyQQiABMG40kxRF5PWJk4LyBW5m3mLZoW5glnm2TUTC1gVFCBnqOt5S6zIIIrg==}
 
   '@hono/node-server@2.1.5':
     resolution: {integrity: sha512-MgP/I06GdvsilDspMk/qmRzpk8LOUStP6jFAbSRi40W09DhoyUn+Mj7eyKICPqeYKybOjVFLVIAQzvu1bfIa7Q==}
@@ -5292,7 +5292,7 @@ snapshots:
       http-errors: 2.0.1
       mime: 3.0.0
 
-  '@fastify/static@10.1.6':
+  '@fastify/static@10.1.8':
     dependencies:
       '@fastify/accept-negotiator': 2.1.2
       '@fastify/error': 4.2.1
