@@ -18,7 +18,7 @@
     "@tooldrop/db": "workspace:*",
     "@tooldrop/engine": "workspace:*",
     "@tooldrop/mcp": "workspace:*",
-    "bullmq": "6.3.15",
+    "bullmq": "6.5.1",
     "fastify": "^5.12.7",
     "ioredis": "6.0.0"
   },

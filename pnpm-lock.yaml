@@ -12,8 +12,8 @@ importers:
   .:
     dependencies:
       bullmq:
-        specifier: 6.3.15
-        version: 6.3.15(ioredis@6.0.0)(pg@8.23.1)
+        specifier: 6.5.1
+        version: 6.5.1(ioredis@6.0.0)(pg@8.23.1)
       ioredis:
         specifier: 6.0.0
         version: 6.0.0
@@ -85,8 +85,8 @@ importers:
         specifier: ^12.11.1
         version: 12.11.1
       bullmq:
-        specifier: 6.3.15
-        version: 6.3.15(ioredis@6.0.0)(pg@8.23.1)
+        specifier: 6.5.1
+        version: 6.5.1(ioredis@6.0.0)(pg@8.23.1)
       cheerio:
         specifier: ^1.2.0
         version: 1.2.0
@@ -325,8 +325,8 @@ importers:
         specifier: workspace:*
         version: link:../mcp
       bullmq:
-        specifier: 6.3.15
-        version: 6.3.15(ioredis@6.0.0)(pg@8.23.1)
+        specifier: 6.5.1
+        version: 6.5.1(ioredis@6.0.0)(pg@8.23.1)
       fastify:
         specifier: ^5.12.7
         version: 5.12.7
@@ -2592,9 +2592,9 @@ packages:
   buffer@5.7.1:
     resolution: {integrity: sha512-EHcyIPBQ4BSGlvjB16k5KgAJ27CIsHY/2JBmCRReo48y9rQ3MaUzWX3KVlBa4U7MyX02HdVj0K7C3WaB3ju7FQ==}
 
-  bullmq@6.3.15:
-    resolution: {integrity: sha512-J6EZH/DhfGnsIafSK2FfNJ6XtSAQnD4YM1vts5+jT4usLYkxV2uU72oKNpmyxUQl9U4sFEvK5MO5SJ+dGlwOLQ==}
-    engines: {node: '>=14.17.0'}
+  bullmq@6.5.1:
+    resolution: {integrity: sha512-p0u+lUI2s253EI8r+kNGCXpK1SuwSDW8FpUvaF8vrn1bPv9ZbXmkkq/yFhpwjIJMtjzHUuZAtlpvdWmJlucooQ==}
+    engines: {node: '>=14.18.0'}
     peerDependencies:
       bullmq-otel: '>=2.0.0'
       ioredis: '>=5.0.0'
@@ -3712,8 +3712,8 @@ packages:
     resolution: {integrity: sha512-4kmO/MdyUIkLIvTPr8VHLil4AtoKIoniWPIEk5+CDy0xnWC84azhSFmuJ7PxZdsYtiP5kEeQsORAVIeMgxT+Hw==}
     hasBin: true
 
-  msgpackr@2.1.0:
-    resolution: {integrity: sha512-p/pBCVO63CsvvpkomUnNNag6+n38rULuDA6HHe70o2gtC8ODI52foF/4ko2qQcp6OiErJXTmrZeXmsGGHsIQNQ==}
+  msgpackr@2.1.2:
+    resolution: {integrity: sha512-JHAdwubWNEadHQsFAib6uXOzKFxY8QOWHu9LCCksOINMC+TjgaKS2Tdrw7dW5SY0LLz8YK2/YqLSi2vigQt05w==}
 
   nanoid@3.3.20:
     resolution: {integrity: sha512-uKdg2G3GNCKQn9byYOpxbGqrT2fGO5KRt5J/8b3pok8rT6qxGWF6hxMyJiEYtAf+FVyYuD9hRaDqX5uPFYJ4ZQ==}
@@ -6217,10 +6217,10 @@ snapshots:
       base64-js: 1.5.1
       ieee754: 1.2.1
 
-  bullmq@6.3.15(ioredis@6.0.0)(pg@8.23.1):
+  bullmq@6.5.1(ioredis@6.0.0)(pg@8.23.1):
     dependencies:
       cron-parser: 5.10.2
-      msgpackr: 2.1.0
+      msgpackr: 2.1.2
       node-abort-controller: 3.1.1
       semver: 7.8.5
       tslib: 2.8.1
@@ -7339,7 +7339,7 @@ snapshots:
       '@msgpackr-extract/msgpackr-extract-win32-x64': 3.0.4
     optional: true
 
-  msgpackr@2.1.0:
+  msgpackr@2.1.2:
     optionalDependencies:
       msgpackr-extract: 3.0.4
 
