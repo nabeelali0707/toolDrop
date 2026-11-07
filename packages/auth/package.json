@@ -18,7 +18,7 @@
     "imapflow": "2.9.1",
     "libsodium-wrappers": "^0.8.4",
     "mailparser": "3.12.4",
-    "otplib": "^13.5.0",
+    "otplib": "^13.6.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
