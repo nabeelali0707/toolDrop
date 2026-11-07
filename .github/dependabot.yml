@@ -16,6 +16,12 @@ updates:
       # 13.x ships no prebuilt binaries, so users would need a C++ toolchain (D-015).
       - dependency-name: better-sqlite3
         update-types: [version-update:semver-major]
+      # 8.72.1 runs ESLint out of memory on this repo (over 4 GB, against about 65 s for 8.72.0).
+      - dependency-name: typescript-eslint
+        versions: ['8.72.1']
+      # The types follow the Node version toolDrop runs on (.nvmrc, engines), not the newest Node.
+      - dependency-name: '@types/node'
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
     directory: /

@@ -41,7 +41,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@fastify/static": "10.1.6",
+    "@fastify/static": "10.1.8",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "@napi-rs/keyring": "^2.1.2",
     "ajv": "^8.20.0",
@@ -52,11 +52,11 @@
     "drizzle-orm": "^0.45.4",
     "fastify": "^5.12.7",
     "got-scraping": "^4.2.2",
-    "imapflow": "2.4.0",
+    "imapflow": "2.9.1",
     "ioredis": "6.0.0",
-    "jsonpath-plus": "^11.2.1",
+    "jsonpath-plus": "^11.2.2",
     "libsodium-wrappers": "^0.8.4",
-    "mailparser": "3.9.38",
+    "mailparser": "3.12.4",
     "ollama": "^0.6.4",
     "otplib": "^13.5.0",
     "pg": "8.23.1",
