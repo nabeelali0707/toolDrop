@@ -6,15 +6,13 @@ Oct 26, 2026 · @nabeel ali
 
 toolDrop turns a task on any website into a deterministic, self-hosted API and MCP tool that AI agents can call. An LLM is used as a **compiler** (to build and repair tools), never as the **runtime** (to execute every request).
 
-The product is inspired by [Pomerado](https://pomerado.ai) (YC, open source), which builds, hosts and self-heals website integrations. toolDrop is an independent implementation: write our own code, do not copy theirs. If any of their code is studied or reused, check their license first.
-
 **Goals**
 
 - A user describes a task ("list my supplier invoices by status and date") or records it once, and gets a typed tool back in minutes.
 - Published tools run without an LLM: target 1 to 5 seconds per call via HTTP, under 15 seconds via browser.
 - Tools repair themselves when the website changes, and the caller still gets a result.
 - It costs nothing to run: local models by default, and no paid API, service or plan anywhere (see Zero-cost rule).
-- Go beyond Pomerado with recording by demonstration, website-to-webhook triggers and a safe mode for write actions (see Differentiating features).
+- Stand out with recording by demonstration, website-to-webhook triggers and a safe mode for write actions (see Differentiating features).
 
 ## Zero-cost rule
 
@@ -54,7 +52,7 @@ These defaults were chosen because the open questions were not answered yet. Cha
 | Queue | In-process locally, BullMQ on Valkey when self-hosted | Valkey is the BSD-licensed Redis fork |
 | Secrets | Encrypted vault (libsodium); master key from the OS keychain (local) or a mounted key file (self-hosted) | Credentials never stored in plain text; no cloud KMS |
 | SMS 2FA | The user's own Android phone, with an open-source SMS forwarder posting to a local webhook | No paid SMS service |
-| MVP features | Core build/run/heal + recording + webhooks + safe mode | Highest value, clearest difference from Pomerado |
+| MVP features | Core build/run/heal + recording + webhooks + safe mode | Highest value, and what sets toolDrop apart |
 | Audience | Developers and small teams first | Enterprise features (SSO, audit) in a later phase |
 
 ## Core concepts
@@ -428,7 +426,7 @@ Unit-test the traffic analyzer, field classifier, recipe executor and differ in 
 - Users are responsible for having the right to automate a site; show a notice to check the site's Terms of Service on each new site.
 - Respect `robots.txt` for unauthenticated discovery crawls; enforce conservative default rate limits.
 - Do not build features to bypass paywalls or access controls the user is not entitled to.
-- toolDrop is an independent implementation inspired by Pomerado. Do not copy Pomerado's code, assets or branding; if any open-source code is reused, follow its license.
+- If any open-source code is reused, follow its license.
 - Model weights keep their own licenses. toolDrop does not bundle weights; users pull them through Ollama. Llama 3.1 is under the Llama 3.1 Community License (see DECISIONS.md for its terms).
 
 **Non-goals for the MVP**
