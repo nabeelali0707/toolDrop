@@ -12,6 +12,6 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "fastify": "^5.12.7"
+    "fastify": "^5.12.8"
   }
 }
