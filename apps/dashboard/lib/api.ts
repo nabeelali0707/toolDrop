@@ -77,19 +77,28 @@ export function useApi<T>(path: string | null): {
   loading: boolean;
   reload: () => void;
 } {
-  const [state, setState] = useState<{ data?: T; error?: string; loading: boolean }>({ loading: true });
+  // The answer is kept with the path it came from: after the path changes (the browser's back button
+  // between two tools), the old path's data must not show under the new one while it loads.
+  const [state, setState] = useState<{ path?: string; data?: T; error?: string }>({});
   const [round, setRound] = useState(0);
   useEffect(() => {
     if (!path) return;
     let current = true;
     api<T>(path).then(
-      (data) => current && setState({ data, loading: false }),
-      (error: unknown) => current && setState({ error: message(error), loading: false }),
+      (data) => current && setState({ path, data }),
+      (error: unknown) => current && setState({ path, error: message(error) }),
     );
     return () => {
       current = false;
     };
   }, [path, round]);
   const reload = useCallback(() => setRound((n) => n + 1), []);
-  return { data: state.data, error: state.error, loading: state.loading, reload };
+  const answered = path !== null && state.path === path;
+  return {
+    data: answered ? state.data : undefined,
+    error: answered ? state.error : undefined,
+    // A reload keeps the old answer on screen, so only a path with no answer yet is loading.
+    loading: path !== null && !answered,
+    reload,
+  };
 }

@@ -72,11 +72,15 @@ export default function LoginsPage() {
 function AddLogin({ onAdded }: { onAdded: () => void }) {
   const [form, setForm] = useState({ site: '', username: '', password: '', totp_secret: '' });
   const [result, setResult] = useState<{ ok: boolean; text: string }>();
+  // Pressing Save twice would save the login twice.
+  const [busy, setBusy] = useState(false);
   const set = (field: keyof typeof form) => (event: { target: { value: string } }) =>
     setForm({ ...form, [field]: event.target.value });
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
+    if (busy) return;
+    setBusy(true);
     try {
       await api('/v1/logins', {
         method: 'POST',
@@ -92,6 +96,8 @@ function AddLogin({ onAdded }: { onAdded: () => void }) {
       onAdded();
     } catch (failure) {
       setResult({ ok: false, text: message(failure) });
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -113,7 +119,11 @@ function AddLogin({ onAdded }: { onAdded: () => void }) {
         <Input id="password" type="password" value={form.password} onChange={set('password')} />
         <Label htmlFor="totp">Authenticator secret (optional)</Label>
         <Input id="totp" type="password" value={form.totp_secret} onChange={set('totp_secret')} />
-        <Button type="submit" className="mt-4" disabled={!form.site || !form.username || !form.password}>
+        <Button
+          type="submit"
+          className="mt-4"
+          disabled={busy || !form.site.trim() || !form.username || !form.password}
+        >
           Save login
         </Button>
       </form>

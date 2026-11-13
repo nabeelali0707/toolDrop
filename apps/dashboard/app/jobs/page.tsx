@@ -133,13 +133,19 @@ function Answer({
 }) {
   const [value, setValue] = useState('');
   const [error, setError] = useState<string>();
+  // A second click while the answer is on its way would send it twice, and the second is refused.
+  const [busy, setBusy] = useState(false);
 
   async function send(answer: string): Promise<void> {
+    setBusy(true);
+    setError(undefined);
     try {
       await api(`/v1/jobs/${jobId}/answers`, { method: 'POST', body: { question_id: question.id, answer } });
       onAnswered();
     } catch (failure) {
       setError(message(failure));
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -149,7 +155,7 @@ function Answer({
       {question.options ? (
         <div className="mt-2 flex flex-wrap gap-2">
           {question.options.map((option) => (
-            <Button key={option} variant="outline" onClick={() => void send(option)}>
+            <Button key={option} variant="outline" disabled={busy} onClick={() => void send(option)}>
               {option}
             </Button>
           ))}
@@ -168,7 +174,7 @@ function Answer({
             value={value}
             onChange={(event) => setValue(event.target.value)}
           />
-          <Button type="submit" disabled={value.trim() === ''}>
+          <Button type="submit" disabled={busy || value.trim() === ''}>
             Answer
           </Button>
         </form>
