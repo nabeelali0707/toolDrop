@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { when } from '../lib/utils';
+import { duration, when } from '../lib/utils';
 import type { RunView } from '../lib/types';
 import { Badge } from './ui/badge';
 import { Table, Td, Th } from './ui/table';
@@ -34,7 +34,7 @@ export function RunTable({ runs, showTool = true }: { runs: RunView[]; showTool?
             )}
             <Td>v{run.version}</Td>
             <Td>{run.strategy.replace('_', ' ')}</Td>
-            <Td>{run.duration_ms} ms</Td>
+            <Td className="tabular-nums">{duration(run.duration_ms)}</Td>
             <Td>
               <Badge tone={run.ok ? 'good' : 'bad'}>{run.ok ? 'ok' : (run.error_code ?? 'failed')}</Badge>
               {run.healed && (

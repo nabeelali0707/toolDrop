@@ -211,4 +211,20 @@ describe('before any strategy runs', () => {
     const second = await runtime.run(tool, { status: 'paid' });
     expect(second).toBe(first);
   });
+
+  it('keeps a bounded cache: the oldest result goes when it is full', async () => {
+    fixture = await startHtmlAppFixture();
+    const small = new Runtime({ browserWaitMs: 5_000, cacheEntries: 2 });
+    try {
+      const tool = fixtureTool('html-app.search_invoices.json', fixture.url, { cache_ttl_ms: 60_000 });
+      const oldest = await small.run(tool, { status: 'paid' });
+      const open = await small.run(tool, { status: 'open' });
+      await small.run(tool, { status: 'draft' });
+      // The newest two are still cached; the oldest was dropped and is fetched again.
+      expect(await small.run(tool, { status: 'open' })).toBe(open);
+      expect(await small.run(tool, { status: 'paid' })).not.toBe(oldest);
+    } finally {
+      await small.close();
+    }
+  });
 });

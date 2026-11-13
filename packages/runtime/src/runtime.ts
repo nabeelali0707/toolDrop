@@ -68,6 +68,8 @@ export interface RuntimeOptions {
   /** How long a browser step waits for the page (default 10 s). */
   browserWaitMs?: number;
   httpTimeoutMs?: number;
+  /** Most cached results kept at once (default 500); the expired go first, then the oldest. */
+  cacheEntries?: number;
 }
 
 /**
@@ -299,8 +301,24 @@ export class Runtime {
       attempts: run.attempts,
       ...(run.drift && run.drift.length > 0 && { drift: { strategy: run.strategy, steps: run.drift } }),
     };
-    if (tool.cache_ttl_ms) this.#cache.set(cacheKey, { expires: Date.now() + tool.cache_ttl_ms, outcome });
+    if (tool.cache_ttl_ms) this.#remember(cacheKey, outcome, tool.cache_ttl_ms);
     return outcome;
+  }
+
+  /** Caches a result without letting the cache grow forever: a call with new inputs adds an entry. */
+  #remember(key: string, outcome: RunOutcome, ttlMs: number): void {
+    const limit = this.#options.cacheEntries ?? 500;
+    const now = Date.now();
+    this.#cache.delete(key);
+    if (this.#cache.size >= limit) {
+      for (const [other, entry] of this.#cache) if (entry.expires <= now) this.#cache.delete(other);
+      // A Map keeps insertion order, so the first key is the oldest.
+      for (const oldest of this.#cache.keys()) {
+        if (this.#cache.size < limit) break;
+        this.#cache.delete(oldest);
+      }
+    }
+    this.#cache.set(key, { expires: now + ttlMs, outcome });
   }
 
   #checkedInput(tool: RunnableTool, input: unknown): Record<string, unknown> {

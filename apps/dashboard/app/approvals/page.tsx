@@ -135,11 +135,17 @@ function Screenshot({ id }: { id: string }) {
   const [src, setSrc] = useState<string>();
   useEffect(() => {
     let url: string | undefined;
+    let current = true;
     apiImage(`/v1/approvals/${id}/screenshot`).then(
-      (loaded) => setSrc((url = loaded)),
+      (loaded) => {
+        // The card may be gone before the picture arrives: free its URL at once.
+        if (current) setSrc((url = loaded));
+        else URL.revokeObjectURL(loaded);
+      },
       () => undefined,
     );
     return () => {
+      current = false;
       if (url) URL.revokeObjectURL(url);
     };
   }, [id]);

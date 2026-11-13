@@ -4,21 +4,13 @@ import { useEffect, useState } from 'react';
 import { api, message } from '../lib/api';
 import { diffLines } from '../lib/diff';
 import type { ToolStats, VersionDetails } from '../lib/types';
-import { cn, when } from '../lib/utils';
+import { cn, duration, when } from '../lib/utils';
 import { Badge } from './ui/badge';
 import { Table, Td, Th } from './ui/table';
 
 // The transparency dashboard (SPEC, Differentiating features): how a tool's
 // calls went, what its builds and heals cost in model time, its repairs, and
 // what changed between versions.
-
-/** A duration for people: "340 ms", "2.4 s", "3.1 min". */
-export function duration(ms: number | null): string {
-  if (ms === null) return '–';
-  if (ms < 1000) return `${Math.round(ms)} ms`;
-  if (ms < 60_000) return `${(ms / 1000).toFixed(1)} s`;
-  return `${(ms / 60_000).toFixed(1)} min`;
-}
 
 function Figure({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (

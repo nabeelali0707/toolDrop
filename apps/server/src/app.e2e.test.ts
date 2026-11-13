@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,7 +17,7 @@ import { Engine, readToolFile } from '@tooldrop/engine';
 import { startHtmlAppFixture } from '@tooldrop/fixture-html-app';
 import type { RunningFixture } from '@tooldrop/fixture-kit';
 import type { FastifyInstance } from 'fastify';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createServer } from './app.ts';
 
 let handle: DatabaseHandle;
@@ -105,6 +105,49 @@ describe('REST API', () => {
 
     const scoped = (await createApiKey(handle.db, { label: 'scoped', scopes: ['list_orders'] })).key;
     expect((await run('search_invoices', {}, { authorization: `Bearer ${scoped}` })).statusCode).toBe(403);
+  });
+
+  it('takes an empty ?limit= as no limit, not as 1', async () => {
+    await engine.runTool('search_invoices', {});
+    await engine.runTool('search_invoices', { status: 'paid' });
+    const runs = async (query: string) =>
+      (await app.inject({ url: `/v1/runs${query}`, headers: auth() })).json<{ runs: unknown[] }>().runs;
+    expect(await runs('?limit=')).toHaveLength(2);
+    expect(await runs('?limit=1')).toHaveLength(1);
+  });
+
+  it('hides the cause of an unexpected error from the caller, and logs it', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const broken = vi.spyOn(engine, 'listTools').mockRejectedValue(new Error('disk on fire'));
+    try {
+      const response = await app.inject({ url: '/v1/tools', headers: auth() });
+      expect(response.statusCode).toBe(500);
+      expect(response.json()).toEqual({ error: { code: 'internal', message: 'internal error' } });
+      expect(logged).toHaveBeenCalledWith('toolDrop: GET /v1/tools failed:', expect.any(Error));
+    } finally {
+      broken.mockRestore();
+      logged.mockRestore();
+    }
+  });
+});
+
+describe('the dashboard files', () => {
+  it('caches the content-named build files for good, and the pages not at all', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tooldrop-dashboard-'));
+    mkdirSync(join(dir, '_next', 'static'), { recursive: true });
+    writeFileSync(join(dir, 'index.html'), '<!doctype html><title>dash</title>');
+    writeFileSync(join(dir, '_next', 'static', 'app-1a2b3c.js'), 'console.log(1)');
+    const withDashboard = createServer({ engine, dashboardDir: dir });
+    try {
+      const script = await withDashboard.inject({ url: '/_next/static/app-1a2b3c.js' });
+      expect(script.headers['cache-control']).toBe('public, max-age=31536000, immutable');
+      const page = await withDashboard.inject({ url: '/' });
+      expect(page.statusCode).toBe(200);
+      expect(page.headers['cache-control']).not.toContain('immutable');
+    } finally {
+      await withDashboard.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

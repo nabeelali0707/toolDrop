@@ -95,18 +95,27 @@ export function createServer({ engine, version = '0.0.0', dashboardDir }: Server
 
   registerSmsRoute(app, engine);
 
-  app.setErrorHandler(async (error, _request, reply) => {
-    const json = toErrorJson(error);
-    // Fastify's own client errors keep their status (400, 413, 415); ours map from the code.
-    const status =
-      !(error instanceof ToolDropError) && hasStatus(error) ? error.statusCode : STATUS[json.code];
-    return reply.code(status).send({ error: json });
-  });
+  handleErrors(app);
 
   app.get('/health', () => ({ ok: true, version }));
 
   if (dashboardDir) {
-    void app.register(fastifyStatic, { root: dashboardDir, prefix: '/', redirect: true });
+    void app.register(fastifyStatic, {
+      root: dashboardDir,
+      prefix: '/',
+      redirect: true,
+      // Next.js names the files under _next/static by their content, so a browser never needs to ask
+      // again. The pages are checked every time (they still answer 304 when unchanged).
+      cacheControl: false,
+      setHeaders: (reply, path) => {
+        reply.header(
+          'cache-control',
+          /[\\/]_next[\\/]static[\\/]/.test(path)
+            ? 'public, max-age=31536000, immutable'
+            : 'public, max-age=0, must-revalidate',
+        );
+      },
+    });
   } else {
     app.get('/', (_request, reply) =>
       reply
@@ -436,13 +445,25 @@ export function createSmsServer({ engine }: { engine: Engine }): FastifyInstance
   const app = Fastify({ logger: false });
   keepRawJson(app);
   registerSmsRoute(app, engine);
-  app.setErrorHandler(async (error, _request, reply) => {
+  handleErrors(app);
+  return app;
+}
+
+/**
+ * Answers every error as {"error": {code, message}}. An error we did not expect is
+ * answered as a plain "internal error", so its cause goes to stderr, or nobody could find it.
+ */
+function handleErrors(app: FastifyInstance): void {
+  app.setErrorHandler(async (error, request, reply) => {
     const json = toErrorJson(error);
+    if (json.code === 'internal') {
+      console.error(`toolDrop: ${request.method} ${request.url.split('?')[0]} failed:`, error);
+    }
+    // Fastify's own client errors keep their status (400, 413, 415); ours map from the code.
     const status =
       !(error instanceof ToolDropError) && hasStatus(error) ? error.statusCode : STATUS[json.code];
     return reply.code(status).send({ error: json });
   });
-  return app;
 }
 
 /**
@@ -491,7 +512,8 @@ async function authenticate(engine: Engine, request: FastifyRequest): Promise<Ke
 
 /** A list's length from ?limit=, between 1 and 200 (default 50). */
 function pageSize(limit: string | undefined): number {
-  const n = Number(limit ?? 50);
+  // An empty ?limit= is no limit given, not a limit of 0.
+  const n = Number(limit || 50);
   return Number.isInteger(n) ? Math.min(200, Math.max(1, n)) : 50;
 }
 
