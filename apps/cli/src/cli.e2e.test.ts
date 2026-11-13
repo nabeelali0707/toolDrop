@@ -134,6 +134,33 @@ describe('tooldrop CLI', { timeout: 300_000 }, () => {
     expect((await cli('run', 'nope')).stderr).toContain('no tool named nope');
   });
 
+  it('answers a name that is no command with the help and a non-zero exit, even an inherited one', async () => {
+    // "toString" and "constructor" are on every object: they used to crash with ERR_INVALID_ARG_TYPE.
+    for (const name of ['nonsense', 'toString', 'constructor', '__proto__']) {
+      const result = await cli(name);
+      expect(result.status, name).toBe(1);
+      expect(result.stdout, name).toContain('Usage: tooldrop <command>');
+      expect(result.stderr, name).not.toContain('ERR_INVALID_ARG_TYPE');
+    }
+  });
+
+  it('shows a command’s own help for --help and -h, without running it', async () => {
+    const keys = await cli('keys', '--help');
+    expect(keys.status).toBe(0);
+    expect(keys.stdout).toContain('keys create');
+    expect(keys.stdout).toContain('keys revoke <id>');
+    expect(keys.stdout).not.toContain('tools list');
+    expect(keys.stderr).toBe('');
+
+    const run = await cli('run', '-h');
+    expect(run.status).toBe(0);
+    expect(run.stdout).toContain('run <tool>');
+    // `serve --help` must show help, not start a server on port 3000.
+    const serve = await cli('serve', '--help');
+    expect(serve.status).toBe(0);
+    expect(serve.stdout).toContain('serve ');
+  });
+
   // Seven CLI processes, three of them driving a browser: slow on a busy machine.
   it('asks for approval before a write, and makes it once approved', { timeout: 300_000 }, async () => {
     await cli('tools', 'add', repo('fixtures/recipes/html-app.record_payment.json'), '--site', fixture.url);

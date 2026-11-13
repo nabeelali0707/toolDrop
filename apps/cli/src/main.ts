@@ -75,16 +75,30 @@ const COMMANDS: Record<string, (args: string[]) => Promise<number>> = {
   audit,
 };
 
+/** A command's own lines of the help ("keys create", "keys list"…), or all of it when it has none. */
+function helpFor(command: string): string {
+  const lines = HELP.split('\n').filter((line) => line.startsWith(`  ${command} `));
+  return lines.length > 0
+    ? [`toolDrop help: ${command}`, '', ...lines, '', HELP.split('\n').at(-1)].join('\n')
+    : HELP;
+}
+
 async function main(argv: string[]): Promise<number> {
   const [command, ...args] = argv;
   if (command === '--version' || command === '-v') {
     console.log(version());
     return 0;
   }
-  const handler = command ? COMMANDS[command] : undefined;
-  if (!handler) {
+  // Own commands only: a plain lookup also finds "toString" and "constructor", which crashed the exit code.
+  const handler = command !== undefined && Object.hasOwn(COMMANDS, command) ? COMMANDS[command] : undefined;
+  if (!handler || command === undefined) {
     console.log(HELP);
     return command === undefined || command === 'help' || command === '--help' || command === '-h' ? 0 : 1;
+  }
+  // Without this, `tooldrop keys --help` ends in "Unknown option '--help'" from the argument parser.
+  if (args.includes('--help') || args.includes('-h')) {
+    console.log(helpFor(command));
+    return 0;
   }
   return handler(args);
 }
