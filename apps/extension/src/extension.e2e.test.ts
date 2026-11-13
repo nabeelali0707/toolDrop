@@ -153,9 +153,33 @@ describe('the Chrome extension', () => {
     // The status becomes the tool's input; then upload and build.
     await review.locator('.input input[type=checkbox]').first().check();
     expect(await review.locator('.input input[type=text]').first().inputValue()).toBe('status');
-    await review.fill('#task', 'List supplier invoices with a given status');
-    await review.fill('#server', server);
+    const task = 'List supplier invoices with a given status';
+    await review.fill('#task', task);
     await review.fill('#key', key);
+
+    // An address that is no address says what one looks like, not just "Invalid URL".
+    await review.fill('#server', 'localhost:3000');
+    await review.click('#upload');
+    await expect.poll(() => review.textContent('#error')).toContain('must look like http://127.0.0.1:3000');
+    await review.fill('#server', server);
+
+    // Two quick clicks upload once.
+    let uploads = 0;
+    await review.route('**/v1/recordings', (route) => {
+      uploads++;
+      return route.continue();
+    });
+    await review.dblclick('#upload');
+    await expect
+      .poll(() => review.textContent('#result'), { timeout: 15_000 })
+      .toContain('Saved as recording');
+    expect(uploads).toBe(1);
+
+    // Building uses the recording as uploaded, so a change after the upload asks for a new one.
+    await review.fill('#task', 'List supplier invoices by their status');
+    await expect.poll(() => review.locator('#build').isHidden()).toBe(true);
+    expect(await review.textContent('#result')).toContain('upload it again');
+    await review.fill('#task', task);
     await review.click('#upload');
     await expect
       .poll(() => review.textContent('#result'), { timeout: 15_000 })

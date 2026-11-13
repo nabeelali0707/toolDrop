@@ -26,8 +26,35 @@ function fail(error: unknown): void {
 }
 
 /** Servers on this machine need no extra permission; the manifest already allows them. */
-function isLocal(server: string): boolean {
-  return ['127.0.0.1', 'localhost', '[::1]'].includes(new URL(server).hostname);
+function isLocal(server: URL): boolean {
+  return ['127.0.0.1', 'localhost', '[::1]'].includes(server.hostname);
+}
+
+/** The server address as a URL, or an error that says what an address looks like. */
+function serverUrl(address: string): URL {
+  const problem = new Error('The server address must look like http://127.0.0.1:3000.');
+  let url: URL;
+  try {
+    url = new URL(address);
+  } catch {
+    throw problem;
+  }
+  // "localhost:3000" is a valid URL, with the scheme "localhost:".
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw problem;
+  return url;
+}
+
+/** Runs one click's work with its button off, so a second click cannot start it twice. */
+function once(button: HTMLElement, work: () => Promise<void>): void {
+  const control = button as HTMLButtonElement;
+  if (control.disabled) return;
+  control.disabled = true;
+  show('error', '');
+  work()
+    .catch(fail)
+    .finally(() => {
+      control.disabled = false;
+    });
 }
 
 async function main(): Promise<void> {
@@ -101,9 +128,10 @@ async function main(): Promise<void> {
       apiKey: element<HTMLInputElement>('key').value.trim(),
     };
     if (!chosen.apiKey) throw new Error('Paste an API key from `tooldrop keys create` first.');
-    if (!isLocal(chosen.server)) {
+    const address = serverUrl(chosen.server);
+    if (!isLocal(address)) {
       // Asked here, on the click: Chrome only asks for permissions in answer to one.
-      const origins = [`${new URL(chosen.server).origin}/*`];
+      const origins = [`${address.origin}/*`];
       if (!(await chrome.permissions.request({ origins }))) {
         throw new Error(`toolDrop Recorder needs your permission to reach ${chosen.server}.`);
       }
@@ -113,9 +141,19 @@ async function main(): Promise<void> {
   };
 
   let uploaded: string | undefined;
-  element('upload').addEventListener('click', () => {
-    show('error', '');
-    void (async () => {
+  // Building uses the recording as uploaded. Changing an input or the task afterwards would be
+  // ignored without a word, so the person is asked to upload again first.
+  const changed = () => {
+    if (uploaded === undefined) return;
+    uploaded = undefined;
+    element('build').hidden = true;
+    show('result', 'You changed the recording after uploading it: upload it again, then build.');
+  };
+  element('inputs').addEventListener('input', changed);
+  element('task').addEventListener('input', changed);
+
+  element('upload').addEventListener('click', (event) => {
+    once(event.currentTarget as HTMLElement, async () => {
       const chosen = await currentSettings();
       const { id: saved } = await callServer<{ id: string }>(chosen, '/v1/recordings', recording());
       uploaded = saved;
@@ -125,12 +163,11 @@ async function main(): Promise<void> {
         `Saved as recording ${saved}. Build the tool now, ask your agent to build it from recording ${saved}, or run: tooldrop build ${start} --task "${task}" --recording ${saved}`,
       );
       element('build').hidden = false;
-    })().catch(fail);
+    });
   });
 
-  element('build').addEventListener('click', () => {
-    show('error', '');
-    void (async () => {
+  element('build').addEventListener('click', (event) => {
+    once(event.currentTarget as HTMLElement, async () => {
       const task = element<HTMLTextAreaElement>('task').value.trim();
       if (!task) throw new Error('Say what the tool does first, in the task box.');
       const { job } = await callServer<{ job: { id: string } }>(await currentSettings(), '/v1/builds', {
@@ -143,7 +180,7 @@ async function main(): Promise<void> {
         'result',
         `Building, as job ${job.id}. Your agent can follow it with get_job, or open /v1/jobs/${job.id}.`,
       );
-    })().catch(fail);
+    });
   });
 
   element('download').addEventListener('click', () => {
@@ -153,7 +190,8 @@ async function main(): Promise<void> {
       link.href = URL.createObjectURL(file);
       link.download = 'tooldrop-recording.json';
       link.click();
-      URL.revokeObjectURL(link.href);
+      // Not at once: revoking the URL while the download starts can cancel it.
+      setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
     } catch (error) {
       fail(error);
     }
