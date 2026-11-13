@@ -170,8 +170,16 @@ export class Watches {
         for (const listener of this.#listeners) listener(event);
         const delivery = await deliver(watch.webhook_url, event, secret, this.#options.delivery);
         // A change that was not delivered stays out of the snapshot, so the next run sends it again.
-        if (delivery.ok) applyChange(kept, change);
-        else failure ??= delivery.error;
+        if (delivery.ok) {
+          applyChange(kept, change);
+          continue;
+        }
+        failure ??= delivery.error;
+        // Tried more than once and still no answer: the receiver is down, and each change after this
+        // one would wait through the same tries (a watch with 20 changes held the scheduler, and every
+        // other due watch, for minutes). They stay out of the snapshot too, for the next run. A plain
+        // refusal (a 4xx, never retried) says nothing about the other changes, so those go on.
+        if (delivery.attempts > 1) break;
       }
       await finishWatchRun(db, watch.id, {
         ...times,

@@ -139,6 +139,43 @@ describe('watches', () => {
     expect((await engine.listWatches())[0]).toMatchObject({ last_error: null });
   }, 60_000);
 
+  it('stops at the first change when the webhook is down, and sends all of them once it is back', async () => {
+    const engine = start();
+    await engine.publish(listInvoices, fixture.url);
+    await engine.createWatch({ ...watchInvoices, webhook_url: hooks });
+    for (let row = 0; row < 3; row++) await newInvoice();
+    const keys = () => received.map((hook) => (JSON.parse(hook.body) as WatchEvent).key);
+
+    // Three tries for the first change. The other two would wait through the same tries against a
+    // receiver that is down, holding every other due watch back, so they are left for the next run.
+    answer = 503;
+    now += FIVE_MINUTES;
+    await engine.watches.tick();
+    expect(new Set(keys()).size).toBe(1);
+    expect(received).toHaveLength(3);
+
+    answer = 204;
+    received.length = 0;
+    now += FIVE_MINUTES;
+    await engine.watches.tick();
+    expect(keys().sort()).toEqual(['INV-1058', 'INV-1059', 'INV-1060']);
+    expect((await engine.listWatches())[0]).toMatchObject({ last_error: null });
+  }, 60_000);
+
+  it('goes on with the other changes when the webhook refuses one with a 4xx', async () => {
+    const engine = start();
+    await engine.publish(listInvoices, fixture.url);
+    await engine.createWatch({ ...watchInvoices, webhook_url: hooks });
+    for (let row = 0; row < 3; row++) await newInvoice();
+
+    // A refusal is not retried and says nothing about the next change: each is tried once.
+    answer = 400;
+    now += FIVE_MINUTES;
+    await engine.watches.tick();
+    expect(received).toHaveLength(3);
+    expect((await engine.listWatches())[0]).toMatchObject({ last_error: 'the webhook answered 400' });
+  }, 60_000);
+
   it('runs a due watch in one process only, when several share the database', async () => {
     const [first, second] = [start(), start()];
     await first.publish(listInvoices, fixture.url);
