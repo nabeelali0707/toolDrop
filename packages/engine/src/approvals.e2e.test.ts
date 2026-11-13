@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -97,6 +97,26 @@ describe('safe mode', () => {
     // An approval is used once.
     await expect(engine.decideApproval(id, 'approve')).rejects.toMatchObject({ code: 'conflict' });
     expect(await payments()).toHaveLength(1);
+  }, 60_000);
+
+  it('still reports a write that was made when its screenshots cannot be saved or read', async () => {
+    const { approval_id: id } = await askToPay('INV-1057', 100);
+    // The folder the pictures go in is gone, and a file sits in its place: nothing can be saved there.
+    rmSync(join(dataDir, 'approvals'), { recursive: true, force: true });
+    writeFileSync(join(dataDir, 'approvals'), 'not a folder');
+
+    // The site took the payment: the caller must hear that, not an error about a picture, or an
+    // agent that tries again makes the payment twice.
+    const decided = await engine.decideApproval(id, 'approve', ['*'], 'test');
+    expect(decided.result).toBe('Payment PAY-0001 recorded: INV-1057 is paid, 100.00 USD.');
+    expect(decided.approval).toMatchObject({
+      status: 'approved',
+      screenshots: { before: true, after: false },
+      outcome: { ok: true },
+    });
+    expect(await payments()).toHaveLength(1);
+    // A picture that cannot be read is no picture, not a server error.
+    expect(await engine.approvalScreenshot(id, 'before')).toBeUndefined();
   }, 60_000);
 
   it('leaves the site unchanged when the preview is rejected', async () => {

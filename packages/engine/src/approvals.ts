@@ -167,7 +167,13 @@ export class Approvals {
   async screenshot(id: string, which: 'before' | 'after', scopes: Scopes): Promise<Buffer | undefined> {
     const approval = await this.#find(id, scopes);
     const path = which === 'before' ? approval.screenshot_path : approval.after_screenshot_path;
-    return path ? readFileSync(join(this.#engine.dataDir, path)) : undefined;
+    if (!path) return undefined;
+    try {
+      return readFileSync(join(this.#engine.dataDir, path));
+    } catch {
+      // A picture that was deleted, or cannot be read, is no picture: the approval itself is still there.
+      return undefined;
+    }
   }
 
   /** A rule that approves a write tool's calls by itself. Only full-access keys may set one. */
@@ -256,18 +262,22 @@ export class Approvals {
     }
   }
 
-  /** Saves a screenshot next to the other captures; without a data directory, none is kept. */
+  /**
+   * Saves a screenshot next to the other captures; without a data directory, or when it cannot be
+   * written (a full disk, no permission), none is kept. A picture is evidence of the write, not the
+   * write: after the site took it, failing to keep the picture must not hide that from the caller,
+   * who would try again and make the write twice.
+   */
   #saveScreenshot(id: string, which: 'before' | 'after', png: Buffer): string | null {
-    let dataDir: string;
     try {
-      dataDir = this.#engine.dataDir;
+      const dataDir = this.#engine.dataDir;
+      const path = join('approvals', `${id}-${which}.png`);
+      mkdirSync(join(dataDir, 'approvals'), { recursive: true });
+      writeFileSync(join(dataDir, path), png);
+      return path;
     } catch {
       return null;
     }
-    const path = join('approvals', `${id}-${which}.png`);
-    mkdirSync(join(dataDir, 'approvals'), { recursive: true });
-    writeFileSync(join(dataDir, path), png);
-    return path;
   }
 }
 
