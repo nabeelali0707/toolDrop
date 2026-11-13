@@ -18,8 +18,13 @@ export class BrowserPool {
     let context = this.#contexts.get(siteKey);
     if (!context) {
       const state = this.#states.get(siteKey);
-      context = this.#launch().then((browser) => browser.newContext(state ? { storageState: state } : {}));
-      this.#contexts.set(siteKey, context);
+      const made = this.#launch().then((browser) => browser.newContext(state ? { storageState: state } : {}));
+      context = made;
+      this.#contexts.set(siteKey, made);
+      // A context that could not be made is not kept: the next call tries again.
+      made.catch(() => {
+        if (this.#contexts.get(siteKey) === made) this.#contexts.delete(siteKey);
+      });
     }
     return context;
   }
@@ -39,18 +44,37 @@ export class BrowserPool {
   async forget(siteKey: string): Promise<void> {
     const context = this.#contexts.get(siteKey);
     this.#contexts.delete(siteKey);
-    await (await context)?.close();
+    // A context that never opened has nothing to close.
+    await (await context?.catch(() => undefined))?.close();
   }
 
   async close(): Promise<void> {
     const browser = this.#browser;
     this.#browser = undefined;
     this.#contexts.clear();
-    await (await browser)?.close();
+    await (await browser?.catch(() => undefined))?.close();
   }
 
   #launch(): Promise<Browser> {
-    this.#browser ??= chromium.launch({ headless: true });
+    if (!this.#browser) {
+      const launching = chromium.launch({ headless: true });
+      this.#browser = launching;
+      launching.then(
+        (browser) =>
+          browser.on('disconnected', () => {
+            // The browser died (killed, out of memory): its contexts died with it, and the next call
+            // starts a new browser. close() has already forgotten it, so this only fires for a crash.
+            if (this.#browser !== launching) return;
+            this.#browser = undefined;
+            this.#contexts.clear();
+          }),
+        () => {
+          // Chromium would not start, e.g. it is not installed yet: the next call tries again,
+          // so installing it fixes a running server without a restart.
+          if (this.#browser === launching) this.#browser = undefined;
+        },
+      );
+    }
     return this.#browser;
   }
 }
