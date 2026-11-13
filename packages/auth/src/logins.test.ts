@@ -43,6 +43,29 @@ describe('saved logins', () => {
     });
   });
 
+  it('takes the authenticator secret as a setup page shows it, in groups', async () => {
+    const grouped = 'GEZD GNBV-GY3T QOJQ  GEZD GNBV GY3T QOJQ';
+    const view = await addLogin(handle.db, vault, {
+      site: 'http://127.0.0.1:4103',
+      username: 'grouped-user',
+      password,
+      totp_secret: grouped,
+    });
+    const { login } = await requireLogin(handle.db, view.id);
+    expect(loginSecret(vault, login.encrypted_secret).totp_secret).toBe(totpSecret);
+    expect(view.twofa).toBe('totp');
+
+    // A real mistake is still refused, and the answer still says which field, never its value.
+    const refused = await addLogin(handle.db, vault, {
+      site: 'http://127.0.0.1:4103',
+      username: 'typo-user',
+      password,
+      totp_secret: 'not a base32 secret 0189',
+    }).catch((error: unknown) => error);
+    expect(refused).toMatchObject({ code: 'invalid_input', details: { fields: ['totp_secret'] } });
+    expect(String((refused as Error).message)).not.toContain('0189');
+  });
+
   it('lists logins by site, newest first', async () => {
     await addLogin(handle.db, vault, { site: 'http://127.0.0.1:4103', username: 'fixture-user', password });
     await addLogin(handle.db, vault, {

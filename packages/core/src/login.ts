@@ -31,10 +31,17 @@ export const addLoginSchema = z.strictObject({
   label: z.string().min(1).max(100).optional(),
   /** The authenticator secret, as base32, for sites with TOTP codes. */
   totp_secret: z
-    .string()
-    .regex(/^[A-Z2-7]+=*$/i, 'a base32 secret, as an authenticator app shows it')
-    .min(16)
-    .max(128)
+    .preprocess(
+      // Setup pages and authenticator apps show the secret in groups ("JBSW Y3DP EHPK 3PXP"): the
+      // spaces and dashes between the groups are not part of it. The dashboard and the CLI already
+      // strip them; the REST API and the MCP tool, which an agent calls, did not.
+      (value) => (typeof value === 'string' ? value.replace(/[\s-]/g, '') : value),
+      z
+        .string()
+        .regex(/^[A-Z2-7]+=*$/i, 'a base32 secret, as an authenticator app shows it')
+        .min(16)
+        .max(128),
+    )
     .optional(),
   /** How codes arrive when there is no TOTP secret: "sms" from your phone's forwarder, "human" asks you each time. */
   twofa: twofaMethodSchema.optional(),
