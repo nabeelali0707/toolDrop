@@ -143,6 +143,10 @@ export function VersionDiff({ tool, from, to }: { tool: string; from: number; to
   const [texts, setTexts] = useState<{ before: string; after: string }>();
   const [error, setError] = useState<string>();
   useEffect(() => {
+    // Another pair of versions (after a rollback, the current one changes): the last pair's text must
+    // not show under the new header, and an old error must not hide the new answer.
+    setTexts(undefined);
+    setError(undefined);
     let current = true;
     const path = (version: number) => `/v1/tools/${encodeURIComponent(tool)}/versions/${version}`;
     Promise.all([

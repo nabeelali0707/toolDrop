@@ -164,4 +164,51 @@ describe('the dashboard', () => {
     expect(await page.getByText('That API key no longer works').count()).toBe(0);
     await page.close();
   }, 60_000);
+
+  it('keeps following a discovery after one status check failed', async () => {
+    const { page } = await openPage();
+    let refused = 0;
+    await page.route('**/v1/jobs/*', (route) => {
+      if (route.request().method() !== 'GET' || refused > 0) return route.continue();
+      refused++;
+      return route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: { code: 'internal', message: 'a hiccup' } }),
+      });
+    });
+    await page.getByLabel('Site address').fill(fixture.url);
+    await page.getByRole('button', { name: 'Discover' }).click();
+    // The first check failed, and the card went on looking: it reaches the end, and the hiccup is gone.
+    await page.getByTestId('discover').getByText('no model is configured').waitFor();
+    expect(refused).toBe(1);
+    expect(await page.getByText('a hiccup').count()).toBe(0);
+    expect(await page.getByRole('button', { name: 'Discover' }).isEnabled()).toBe(true);
+    await page.close();
+  }, 60_000);
+
+  it('compares the versions again after a rollback, even when the first comparison failed to load', async () => {
+    const { page } = await openPage();
+    await page.getByRole('link', { name: 'search_invoices' }).click();
+    await page.getByRole('heading', { name: 'search_invoices' }).waitFor();
+    let refused = 0;
+    await page.route('**/versions/*', (route) => {
+      if (refused > 0) return route.continue();
+      refused++;
+      return route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: { code: 'internal', message: 'a hiccup' } }),
+      });
+    });
+    await page.getByRole('button', { name: 'Compare with v2' }).click();
+    await page.getByText('a hiccup').waitFor();
+
+    // Rolling back to v1 makes v1 the current version: the open comparison is v1 against v1.
+    await page.getByRole('button', { name: 'Roll back' }).click();
+    await page.getByRole('button', { name: 'Confirm roll back to v1' }).click();
+    await page.getByTestId('version-diff').getByText('the recipes are the same').waitFor();
+    expect(await page.getByText('a hiccup').count()).toBe(0);
+    await page.close();
+  }, 60_000);
 });

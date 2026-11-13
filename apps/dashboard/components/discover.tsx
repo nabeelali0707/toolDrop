@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
-import { api, message } from '../lib/api';
+import { api, ApiError, message } from '../lib/api';
 import type { JobView } from '../lib/types';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -28,18 +28,30 @@ export function Discover() {
   const [job, setJob] = useState<JobView>();
   const [error, setError] = useState<string>();
   const [built, setBuilt] = useState<Record<string, string>>({});
+  // Proposals whose build is being started, so a second click cannot start it twice.
+  const [starting, setStarting] = useState<Record<string, true>>({});
+  // Bumped to look again after a poll failed.
+  const [retry, setRetry] = useState(0);
 
   // Follows the job until it ends.
   useEffect(() => {
     if (!job || !['queued', 'running', 'waiting_for_answer'].includes(job.status)) return;
     const timer = setTimeout(() => {
       api<{ job: JobView }>(`/v1/jobs/${job.id}`).then(
-        (answer) => setJob(answer.job),
-        (failure: unknown) => setError(message(failure)),
+        (answer) => {
+          setError(undefined);
+          setJob(answer.job);
+        },
+        (failure: unknown) => {
+          setError(message(failure));
+          // A blip (the network, a 500) must not leave the card waiting for good; a refusal (the job
+          // is gone, the key is not allowed) will not get better by asking again.
+          if (!(failure instanceof ApiError) || failure.status >= 500) setRetry((count) => count + 1);
+        },
       );
     }, 1000);
     return () => clearTimeout(timer);
-  }, [job]);
+  }, [job, retry]);
 
   async function start(event: FormEvent): Promise<void> {
     event.preventDefault();
@@ -53,6 +65,8 @@ export function Discover() {
   }
 
   async function build(proposal: Proposal): Promise<void> {
+    if (starting[proposal.name]) return;
+    setStarting((current) => ({ ...current, [proposal.name]: true }));
     try {
       const answer = await api<{ job: JobView }>('/v1/builds', {
         method: 'POST',
@@ -61,6 +75,8 @@ export function Discover() {
       setBuilt((current) => ({ ...current, [proposal.name]: answer.job.id }));
     } catch (failure) {
       setError(message(failure));
+    } finally {
+      setStarting(({ [proposal.name]: _done, ...rest }) => rest);
     }
   }
 
@@ -136,7 +152,11 @@ export function Discover() {
                       A write: record it once with tooldrop record, then build it from the recording.
                     </span>
                   ) : (
-                    <Button variant="outline" onClick={() => void build(proposal)}>
+                    <Button
+                      variant="outline"
+                      disabled={starting[proposal.name] === true}
+                      onClick={() => void build(proposal)}
+                    >
                       Build {proposal.name}
                     </Button>
                   )}
