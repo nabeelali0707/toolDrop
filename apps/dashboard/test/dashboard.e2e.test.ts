@@ -147,4 +147,21 @@ describe('the dashboard', () => {
     await page.getByTestId('audit-log').getByText('POST /v1/approvals/:id').waitFor();
     expect(errors).toEqual([]);
   }, 120_000);
+
+  it('goes back to the sign-in page, with the reason, when the saved key no longer works', async () => {
+    const page = await browser.newPage();
+    // A key that was saved, then revoked: the server refuses it.
+    await page.addInitScript(() => localStorage.setItem('tooldrop.apiKey', 'td_revoked_key'));
+    await page.goto(`${base}/`);
+    await page.getByRole('alert').getByText('That API key no longer works. Paste a new one.').waitFor();
+    expect(await page.evaluate(() => localStorage.getItem('tooldrop.apiKey'))).toBeNull();
+
+    // The notice clears once a working key is entered, and the header shows who signed in.
+    await page.getByLabel('API key').fill(key);
+    await page.getByRole('button', { name: 'Open the dashboard' }).click();
+    await page.getByRole('heading', { name: 'Tools', exact: true }).waitFor();
+    await page.getByTestId('signed-in-as').waitFor();
+    expect(await page.getByText('That API key no longer works').count()).toBe(0);
+    await page.close();
+  }, 60_000);
 });

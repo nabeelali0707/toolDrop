@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { api, message, savedKey, saveKey } from '../lib/api';
+import { api, ApiError, message, savedKey, saveKey } from '../lib/api';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
 import { Input, Label } from './ui/input';
@@ -22,15 +22,42 @@ export function Shell({ children }: { children: ReactNode }) {
   // Undefined until the browser has been asked: the static page renders nothing before that.
   const [key, setKey] = useState<string | null>();
   const [me, setMe] = useState<{ by: string; role: string }>();
+  const [notice, setNotice] = useState<string>();
   const path = usePathname();
   useEffect(() => setKey(savedKey()), []);
   // Who is signed in, so the header says it and offers what the role allows (D-057).
   useEffect(() => {
+    // Whoever was signed in before must not show, or keep their links, while this key is checked.
+    setMe(undefined);
     if (!key) return;
-    api<{ by: string; role: string }>('/v1/me').then(setMe, () => setMe(undefined));
+    let current = true;
+    api<{ by: string; role: string }>('/v1/me').then(
+      (who) => current && setMe(who),
+      (failure: unknown) => {
+        // A key that was revoked since it was saved gets every page refused: ask for a new one.
+        if (current && failure instanceof ApiError && failure.status === 401) {
+          saveKey(null);
+          setNotice('That API key no longer works. Paste a new one.');
+          setKey(null);
+        }
+      },
+    );
+    return () => {
+      current = false;
+    };
   }, [key]);
   if (key === undefined) return null;
-  if (!key) return <SignIn onSignedIn={setKey} />;
+  if (!key) {
+    return (
+      <SignIn
+        notice={notice}
+        onSignedIn={(signedInKey) => {
+          setNotice(undefined);
+          setKey(signedInKey);
+        }}
+      />
+    );
+  }
   return (
     <div className="min-h-screen">
       <header className="border-b border-slate-200 dark:border-slate-700">
@@ -71,19 +98,24 @@ export function Shell({ children }: { children: ReactNode }) {
   );
 }
 
-function SignIn({ onSignedIn }: { onSignedIn: (key: string) => void }) {
+function SignIn({ onSignedIn, notice }: { onSignedIn: (key: string) => void; notice?: string | undefined }) {
   const [value, setValue] = useState('');
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<string | undefined>(notice);
+  const [checking, setChecking] = useState(false);
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
+    if (checking) return;
     const key = value.trim();
+    setChecking(true);
+    setError(undefined);
     try {
       await api('/v1/tools', { key });
       saveKey(key);
       onSignedIn(key);
     } catch (failure) {
       setError(message(failure));
+      setChecking(false);
     }
   }
 
@@ -103,8 +135,8 @@ function SignIn({ onSignedIn }: { onSignedIn: (key: string) => void }) {
           value={value}
           onChange={(event) => setValue(event.target.value)}
         />
-        <Button type="submit" className="mt-4" disabled={value.trim() === ''}>
-          Open the dashboard
+        <Button type="submit" className="mt-4" disabled={checking || value.trim() === ''}>
+          {checking ? 'Checking…' : 'Open the dashboard'}
         </Button>
       </form>
       {error && (
