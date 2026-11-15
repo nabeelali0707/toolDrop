@@ -23,6 +23,6 @@
     "@tooldrop/server": "workspace:*",
     "@types/chrome": "0.3.7",
     "playwright": "^1.64.1",
-    "vite": "^8.3.5"
+    "vite": "^8.3.8"
   }
 }
