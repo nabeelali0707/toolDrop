@@ -19,7 +19,7 @@
     "got-scraping": "^4.2.2",
     "jsonpath-plus": "^11.2.2",
     "playwright": "^1.64.1",
-    "tough-cookie": "^6.0.2"
+    "tough-cookie": "^6.1.0"
   },
   "devDependencies": {
     "@tooldrop/fixture-demo-shop": "workspace:*",
