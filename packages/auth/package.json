@@ -15,7 +15,7 @@
     "@napi-rs/keyring": "^2.1.2",
     "@tooldrop/core": "workspace:*",
     "@tooldrop/db": "workspace:*",
-    "imapflow": "2.10.2",
+    "imapflow": "2.11.0",
     "libsodium-wrappers": "^0.8.4",
     "mailparser": "3.14.2",
     "otplib": "^13.6.0",
