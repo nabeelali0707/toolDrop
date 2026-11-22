@@ -34,13 +34,13 @@
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "cross-env": "^10.1.0",
-    "eslint": "^10.14.0",
+    "eslint": "^10.15.0",
     "globals": "^17.14.0",
-    "prettier": "^3.9.10",
-    "turbo": "^2.11.10",
+    "prettier": "^3.10.1",
+    "turbo": "^2.11.13",
     "typescript": "~6.0.3",
-    "typescript-eslint": "8.72.0",
-    "vitest": "^5.1.0",
+    "typescript-eslint": "8.73.0",
+    "vitest": "^5.1.1",
     "zod": "^4.6.7"
   },
   "dependencies": {
