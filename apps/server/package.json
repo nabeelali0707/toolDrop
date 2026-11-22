@@ -33,6 +33,6 @@
     "@tooldrop/runtime": "workspace:*",
     "hoodiecrow-imap": "3.3.1",
     "imapflow": "2.10.2",
-    "playwright": "^1.64.1"
+    "playwright": "^1.65.1"
   }
 }
